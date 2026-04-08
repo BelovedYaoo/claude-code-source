@@ -11,7 +11,7 @@
   "scripts": {
     "dev": "bun --watch src/entrypoints/dev-cli.tsx",
     "start": "bun src/entrypoints/dev-cli.tsx",
-    "start:home": "env CLAUDE_CONFIG_DIR=\"$HOME/.claude\" bun src/entrypoints/dev-cli.tsx",
+    "start:home": "cross-env CLAUDE_CONFIG_DIR=$HOME/.claude bun src/entrypoints/dev-cli.tsx",
     "mcp": "bun src/entrypoints/dev-mcp.ts"
   },
   "dependencies": {
@@ -64,6 +64,7 @@
     "cli-highlight": "^2.1.11",
     "code-excerpt": "^4.0.0",
     "commander": "^14.0.3",
+    "cross-env": "^10.1.0",
     "diff": "^8.0.4",
     "emoji-regex": "^10.6.0",
     "env-paths": "^4.0.0",

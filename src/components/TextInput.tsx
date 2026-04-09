@@ -1,7 +1,5 @@
-import { feature } from 'bun:bundle';
 import chalk from 'chalk';
-import React, { useMemo, useRef } from 'react';
-import { useVoiceState } from '../context/voice.js';
+import React, { useMemo } from 'react';
 import { useClipboardImageHint } from '../hooks/useClipboardImageHint.js';
 import { useSettings } from '../hooks/useSettings.js';
 import { useTextInput } from '../hooks/useTextInput.js';
@@ -40,55 +38,15 @@ export default function TextInput(props: Props): React.ReactNode {
   // Hoisted to mount-time — this component re-renders on every keystroke.
   const accessibilityEnabled = useMemo(() => isEnvTruthy(process.env.CLAUDE_CODE_ACCESSIBILITY), []);
   const settings = useSettings();
-  const reducedMotion = settings.prefersReducedMotion ?? false;
-  const voiceState = feature('VOICE_MODE') ?
-  // biome-ignore lint/correctness/useHookAtTopLevel: feature() is a compile-time constant
-  useVoiceState(s => s.voiceState) : 'idle' as const;
-  const isVoiceRecording = voiceState === 'recording';
-  const audioLevels: number[] = feature('VOICE_MODE') ?
-  // biome-ignore lint/correctness/useHookAtTopLevel: feature() is a compile-time constant
-  useVoiceState(s_0 => s_0.voiceAudioLevels) as number[] : [];
-  const smoothedRef = useRef<number[]>(new Array(CURSOR_WAVEFORM_WIDTH).fill(0));
-  const needsAnimation = isVoiceRecording && !reducedMotion;
-  const [animRef, animTime] = feature('VOICE_MODE') ?
-  // biome-ignore lint/correctness/useHookAtTopLevel: feature() is a compile-time constant
-  useAnimationFrame(needsAnimation ? 50 : null) : [() => {}, 0];
+  void settings;
+  const isVoiceRecording = false;
+  const animRef = () => {};
 
   // Show hint when terminal regains focus and clipboard has an image
   useClipboardImageHint(isTerminalFocused, !!props.onImagePaste);
 
-  // Cursor invert function: mini waveform during voice recording,
-  // standard chalk.inverse otherwise. No warmup pulse — the ~120ms
-  // warmup window is too short for a 1s-period pulse to register, and
-  // driving TextInput re-renders at 50ms during warmup (while spaces
-  // are simultaneously arriving every 30-80ms) causes visible stutter.
   const canShowCursor = isTerminalFocused && !accessibilityEnabled;
-  let invert: (text: string) => string;
-  if (!canShowCursor) {
-    invert = (text: string) => text;
-  } else if (isVoiceRecording && !reducedMotion) {
-    // Single-bar waveform from the latest audio level
-    const smoothed = smoothedRef.current;
-    const raw = audioLevels.length > 0 ? audioLevels[audioLevels.length - 1] ?? 0 : 0;
-    const target = Math.min(raw * LEVEL_BOOST, 1);
-    smoothed[0] = (smoothed[0] ?? 0) * SMOOTH + target * (1 - SMOOTH);
-    const displayLevel = smoothed[0] ?? 0;
-    const barIndex = Math.max(1, Math.min(Math.round(displayLevel * (BARS.length - 1)), BARS.length - 1));
-    const isSilent = raw < SILENCE_THRESHOLD;
-    const hue = animTime / 1000 * 90 % 360;
-    const {
-      r,
-      g,
-      b
-    } = isSilent ? {
-      r: 128,
-      g: 128,
-      b: 128
-    } : hueToRgb(hue);
-    invert = () => chalk.rgb(r, g, b)(BARS[barIndex]!);
-  } else {
-    invert = chalk.inverse;
-  }
+  const invert: (text: string) => string = canShowCursor ? chalk.inverse : (text: string) => text;
   const textInputState = useTextInput({
     value: props.value,
     onChange: props.onChange,

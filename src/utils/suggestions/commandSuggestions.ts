@@ -386,7 +386,7 @@ export function generateCommandSuggestions(
   // Fuse results so exact-name always wins over weak description fuzzy
   // matches — but only when no visible command shares the name (that would
   // be the user's explicit override and should win). Prepend rather than
-  // early-return so visible prefix siblings (e.g. /voice-memo) still appear
+  // early-return so visible prefix siblings still appear
   // below, and getBestCommandMatch can still find a non-empty suffix.
   let hiddenExact = commands.find(
     cmd => cmd.isHidden && getCommandName(cmd).toLowerCase() === query,

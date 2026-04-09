@@ -71,8 +71,6 @@ export async function submitTranscriptShare(
 
     const content = redactSensitiveInfo(jsonStringify(data))
 
-    await checkAndRefreshOAuthTokenIfNeeded()
-
     const authResult = getAuthHeaders()
     if (authResult.error) {
       return { success: false }

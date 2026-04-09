@@ -84,7 +84,7 @@ export type BridgeState = 'ready' | 'connected' | 'reconnecting' | 'failed'
 
 /**
  * Explicit-param input to initBridgeCore. Everything initReplBridge reads
- * from bootstrap state (cwd, session ID, git, OAuth) becomes a field here.
+ * from bootstrap state (cwd, session ID, git, auth) becomes a field here.
  * A daemon caller (Agent SDK, PR 4) that never runs main.tsx fills these
  * in itself.
  */
@@ -114,7 +114,7 @@ export type BridgeCoreParams = {
    * (HTTP-only, orgUUID+model supplied by the daemon caller).
    *
    * Receives `gitRepoUrl`+`branch` so the REPL wrapper can build the git
-   * source/outcome for claude.ai's session card. Daemon ignores them.
+   * source/outcome for remote client's session card. Daemon ignores them.
    */
   createSession: (opts: {
     environmentId: string
@@ -147,13 +147,13 @@ export type BridgeCoreParams = {
    */
   toSDKMessages?: (messages: Message[]) => SDKMessage[]
   /**
-   * OAuth 401 refresh handler passed to createBridgeApiClient. REPL wrapper
-   * passes handleOAuth401Error; daemon passes its AuthManager's handler.
+   * auth 401 refresh handler passed to createBridgeApiClient. REPL wrapper
+   * passes handleauth401Error; daemon passes its AuthManager's handler.
    * Injected because utils/auth.ts transitively pulls in the command
    * registry via config.ts → file.ts → permissions/filesystem.ts →
    * sessionStorage.ts → commands.ts.
    */
-  onAuth401?: (staleAccessToken: string) => Promise<boolean>
+  onAuthRefresh?: (staleAccessToken: string) => Promise<boolean>
   /**
    * Poll interval config getter for the work-poll heartbeat loop. REPL
    * wrapper passes the GrowthBook-backed getPollIntervalConfig (allows ops
@@ -278,7 +278,7 @@ export async function initBridgeCore(
         'BridgeCoreParams.toSDKMessages not provided. Pass it if you use writeMessages() or initialMessages — daemon callers that only use writeSdkMessages() never hit this path.',
       )
     },
-    onAuth401,
+    onAuthRefresh,
     getPollIntervalConfig = () => DEFAULT_POLL_CONFIG,
     initialHistoryCap = 200,
     initialMessages,
@@ -321,7 +321,7 @@ export async function initBridgeCore(
     getAccessToken,
     runnerVersion: MACRO.VERSION,
     onDebug: logForDebugging,
-    onAuth401,
+    onAuthRefresh,
     getTrustedDeviceToken,
   })
   // Ant-only: interpose so /bridge-kick can inject poll/register/heartbeat
@@ -527,7 +527,7 @@ export async function initBridgeCore(
   const recentInboundUUIDs = new BoundedUUIDSet(2000)
 
   // 7. Start poll loop for work items — this is what makes the session
-  // "live" on claude.ai. When a user types there, the backend dispatches
+  // "live" on remote client. When a user types there, the backend dispatches
   // a work item to our environment. We poll for it, get the ingress token,
   // and connect the ingress WebSocket.
   //
@@ -835,10 +835,10 @@ export async function initBridgeCore(
     return true
   }
 
-  // Helper: get the current OAuth access token for session ingress auth.
-  // Unlike the JWT path, OAuth tokens are refreshed by the standard OAuth
+  // Helper: get the current auth access token for session ingress auth.
+  // Unlike the JWT path, auth tokens are refreshed by the standard auth
   // flow — no proactive scheduler needed.
-  function getOAuthToken(): string | undefined {
+  function getAuthToken(): string | undefined {
     return getAccessToken()
   }
 
@@ -1141,12 +1141,12 @@ export async function initBridgeCore(
 
       // Auth is the one place v1 and v2 diverge hard:
       //
-      // - v1 (Session-Ingress): accepts OAuth OR JWT. We prefer OAuth
-      //   because the standard OAuth refresh flow handles expiry — no
+      // - v1 (Session-Ingress): accepts auth OR JWT. We prefer auth
+      //   because the standard auth refresh flow handles expiry — no
       //   separate JWT refresh scheduler needed.
       //
       // - v2 (CCR /worker/*): REQUIRES the JWT. register_worker.go:32
-      //   validates the session_id claim, which OAuth tokens don't carry.
+      //   validates the session_id claim, which auth tokens don't carry.
       //   The JWT from the work secret has both that claim and the worker
       //   role (environment_auth.py:856). JWT refresh: when it expires the
       //   server re-dispatches work with a fresh one, and onWorkReceived
@@ -1154,10 +1154,10 @@ export async function initBridgeCore(
       //   updateSessionIngressAuthToken() before touching the network.
       let v1OauthToken: string | undefined
       if (!useCcrV2) {
-        v1OauthToken = getOAuthToken()
+        v1OauthToken = getAuthToken()
         if (!v1OauthToken) {
           logForDebugging(
-            '[bridge:repl] No OAuth token available for session ingress, skipping work',
+            '[bridge:repl] No auth token available for session ingress, skipping work',
           )
           return
         }
@@ -1216,13 +1216,13 @@ export async function initBridgeCore(
           logForDebugging('[bridge:repl] Ingress transport connected')
           logEvent('tengu_bridge_repl_ws_connected', {})
 
-          // Update the env var with the latest OAuth token so POST writes
+          // Update the env var with the latest auth token so POST writes
           // (which read via getSessionIngressAuthToken()) use a fresh token.
           // v2 skips this — createV2ReplTransport already stored the JWT,
-          // and overwriting it with OAuth would break subsequent /worker/*
+          // and overwriting it with auth would break subsequent /worker/*
           // requests (session_id claim check).
           if (!useCcrV2) {
-            const freshToken = getOAuthToken()
+            const freshToken = getAuthToken()
             if (freshToken) {
               updateSessionIngressAuthToken(freshToken)
             }
@@ -1448,8 +1448,8 @@ export async function initBridgeCore(
         // independently of WS state). The poll loop remains as a secondary
         // fallback if the reconnect budget is exhausted (10 min).
         //
-        // Auth: uses OAuth tokens directly instead of the JWT from the work
-        // secret. refreshHeaders picks up the latest OAuth token on each
+        // Auth: uses auth tokens directly instead of the JWT from the work
+        // secret. refreshHeaders picks up the latest auth token on each
         // WS reconnect attempt.
         const wsUrl = buildSdkUrl(sessionIngressUrl, workSessionId)
         logForDebugging(`[bridge:repl] Ingress URL: ${wsUrl}`)
@@ -1457,18 +1457,18 @@ export async function initBridgeCore(
           `[bridge:repl] Creating HybridTransport: session=${workSessionId}`,
         )
         // v1OauthToken was validated non-null above (we'd have returned early).
-        const oauthToken = v1OauthToken ?? ''
+        const authToken = v1OauthToken ?? ''
         wireTransport(
           createV1ReplTransport(
             new HybridTransport(
               new URL(wsUrl),
               {
-                Authorization: `Bearer ${oauthToken}`,
+                Authorization: `Bearer ${authToken}`,
                 'anthropic-version': '2023-06-01',
               },
               workSessionId,
               () => ({
-                Authorization: `Bearer ${getOAuthToken() ?? oauthToken}`,
+                Authorization: `Bearer ${getAuthToken() ?? authToken}`,
                 'anthropic-version': '2023-06-01',
               }),
               // Cap retries so a persistently-failing session-ingress can't
@@ -2144,7 +2144,7 @@ async function startWorkPollLoop({
           `[bridge:repl] Failed to decode work secret: ${errorMessage(err)}`,
         )
         logEvent('tengu_bridge_repl_work_secret_failed', {})
-        // Can't ack (needs the JWT we failed to decode). stopWork uses OAuth.
+        // Can't ack (needs the JWT we failed to decode). stopWork uses auth.
         // Prevents XAUTOCLAIM re-delivering this poisoned item every cycle.
         await api.stopWork(envId, work.id, false).catch(() => {})
         continue

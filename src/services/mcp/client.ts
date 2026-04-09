@@ -139,7 +139,7 @@ import type {
 
 /**
  * Custom error class to indicate that an MCP tool call failed due to
- * authentication issues (e.g., expired OAuth token returning 401).
+ * authentication issues (e.g., expired auth token returning 401).
  * This error should be caught at the tool execution layer to update
  * the client's status to 'needs-auth'.
  */
@@ -344,7 +344,7 @@ function handleRemoteAuthFailure(
   const label: Record<typeof transportType, string> = {
     sse: 'SSE',
     http: 'HTTP',
-    'claudeai-proxy': 'claude.ai proxy',
+    'claudeai-proxy': 'remote client proxy',
   }
   logMCPDebug(
     name,
@@ -355,12 +355,12 @@ function handleRemoteAuthFailure(
 }
 
 /**
- * Fetch wrapper for claude.ai proxy connections. Attaches the OAuth bearer
- * token and retries once on 401 via handleOAuth401Error (force-refresh).
+ * Fetch wrapper for remote client proxy connections. Attaches the auth bearer
+ * token and retries once on 401 via handleauth401Error (force-refresh).
  *
  * The Anthropic API path has this retry (withRetry.ts, grove.ts) to handle
  * memoize-cache staleness and clock drift. Without the same here, a single
- * stale token mass-401s every claude.ai connector and sticks them all in the
+ * stale token mass-401s every remote client connector and sticks them all in the
  * 15-min needs-auth cache.
  */
 export function createClaudeAiProxyFetch(_innerFetch: FetchLike): FetchLike {
@@ -442,7 +442,7 @@ export function wrapFetchWithTimeout(baseFetch: FetchLike): FetchLike {
     const method = (init?.method ?? 'GET').toUpperCase()
 
     // Skip timeout for GET requests - in MCP transports, these are long-lived SSE streams.
-    // (OAuth discovery GETs in auth.ts use a separate createAuthFetch() with its own timeout.)
+    // (auth discovery GETs in auth.ts use a separate createAuthFetch() with its own timeout.)
     if (method === 'GET') {
       return baseFetch(url, init)
     }
@@ -752,12 +752,12 @@ export const connectToServer = memoize(
         // Get combined headers (static + dynamic)
         const combinedHeaders = await getMcpServerHeaders(name, serverRef)
 
-        // Check if this server has stored OAuth tokens. If so, the SDK's
+        // Check if this server has stored auth tokens. If so, the SDK's
         // authProvider will set Authorization — don't override with the
         // session ingress token (SDK merges requestInit AFTER authProvider).
-        // CCR proxy URLs (ccr_shttp_mcp) have no stored OAuth, so they still
+        // CCR proxy URLs (ccr_shttp_mcp) have no stored auth, so they still
         // get the ingress token. See PR #24454 discussion.
-        const hasOAuthTokens = !!(await authProvider.tokens())
+        const hasauthTokens = !!(await authProvider.tokens())
 
         // Use the auth provider with StreamableHTTPClientTransport
         const proxyOptions = getProxyFetchOptions()
@@ -779,7 +779,7 @@ export const connectToServer = memoize(
             headers: {
               'User-Agent': getMCPUserAgent(),
               ...(sessionIngressToken &&
-                !hasOAuthTokens && {
+                !hasauthTokens && {
                   Authorization: `Bearer ${sessionIngressToken}`,
                 }),
               ...combinedHeaders,
@@ -2037,7 +2037,7 @@ export async function reconnectMcpServerImpl(
   try {
     // Invalidate the keychain cache so we read fresh credentials from disk.
     // This is necessary when another process (e.g. the VS Code extension host)
-    // has modified stored tokens (cleared auth, saved new OAuth tokens) and then
+    // has modified stored tokens (cleared auth, saved new auth tokens) and then
     // asks the CLI subprocess to reconnect.  Without this, the subprocess would
     // use stale cached data and never notice the tokens were removed.
     clearKeychainCache()
@@ -2190,7 +2190,7 @@ export async function getMcpToolsCommandsAndResources(
       // or that we have probed before but hold no token for. The second
       // check closes the gap the TTL leaves open: without it, every 15min
       // we re-probe servers that cannot succeed until the user runs /mcp.
-      // Each probe is a network round-trip for connect-401 plus OAuth
+      // Each probe is a network round-trip for connect-401 plus auth
       // discovery, and print mode awaits the whole batch (main.tsx:3503).
       if (
         (config.type === 'http' || config.type === 'sse') &&
@@ -3073,7 +3073,7 @@ async function callMCPTool({
       )
     }
 
-    // Check for 401 errors indicating expired/invalid OAuth tokens
+    // Check for 401 errors indicating expired/invalid auth tokens
     // The MCP SDK's StreamableHTTPError has a `code` property with the HTTP status
     if (e instanceof Error) {
       const errorCode = 'code' in e ? (e.code as number | undefined) : undefined

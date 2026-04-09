@@ -143,7 +143,7 @@ export function createChromeContext(
           return getGlobalConfig().oauthAccount?.accountUuid
         },
         getOAuthToken: async () => {
-          return getClaudeAIOAuthTokens()?.accessToken ?? ''
+          return ''
         },
         ...(isLocalBridge() && { devUserId: 'dev_user_local' }),
       },

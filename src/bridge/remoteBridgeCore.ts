@@ -11,8 +11,8 @@
  * to the session-ingress layer without the Environments API work-dispatch
  * layer:
  *
- *   1. POST /v1/code/sessions              (OAuth, no env_id)  → session.id
- *   2. POST /v1/code/sessions/{id}/bridge  (OAuth)             → {worker_jwt, expires_in, api_base_url, worker_epoch}
+ *   1. POST /v1/code/sessions              (auth, no env_id)  → session.id
+ *   2. POST /v1/code/sessions/{id}/bridge  (auth)             → {worker_jwt, expires_in, api_base_url, worker_epoch}
  *      Each /bridge call bumps epoch — it IS the register. No separate /worker/register.
  *   3. createV2ReplTransport(worker_jwt, worker_epoch)         → SSE + CCRClient
  *   4. createTokenRefreshScheduler                             → proactive /bridge re-call (new JWT + new epoch)
@@ -22,7 +22,7 @@
  * The Environments API historically existed because CCR's /worker/*
  * endpoints required a session_id+role=worker JWT that only the work-dispatch
  * layer could mint. Server PR #292605 (renamed in #293280) adds the /bridge endpoint as a direct
- * OAuth→worker_jwt exchange, making the env layer optional for REPL sessions.
+ * auth→worker_jwt exchange, making the env layer optional for REPL sessions.
  *
  * Gated by `tengu_bridge_repl_v2` GrowthBook flag in initReplBridge.ts.
  * REPL-only — daemon/print stay on env-based.
@@ -91,7 +91,7 @@ export type EnvLessBridgeParams = {
   orgUUID: string
   title: string
   getAccessToken: () => string | undefined
-  onAuth401?: (staleAccessToken: string) => Promise<boolean>
+  onAuthRefresh?: (staleAccessToken: string) => Promise<boolean>
   /**
    * Converts internal Message[] → SDKMessage[] for writeMessages() and the
    * initial-flush/drain paths. Injected rather than imported — mappers.ts
@@ -145,7 +145,7 @@ export async function initEnvLessBridgeCore(
     orgUUID,
     title,
     getAccessToken,
-    onAuth401,
+    onAuthRefresh,
     toSDKMessages,
     initialHistoryCap,
     initialMessages,
@@ -166,7 +166,7 @@ export async function initEnvLessBridgeCore(
   // ── 1. Create session (POST /v1/code/sessions, no env_id) ───────────────
   const accessToken = getAccessToken()
   if (!accessToken) {
-    logForDebugging('[remote-bridge] No OAuth token')
+    logForDebugging('[remote-bridge] No auth token')
     return null
   }
 
@@ -310,22 +310,22 @@ export async function initEnvLessBridgeCore(
 
   // ── 5. JWT refresh scheduler ────────────────────────────────────────────
   // Schedule a callback 5min before expiry (per response.expires_in). On fire,
-  // re-fetch /bridge with OAuth → rebuild transport with fresh credentials.
+  // re-fetch /bridge with auth → rebuild transport with fresh credentials.
   // Each /bridge call bumps epoch server-side, so a JWT-only swap would leave
   // the old CCRClient heartbeating with a stale epoch → 409 within 20s.
   // JWT is opaque — do not decode.
   const refresh = createTokenRefreshScheduler({
     refreshBufferMs: cfg.token_refresh_buffer_ms,
     getAccessToken: async () => {
-      // Unconditionally refresh OAuth before calling /bridge — getAccessToken()
+      // Unconditionally refresh auth before calling /bridge — getAccessToken()
       // returns expired tokens as non-null strings (doesn't check expiresAt),
-      // so truthiness doesn't mean valid. Pass the stale token to onAuth401
-      // so handleOAuth401Error's keychain-comparison can detect parallel refresh.
+      // so truthiness doesn't mean valid. Pass the stale token to onAuthRefresh
+      // so handleauth401Error's keychain-comparison can detect parallel refresh.
       const stale = getAccessToken()
-      if (onAuth401) await onAuth401(stale ?? '')
+      if (onAuthRefresh) await onAuthRefresh(stale ?? '')
       return getAccessToken() ?? stale
     },
-    onRefresh: (sid, oauthToken) => {
+    onRefresh: (sid, authToken) => {
       void (async () => {
         // Laptop wake: overdue proactive timer + SSE 401 fire ~simultaneously.
         // Claim the flag BEFORE the /bridge fetch so the other path skips
@@ -344,7 +344,7 @@ export async function initEnvLessBridgeCore(
               fetchRemoteCredentials(
                 sid,
                 baseUrl,
-                oauthToken,
+                authToken,
                 cfg.http_timeout_ms,
               ),
             'fetchRemoteCredentials (proactive)',
@@ -526,7 +526,7 @@ export async function initEnvLessBridgeCore(
     }
   }
 
-  // ── 8. 401 recovery (OAuth refresh + rebuild) ───────────────────────────
+  // ── 8. 401 recovery (auth refresh + rebuild) ───────────────────────────
   async function recoverFromAuthFailure(): Promise<void> {
     // setOnClose already guards `!authRecoveryInFlight` but that check and
     // this set must be atomic against onRefresh — claim synchronously before
@@ -536,16 +536,16 @@ export async function initEnvLessBridgeCore(
     onStateChange?.('reconnecting', 'JWT expired — refreshing')
     logForDebugging('[remote-bridge] 401 on SSE — attempting JWT refresh')
     try {
-      // Unconditionally try OAuth refresh — getAccessToken() returns expired
-      // tokens as non-null strings, so !oauthToken doesn't catch expiry.
-      // Pass the stale token so handleOAuth401Error's keychain-comparison
+      // Unconditionally try auth refresh — getAccessToken() returns expired
+      // tokens as non-null strings, so !authToken doesn't catch expiry.
+      // Pass the stale token so handleauth401Error's keychain-comparison
       // can detect if another tab already refreshed.
       const stale = getAccessToken()
-      if (onAuth401) await onAuth401(stale ?? '')
-      const oauthToken = getAccessToken() ?? stale
-      if (!oauthToken || tornDown) {
+      if (onAuthRefresh) await onAuthRefresh(stale ?? '')
+      const authToken = getAccessToken() ?? stale
+      if (!authToken || tornDown) {
         if (!tornDown) {
-          onStateChange?.('failed', 'JWT refresh failed: no OAuth token')
+          onStateChange?.('failed', 'JWT refresh failed: no auth token')
         }
         return
       }
@@ -555,7 +555,7 @@ export async function initEnvLessBridgeCore(
           fetchRemoteCredentials(
             sessionId,
             baseUrl,
-            oauthToken,
+            authToken,
             cfg.http_timeout_ms,
           ),
         'fetchRemoteCredentials (recovery)',
@@ -688,15 +688,15 @@ export async function initEnvLessBridgeCore(
 
     // Token is usually fresh (refresh scheduler runs 5min before expiry) but
     // laptop-wake past the refresh window leaves getAccessToken() returning a
-    // stale string. Retry once on 401 — onAuth401 (= handleOAuth401Error)
+    // stale string. Retry once on 401 — onAuthRefresh (= handleauth401Error)
     // clears keychain cache + force-refreshes. No proactive refresh on the
-    // happy path: handleOAuth401Error force-refreshes even valid tokens,
+    // happy path: handleauth401Error force-refreshes even valid tokens,
     // which would waste budget 99% of the time. try/catch mirrors
     // recoverFromAuthFailure: keychain reads can throw (macOS locked after
     // wake); an uncaught throw here would skip transport.close + telemetry.
-    if (status === 401 && onAuth401) {
+    if (status === 401 && onAuthRefresh) {
       try {
-        await onAuth401(token ?? '')
+        await onAuthRefresh(token ?? '')
         token = getAccessToken()
         status = await archiveSession(
           sessionId,

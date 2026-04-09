@@ -14,7 +14,7 @@ type BridgeApiDeps = {
   getAccessToken: () => string | undefined
   runnerVersion: string
   onDebug?: (msg: string) => void
-  onAuth401?: (staleAccessToken: string) => Promise<boolean>
+  onAuthRefresh?: (staleAccessToken: string) => Promise<boolean>
   /**
    * Returns the trusted device token to send as X-Trusted-Device-Token on
    * bridge API calls. Bridge sessions have SecurityTier=ELEVATED on the
@@ -102,13 +102,13 @@ export function createBridgeApiClient(deps: BridgeApiDeps): BridgeApiClient {
       return response
     }
 
-    if (!deps.onAuth401) {
+    if (!deps.onAuthRefresh) {
       debug(`[bridge:api] ${context}: 401 received, no refresh handler`)
       return response
     }
 
     debug(`[bridge:api] ${context}: 401 received, attempting retry handler`)
-    const refreshed = await deps.onAuth401(accessToken)
+    const refreshed = await deps.onAuthRefresh(accessToken)
     if (refreshed) {
       debug(`[bridge:api] ${context}: Retry handler succeeded, retrying request`)
       const newToken = resolveAuth()

@@ -334,14 +334,12 @@ export function registerScheduleRemoteAgentsSkill(): void {
       isPolicyAllowed('allow_remote_sessions'),
     allowedTools: [REMOTE_TRIGGER_TOOL_NAME, ASK_USER_QUESTION_TOOL_NAME],
     async getPromptForCommand(args: string, context: ToolUseContext) {
-      if (!getClaudeAIOAuthTokens()?.accessToken) {
-        return [
-          {
-            type: 'text',
-            text: 'Scheduling remote agents is unavailable in API-only mode.',
-          },
-        ]
-      }
+      return [
+        {
+          type: 'text',
+          text: 'Scheduling remote agents is unavailable in API-only mode.',
+        },
+      ]
 
       let environments: EnvironmentResource[]
       try {

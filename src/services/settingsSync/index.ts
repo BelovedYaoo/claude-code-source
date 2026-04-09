@@ -15,15 +15,7 @@ import { mkdir, readFile, stat, writeFile } from 'fs/promises'
 import pickBy from 'lodash-es/pickBy.js'
 import { dirname } from 'path'
 import { getIsInteractive } from '../../bootstrap/state.js'
-import {
-  CLAUDE_AI_INFERENCE_SCOPE,
-  getOauthConfig,
-  OAUTH_BETA_HEADER,
-} from '../../constants/oauth.js'
-import {
-  checkAndRefreshOAuthTokenIfNeeded,
-  getClaudeAIOAuthTokens,
-} from '../../utils/auth.js'
+import { getAnthropicApiKeyWithSource } from '../../utils/auth.js'
 import { clearMemoryFileCaches } from '../../utils/claudemd.js'
 import { getMemoryPath } from '../../utils/config.js'
 import { logForDiagnosticsNoPII } from '../../utils/diagLogs.js'
@@ -66,7 +58,7 @@ export async function uploadUserSettingsInBackground(): Promise<void> {
         false,
       ) ||
       !getIsInteractive() ||
-      !isUsingOAuth()
+      !hasSettingsSyncAuth()
     ) {
       logForDiagnosticsNoPII('info', 'settings_sync_upload_skipped')
       logEvent('tengu_settings_sync_upload_skipped_ineligible', {})
@@ -161,7 +153,7 @@ async function doDownloadUserSettings(
     try {
       if (
         !getFeatureValue_CACHED_MAY_BE_STALE('tengu_strap_foyer', false) ||
-        !isUsingOAuth()
+        !hasSettingsSyncAuth()
       ) {
         logForDiagnosticsNoPII('info', 'settings_sync_download_skipped')
         logEvent('tengu_settings_sync_download_skipped', {})
@@ -209,45 +201,52 @@ async function doDownloadUserSettings(
  * hardcodes scopes to ['user:inference'] only, so requiring profile would make
  * download a no-op there. Upload is independently guarded by getIsInteractive().
  */
-function isUsingOAuth(): boolean {
+function hasSettingsSyncAuth(): boolean {
   if (getAPIProvider() !== 'firstParty' || !isFirstPartyAnthropicBaseUrl()) {
     return false
   }
 
-  const tokens = getClaudeAIOAuthTokens()
-  return Boolean(
-    tokens?.accessToken && tokens.scopes?.includes(CLAUDE_AI_INFERENCE_SCOPE),
-  )
+  try {
+    const { key: apiKey } = getAnthropicApiKeyWithSource({
+      skipRetrievingKeyFromApiKeyHelper: true,
+    })
+    return Boolean(apiKey)
+  } catch {
+    return false
+  }
 }
 
 function getSettingsSyncEndpoint(): string {
-  return `${getOauthConfig().BASE_API_URL}/api/claude_code/user_settings`
+  return `${process.env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com'}/api/claude_code/user_settings`
 }
 
 function getSettingsSyncAuthHeaders(): {
   headers: Record<string, string>
   error?: string
 } {
-  const oauthTokens = getClaudeAIOAuthTokens()
-  if (oauthTokens?.accessToken) {
-    return {
-      headers: {
-        Authorization: `Bearer ${oauthTokens.accessToken}`,
-        'anthropic-beta': OAUTH_BETA_HEADER,
-      },
+  try {
+    const { key: apiKey } = getAnthropicApiKeyWithSource({
+      skipRetrievingKeyFromApiKeyHelper: true,
+    })
+    if (apiKey) {
+      return {
+        headers: {
+          'x-api-key': apiKey,
+        },
+      }
     }
+  } catch {
+    // ignore
   }
 
   return {
     headers: {},
-    error: 'No OAuth token available',
+    error: 'No API key available',
   }
 }
 
 async function fetchUserSettingsOnce(): Promise<SettingsSyncFetchResult> {
   try {
-    await checkAndRefreshOAuthTokenIfNeeded()
-
     const authHeaders = getSettingsSyncAuthHeaders()
     if (authHeaders.error) {
       return {
@@ -348,8 +347,6 @@ async function uploadUserSettings(
   entries: Record<string, string>,
 ): Promise<SettingsSyncUploadResult> {
   try {
-    await checkAndRefreshOAuthTokenIfNeeded()
-
     const authHeaders = getSettingsSyncAuthHeaders()
     if (authHeaders.error) {
       return {

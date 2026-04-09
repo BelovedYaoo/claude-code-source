@@ -1,13 +1,11 @@
 import { c as _c } from "react/compiler-runtime";
-import React, { useCallback, useEffect, useState } from 'react';
-import { checkIsGitClean, checkNeedsClaudeAiLogin } from 'src/utils/background/remote/preconditions.js';
+import React, { useEffect, useState } from 'react';
+import { checkIsGitClean, checkRemoteUnavailableInApiMode } from 'src/utils/background/remote/preconditions.js';
 import { gracefulShutdownSync } from 'src/utils/gracefulShutdown.js';
 import { Box, Text } from '../ink.js';
-import { ConsoleOAuthFlow } from './ConsoleOAuthFlow.js';
-import { Select } from './CustomSelect/index.js';
 import { Dialog } from './design-system/Dialog.js';
 import { TeleportStash } from './TeleportStash.js';
-export type TeleportLocalErrorType = 'needsLogin' | 'needsGitStash';
+export type TeleportLocalErrorType = 'remoteUnavailable' | 'needsGitStash';
 type TeleportErrorProps = {
   onComplete: () => void;
   errorsToIgnore?: ReadonlySet<TeleportLocalErrorType>;
@@ -19,14 +17,13 @@ type TeleportErrorProps = {
 // re-fire on every render.
 const EMPTY_ERRORS_TO_IGNORE: ReadonlySet<TeleportLocalErrorType> = new Set();
 export function TeleportError(t0) {
-  const $ = _c(18);
+  const $ = _c(14);
   const {
     onComplete,
     errorsToIgnore: t1
   } = t0;
   const errorsToIgnore = t1 === undefined ? EMPTY_ERRORS_TO_IGNORE : t1;
   const [currentError, setCurrentError] = useState(null);
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
   let t2;
   if ($[0] !== errorsToIgnore || $[1] !== onComplete) {
     t2 = async () => {
@@ -36,8 +33,8 @@ export function TeleportError(t0) {
         onComplete();
         return;
       }
-      if (filteredErrors.has("needsLogin")) {
-        setCurrentError("needsLogin");
+      if (filteredErrors.has("remoteUnavailable")) {
+        setCurrentError("remoteUnavailable");
       } else {
         if (filteredErrors.has("needsGitStash")) {
           setCurrentError("needsGitStash");
@@ -70,7 +67,6 @@ export function TeleportError(t0) {
   let t5;
   if ($[6] !== checkErrors) {
     t5 = () => {
-      setIsLoggingIn(false);
       checkErrors();
     };
     $[6] = checkErrors;
@@ -78,92 +74,40 @@ export function TeleportError(t0) {
   } else {
     t5 = $[7];
   }
-  const handleLoginComplete = t5;
-  let t6;
-  if ($[8] === Symbol.for("react.memo_cache_sentinel")) {
-    t6 = () => {
-      setIsLoggingIn(true);
-    };
-    $[8] = t6;
-  } else {
-    t6 = $[8];
-  }
-  const handleLoginWithClaudeAI = t6;
-  let t7;
-  if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
-    t7 = value => {
-      if (value === "login") {
-        handleLoginWithClaudeAI();
-      } else {
-        onCancel();
-      }
-    };
-    $[9] = t7;
-  } else {
-    t7 = $[9];
-  }
-  const handleLoginDialogSelect = t7;
-  let t8;
-  if ($[10] !== checkErrors) {
-    t8 = () => {
-      checkErrors();
-    };
-    $[10] = checkErrors;
-    $[11] = t8;
-  } else {
-    t8 = $[11];
-  }
-  const handleStashComplete = t8;
+  const handleStashComplete = t5;
   if (!currentError) {
     return null;
   }
   switch (currentError) {
     case "needsGitStash":
       {
-        let t9;
-        if ($[12] !== handleStashComplete) {
-          t9 = <TeleportStash onStashAndContinue={handleStashComplete} onCancel={onCancel} />;
-          $[12] = handleStashComplete;
-          $[13] = t9;
+        let t6;
+        if ($[8] !== handleStashComplete) {
+          t6 = <TeleportStash onStashAndContinue={handleStashComplete} onCancel={onCancel} />;
+          $[8] = handleStashComplete;
+          $[9] = t6;
         } else {
-          t9 = $[13];
+          t6 = $[9];
         }
-        return t9;
+        return t6;
       }
-    case "needsLogin":
+    case "remoteUnavailable":
       {
-        if (isLoggingIn) {
-          let t9;
-          if ($[14] !== handleLoginComplete) {
-            t9 = <ConsoleOAuthFlow onDone={handleLoginComplete} mode="login" forceLoginMethod="claudeai" />;
-            $[14] = handleLoginComplete;
-            $[15] = t9;
-          } else {
-            t9 = $[15];
-          }
-          return t9;
-        }
-        let t9;
-        if ($[16] === Symbol.for("react.memo_cache_sentinel")) {
-          t9 = <Box flexDirection="column"><Text dimColor={true}>Teleport requires a Claude.ai account.</Text><Text dimColor={true}>Your Claude Pro/Max subscription will be used by Claude Code.</Text></Box>;
-          $[16] = t9;
+        let t6;
+        if ($[10] === Symbol.for("react.memo_cache_sentinel")) {
+          t6 = <Box flexDirection="column" gap={1}><Text>Teleport is unavailable in API-only mode.</Text><Text dimColor={true}>Use ANTHROPIC_API_KEY, configure apiKeyHelper, or use a supported third-party provider.</Text></Box>;
+          $[10] = t6;
         } else {
-          t9 = $[16];
+          t6 = $[10];
         }
-        let t10;
-        if ($[17] === Symbol.for("react.memo_cache_sentinel")) {
-          t10 = <Dialog title="Log in to Claude" onCancel={onCancel}>{t9}<Select options={[{
-              label: "Login with Claude account",
-              value: "login"
-            }, {
-              label: "Exit",
-              value: "exit"
-            }]} onChange={handleLoginDialogSelect} /></Dialog>;
-          $[17] = t10;
+        let t7;
+        if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
+          t7 = <Dialog title="Teleport unavailable" onCancel={onCancel}>{t6}</Dialog>;
+          $[11] = t7;
         } else {
-          t10 = $[17];
+          t7 = $[11];
         }
-        return t10;
+        return t7;
       }
   }
 }
@@ -177,9 +121,9 @@ function _temp() {
 }
 export async function getTeleportErrors(): Promise<Set<TeleportLocalErrorType>> {
   const errors = new Set<TeleportLocalErrorType>();
-  const [needsLogin, isGitClean] = await Promise.all([checkNeedsClaudeAiLogin(), checkIsGitClean()]);
-  if (needsLogin) {
-    errors.add('needsLogin');
+  const [remoteUnavailable, isGitClean] = await Promise.all([checkRemoteUnavailableInApiMode(), checkIsGitClean()]);
+  if (remoteUnavailable) {
+    errors.add('remoteUnavailable');
   }
   if (!isGitClean) {
     errors.add('needsGitStash');

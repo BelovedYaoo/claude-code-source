@@ -7,13 +7,6 @@
  */
 import { getMainLoopModelOverride } from '../../bootstrap/state.js'
 import {
-  getSubscriptionType,
-  isClaudeAISubscriber,
-  isMaxSubscriber,
-  isProSubscriber,
-  isTeamPremiumSubscriber,
-} from '../auth.js'
-import {
   has1mContext,
   is1mContextDisabled,
   modelSupports1M,
@@ -30,7 +23,7 @@ import { type ModelAlias, isModelAlias } from './aliases.js'
 import { capitalize } from '../stringUtils.js'
 
 // Stubs for ant-only functions (dead-code-eliminated but still type-checked)
-declare function resolveAntModel(model: string): any
+declare function resolveAntModel(model: string): { model: string } | undefined
 declare function getAntModelOverrideConfig(): { defaultModel?: string; defaultSystemPromptSuffix?: string } | undefined
 
 export type ModelShortName = string
@@ -188,18 +181,6 @@ export function getDefaultMainLoopModelSetting(): ModelName | ModelAlias {
     )
   }
 
-  // Max users get Opus as default
-  if (isMaxSubscriber()) {
-    return getDefaultOpusModel() + (isOpus1mMergeEnabled() ? '[1m]' : '')
-  }
-
-  // Team Premium gets Opus (same as Max)
-  if (isTeamPremiumSubscriber()) {
-    return getDefaultOpusModel() + (isOpus1mMergeEnabled() ? '[1m]' : '')
-  }
-
-  // PAYG (1P and 3P), Enterprise, Team Standard, and Pro get Sonnet as default
-  // Note that PAYG (3P) may default to an older Sonnet model
   return getDefaultSonnetModel()
 }
 
@@ -288,14 +269,8 @@ export function getCanonicalName(fullModelName: ModelName): ModelShortName {
 
 // @[MODEL LAUNCH]: Update the default model description strings shown to users.
 export function getClaudeAiUserDefaultModelDescription(
-  fastMode = false,
+  _fastMode = false,
 ): string {
-  if (isMaxSubscriber() || isTeamPremiumSubscriber()) {
-    if (isOpus1mMergeEnabled()) {
-      return `Opus 4.6 with 1M context · Most capable for complex work${fastMode ? getOpus46PricingSuffix(true) : ''}`
-    }
-    return `Opus 4.6 · Most capable for complex work${fastMode ? getOpus46PricingSuffix(true) : ''}`
-  }
   return 'Sonnet 4.6 · Best for everyday tasks'
 }
 
@@ -316,23 +291,7 @@ export function getOpus46PricingSuffix(fastMode: boolean): string {
 }
 
 export function isOpus1mMergeEnabled(): boolean {
-  if (
-    is1mContextDisabled() ||
-    isProSubscriber() ||
-    getAPIProvider() !== 'firstParty'
-  ) {
-    return false
-  }
-  // Fail closed when a subscriber's subscription type is unknown. The VS Code
-  // config-loading subprocess can have OAuth tokens with valid scopes but no
-  // subscriptionType field (stale or partial refresh). Without this guard,
-  // isProSubscriber() returns false for such users and the merge leaks
-  // opus[1m] into the model dropdown — the API then rejects it with a
-  // misleading "rate limit reached" error.
-  if (isClaudeAISubscriber() && getSubscriptionType() === null) {
-    return false
-  }
-  return true
+  return !is1mContextDisabled() && getAPIProvider() === 'firstParty'
 }
 
 export function renderModelSetting(setting: ModelName | ModelAlias): string {
@@ -561,10 +520,8 @@ export function modelDisplayString(model: ModelSetting): string {
   if (model === null) {
     if (process.env.USER_TYPE === 'ant') {
       return `Default for Ants (${renderDefaultModelSetting(getDefaultMainLoopModelSetting())})`
-    } else if (isClaudeAISubscriber()) {
-      return `Default (${getClaudeAiUserDefaultModelDescription()})`
     }
-    return `Default (${getDefaultMainLoopModel()})`
+    return `Default (${renderDefaultModelSetting(getDefaultMainLoopModelSetting())})`
   }
   const resolvedModel = parseUserSpecifiedModel(model)
   return model === resolvedModel ? resolvedModel : `${model} (${resolvedModel})`

@@ -20,7 +20,7 @@ export interface State {
   useExistingSecret: boolean
   workflowExists: boolean
   selectedWorkflows: Workflow[]
-  selectedApiKeyOption: 'existing' | 'new' | 'oauth'
+  selectedApiKeyOption: 'existing' | 'new'
   authType: string
   workflowAction?: 'install' | 'update' | 'skip'
   error?: string

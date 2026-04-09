@@ -14,14 +14,6 @@ type BridgeApiDeps = {
   getAccessToken: () => string | undefined
   runnerVersion: string
   onDebug?: (msg: string) => void
-  /**
-   * Called on 401 to attempt OAuth token refresh. Returns true if refreshed,
-   * in which case the request is retried once. Injected because
-   * handleOAuth401Error from utils/auth.ts transitively pulls in config.ts →
-   * file.ts → permissions/filesystem.ts → sessionStorage.ts → commands.ts
-   * (~1300 modules). Daemon callers using env-var tokens omit this — their
-   * tokens don't refresh, so 401 goes straight to BridgeFatalError.
-   */
   onAuth401?: (staleAccessToken: string) => Promise<boolean>
   /**
    * Returns the trusted device token to send as X-Trusted-Device-Token on
@@ -97,13 +89,9 @@ export function createBridgeApiClient(deps: BridgeApiDeps): BridgeApiClient {
   }
 
   /**
-   * Execute an OAuth-authenticated request with a single retry on 401.
-   * On 401, attempts token refresh via handleOAuth401Error (same pattern as
-   * withRetry.ts for v1/messages). If refresh succeeds, retries the request
-   * once with the new token. If refresh fails or the retry also returns 401,
-   * the 401 response is returned for handleErrorStatus to throw BridgeFatalError.
+   * Execute an authenticated request with a single optional retry on 401.
    */
-  async function withOAuthRetry<T>(
+  async function withAuthRetry<T>(
     fn: (accessToken: string) => Promise<{ status: number; data: T }>,
     context: string,
   ): Promise<{ status: number; data: T }> {
@@ -119,11 +107,10 @@ export function createBridgeApiClient(deps: BridgeApiDeps): BridgeApiClient {
       return response
     }
 
-    // Attempt token refresh — matches the pattern in withRetry.ts
-    debug(`[bridge:api] ${context}: 401 received, attempting token refresh`)
+    debug(`[bridge:api] ${context}: 401 received, attempting retry handler`)
     const refreshed = await deps.onAuth401(accessToken)
     if (refreshed) {
-      debug(`[bridge:api] ${context}: Token refreshed, retrying request`)
+      debug(`[bridge:api] ${context}: Retry handler succeeded, retrying request`)
       const newToken = resolveAuth()
       const retryResponse = await fn(newToken)
       if (retryResponse.status !== 401) {
@@ -131,7 +118,7 @@ export function createBridgeApiClient(deps: BridgeApiDeps): BridgeApiClient {
       }
       debug(`[bridge:api] ${context}: Retry after refresh also got 401`)
     } else {
-      debug(`[bridge:api] ${context}: Token refresh failed`)
+      debug(`[bridge:api] ${context}: Retry handler failed`)
     }
 
     // Refresh failed — return 401 for handleErrorStatus to throw
@@ -146,7 +133,7 @@ export function createBridgeApiClient(deps: BridgeApiDeps): BridgeApiClient {
         `[bridge:api] POST /v1/environments/bridge bridgeId=${config.bridgeId}`,
       )
 
-      const response = await withOAuthRetry(
+      const response = await withAuthRetry(
         (token: string) =>
           axios.post<{
             environment_id: string
@@ -280,7 +267,7 @@ export function createBridgeApiClient(deps: BridgeApiDeps): BridgeApiClient {
 
       debug(`[bridge:api] POST .../work/${workId}/stop force=${force}`)
 
-      const response = await withOAuthRetry(
+      const response = await withAuthRetry(
         (token: string) =>
           axios.post(
             `${deps.baseUrl}/v1/environments/${environmentId}/work/${workId}/stop`,
@@ -303,7 +290,7 @@ export function createBridgeApiClient(deps: BridgeApiDeps): BridgeApiClient {
 
       debug(`[bridge:api] DELETE /v1/environments/bridge/${environmentId}`)
 
-      const response = await withOAuthRetry(
+      const response = await withAuthRetry(
         (token: string) =>
           axios.delete(
             `${deps.baseUrl}/v1/environments/bridge/${environmentId}`,
@@ -327,7 +314,7 @@ export function createBridgeApiClient(deps: BridgeApiDeps): BridgeApiClient {
 
       debug(`[bridge:api] POST /v1/sessions/${sessionId}/archive`)
 
-      const response = await withOAuthRetry(
+      const response = await withAuthRetry(
         (token: string) =>
           axios.post(
             `${deps.baseUrl}/v1/sessions/${sessionId}/archive`,
@@ -366,7 +353,7 @@ export function createBridgeApiClient(deps: BridgeApiDeps): BridgeApiClient {
         `[bridge:api] POST /v1/environments/${environmentId}/bridge/reconnect session_id=${sessionId}`,
       )
 
-      const response = await withOAuthRetry(
+      const response = await withAuthRetry(
         (token: string) =>
           axios.post(
             `${deps.baseUrl}/v1/environments/${environmentId}/bridge/reconnect`,

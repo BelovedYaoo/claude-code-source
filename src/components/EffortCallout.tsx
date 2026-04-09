@@ -1,7 +1,6 @@
 import { c as _c } from "react/compiler-runtime";
 import React, { useCallback, useEffect, useRef } from 'react';
 import { Box, Text } from '../ink.js';
-import { isMaxSubscriber, isProSubscriber, isTeamSubscriber } from '../utils/auth.js';
 import { getGlobalConfig, saveGlobalConfig } from '../utils/config.js';
 import type { EffortLevel } from '../utils/effort.js';
 import { convertEffortValueToLevel, getDefaultEffortForModel, getOpusDefaultEffortConfig, toPersistableEffort } from '../utils/effort.js';
@@ -217,39 +216,10 @@ function EffortOptionLabel(t0) {
  * - Everyone else: mark as dismissed so it never shows
  */
 export function shouldShowEffortCallout(model: string): boolean {
-  // Only show for Opus 4.6 for now
   const parsed = parseUserSpecifiedModel(model);
   if (!parsed.toLowerCase().includes('opus-4-6')) {
     return false;
   }
-  const config = getGlobalConfig();
-  if (config.effortCalloutV2Dismissed) return false;
-
-  // Don't show to brand-new users — they never knew the old default, so this
-  // isn't a change for them. Mark as dismissed so it stays suppressed.
-  if (config.numStartups <= 1) {
-    markV2Dismissed();
-    return false;
-  }
-
-  // Pro users already had medium default before this PR. Show the new copy,
-  // but skip if they already saw the v1 dialog — no point nagging twice.
-  if (isProSubscriber()) {
-    if (config.effortCalloutDismissed) {
-      markV2Dismissed();
-      return false;
-    }
-    return getOpusDefaultEffortConfig().enabled;
-  }
-
-  // Max/Team are the target of the tengu_grey_step2 config.
-  // Don't mark dismissed when config is disabled — they should see the dialog
-  // once it's enabled for them.
-  if (isMaxSubscriber() || isTeamSubscriber()) {
-    return getOpusDefaultEffortConfig().enabled;
-  }
-
-  // Everyone else (free tier, API key, non-subscribers): not in scope.
   markV2Dismissed();
   return false;
 }

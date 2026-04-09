@@ -356,7 +356,7 @@ export async function getTeleportEvents(
     if (response.status === 401) {
       logForDiagnosticsNoPII('error', 'teleport_events_bad_token')
       throw new Error(
-        'Your session has expired. Please run /login to sign in again.',
+        'Your session has expired. Refresh your credentials and try again.',
       )
     }
 
@@ -464,7 +464,7 @@ async function fetchSessionLogsFromUrl(
       logForDebugging('Auth token expired or invalid')
       logForDiagnosticsNoPII('error', 'session_get_fail_bad_token')
       throw new Error(
-        'Your session has expired. Please run /login to sign in again.',
+        'Your session has expired. Refresh your credentials and try again.',
       )
     }
 

@@ -26,7 +26,6 @@ import mapValues from 'lodash-es/mapValues.js';
 import pickBy from 'lodash-es/pickBy.js';
 import uniqBy from 'lodash-es/uniqBy.js';
 import React from 'react';
-import { getOauthConfig } from './constants/oauth.js';
 import { getRemoteSessionUrl } from './constants/product.js';
 import { getSystemContext, getUserContext } from './context.js';
 import { init, initializeTelemetryAfterTrust } from './entrypoints/init.js';
@@ -36,7 +35,6 @@ import { launchRepl } from './replLauncher.js';
 import { hasGrowthBookEnvOverride, initializeGrowthBook, refreshGrowthBookAfterAuthChange } from './services/analytics/growthbook.js';
 import { fetchBootstrapData } from './services/api/bootstrap.js';
 import { type DownloadResult, downloadSessionFiles, type FilesApiConfig, parseFileSpecs } from './services/api/filesApi.js';
-import { prefetchPassesEligibility } from './services/api/referral.js';
 import { prefetchOfficialMcpUrls } from './services/mcp/officialRegistry.js';
 import type { McpSdkServerConfig, McpServerConfig, ScopedMcpServerConfig } from './services/mcp/types.js';
 import { isPolicyAllowed, loadPolicyLimits, refreshPolicyLimits, waitForPolicyLimitsToLoad } from './services/policyLimits/index.js';
@@ -48,7 +46,7 @@ import { canUserConfigureAdvisor, getInitialAdvisorSetting, isAdvisorEnabled, is
 import { isAgentSwarmsEnabled } from './utils/agentSwarmsEnabled.js';
 import { count, uniq } from './utils/array.js';
 import { installAsciicastRecorder } from './utils/asciicast.js';
-import { getSubscriptionType, isClaudeAISubscriber, prefetchAwsCredentialsAndBedRockInfoIfSafe, prefetchGcpCredentialsIfSafe, validateForceLoginOrg } from './utils/auth.js';
+import { prefetchAwsCredentialsAndBedRockInfoIfSafe, prefetchGcpCredentialsIfSafe } from './utils/auth.js';
 import { checkHasTrustDialogAccepted, getGlobalConfig, getRemoteControlAtStartup, isAutoUpdaterDisabled, saveGlobalConfig } from './utils/config.js';
 import { seedEarlyInput, stopCapturingEarlyInput } from './utils/earlyInput.js';
 import { getInitialEffortSetting, parseEffortValue } from './utils/effort.js';
@@ -141,7 +139,6 @@ import { validateUuid } from './utils/uuid.js';
 import { registerMcpAddCommand } from 'src/commands/mcp/addCommand.js';
 import { registerMcpXaaIdpCommand } from 'src/commands/mcp/xaaIdpCommand.js';
 import { logPermissionContextForAnts } from 'src/services/internalLogging.js';
-import { fetchClaudeAIMcpConfigsIfEligible } from 'src/services/mcp/claudeai.js';
 import { clearServerCache } from 'src/services/mcp/client.js';
 import { areMcpConfigsAllowedWithEnterpriseMcpConfig, dedupClaudeAiMcpServers, doesEnterpriseMcpConfigExist, filterMcpServersByPolicy, getClaudeCodeMcpConfigs, getMcpServerSignature, parseMcpConfig, parseMcpConfigFromFilePath } from 'src/services/mcp/config.js';
 import { excludeCommandsByServer, excludeResourcesByServer } from 'src/services/mcp/utils.js';
@@ -800,7 +797,15 @@ export async function main() {
   const hasPrintFlag = cliArgs.includes('-p') || cliArgs.includes('--print');
   const hasInitOnlyFlag = cliArgs.includes('--init-only');
   const hasSdkUrl = cliArgs.some(arg => arg.startsWith('--sdk-url'));
-  const isNonInteractive = hasPrintFlag || hasInitOnlyFlag || hasSdkUrl || !process.stdout.isTTY;
+  const hasTerminalEnv =
+    Boolean(process.env.WT_SESSION) ||
+    Boolean(process.env.TERM) ||
+    Boolean(process.env.MSYSTEM) ||
+    Boolean(process.env.TERM_PROGRAM);
+  const isInteractiveStdout =
+    process.stdout.isTTY === true ||
+    (process.stdout.isTTY === undefined && hasTerminalEnv && !isEnvTruthy(process.env.CI));
+  const isNonInteractive = hasPrintFlag || hasInitOnlyFlag || hasSdkUrl || !isInteractiveStdout;
 
   // Stop capturing early input for non-interactive modes
   if (isNonInteractive) {
@@ -1055,38 +1060,6 @@ async function run(): Promise<CommanderCommand> {
       // entitlement — don't make the child re-check tengu_kairos.
       assistantModule.markAssistantForced();
     }
-    if (feature('KAIROS') && assistantModule?.isAssistantMode() &&
-    // Spawned teammates share the leader's cwd + settings.json, so
-    // isAssistantMode() is true for them too. --agent-id being set
-    // means we ARE a spawned teammate (extractTeammateOptions runs
-    // ~170 lines later so check the raw commander option) — don't
-    // re-init the team or override teammateMode/proactive/brief.
-    !(options as {
-      agentId?: unknown;
-    }).agentId && kairosGate) {
-      if (!checkHasTrustDialogAccepted()) {
-        // biome-ignore lint/suspicious/noConsole:: intentional console output
-        console.warn(chalk.yellow('Assistant mode disabled: directory is not trusted. Accept the trust dialog and restart.'));
-      } else {
-        // Blocking gate check — returns cached `true` instantly; if disk
-        // cache is false/missing, lazily inits GrowthBook and fetches fresh
-        // (max ~5s). --assistant skips the gate entirely (daemon is
-        // pre-entitled).
-        kairosEnabled = assistantModule.isAssistantForced() || (await kairosGate.isKairosEnabled());
-        if (kairosEnabled) {
-          const opts = options as {
-            brief?: boolean;
-          };
-          opts.brief = true;
-          setKairosActive(true);
-          // Pre-seed an in-process team so Agent(name: "foo") spawns
-          // teammates without TeamCreate. Must run BEFORE setup() captures
-          // the teammateMode snapshot (initializeAssistantTeam calls
-          // setCliTeammateModeOverride internally).
-          assistantTeamContext = await assistantModule.initializeAssistantTeam();
-        }
-      }
-    }
     const {
       debug = false,
       debugToStderr = false,
@@ -1317,10 +1290,13 @@ async function run(): Promise<CommanderCommand> {
       const fileSessionId = process.env.CLAUDE_CODE_REMOTE_SESSION_ID || getSessionId();
       const files = parseFileSpecs(fileSpecs);
       if (files.length > 0) {
-        // Use ANTHROPIC_BASE_URL if set (by EnvManager), otherwise use OAuth config
-        // This ensures consistency with session ingress API in all environments
+        const baseUrl = process.env.ANTHROPIC_BASE_URL;
+        if (!baseUrl) {
+          process.stderr.write(chalk.red('Error: ANTHROPIC_BASE_URL must be set for file downloads.\n'));
+          process.exit(1);
+        }
         const config: FilesApiConfig = {
-          baseUrl: process.env.ANTHROPIC_BASE_URL || getOauthConfig().BASE_API_URL,
+          baseUrl,
           oauthToken: sessionToken,
           sessionId: fileSessionId
         };
@@ -1522,13 +1498,11 @@ async function run(): Promise<CommanderCommand> {
       }
     }
 
-    // Extract Claude in Chrome option and enforce claude.ai subscriber check (unless user is ant)
     const chromeOpts = options as {
       chrome?: boolean;
     };
-    // Store the explicit CLI flag so teammates can inherit it
     setChromeFlagOverride(chromeOpts.chrome);
-    const enableClaudeInChrome = shouldEnableClaudeInChrome(chromeOpts.chrome) && (("external" as string) === 'ant' || isClaudeAISubscriber());
+    const enableClaudeInChrome = false;
     const autoEnableClaudeInChrome = !enableClaudeInChrome && shouldAutoEnableClaudeInChrome();
     if (enableClaudeInChrome) {
       const platform = getPlatform();
@@ -1781,20 +1755,7 @@ async function run(): Promise<CommanderCommand> {
     // two-phase loading). Kicked off here to overlap with setup(); awaited
     // before runHeadless so single-turn -p sees connectors. Skipped under
     // enterprise/strict MCP to preserve policy boundaries.
-    const claudeaiConfigPromise: Promise<Record<string, ScopedMcpServerConfig>> = isNonInteractiveSession && !strictMcpConfig && !doesEnterpriseMcpConfigExist() &&
-    // --bare / SIMPLE: skip claude.ai proxy servers (datadog, Gmail,
-    // Slack, BigQuery, PubMed — 6-14s each to connect). Scripted calls
-    // that need MCP pass --mcp-config explicitly.
-    !isBareMode() ? fetchClaudeAIMcpConfigsIfEligible().then(configs => {
-      const {
-        allowed,
-        blocked
-      } = filterMcpServersByPolicy(configs);
-      if (blocked.length > 0) {
-        process.stderr.write(`Warning: claude.ai MCP ${plural(blocked.length, 'server')} blocked by enterprise policy: ${blocked.join(', ')}\n`);
-      }
-      return allowed;
-    }) : Promise.resolve({});
+    const claudeaiConfigPromise: Promise<Record<string, ScopedMcpServerConfig>> = Promise.resolve({});
 
     // Kick off MCP config loading early (safe - just reads files, no execution).
     // Both interactive and -p use getClaudeCodeMcpConfigs (local file reads only).
@@ -2272,36 +2233,11 @@ async function run(): Promise<CommanderCommand> {
         agentDef.pendingSnapshotUpdate = undefined;
       }
 
-      // Skip executing /login if we just completed onboarding for it
-      if (onboardingShown && prompt?.trim().toLowerCase() === '/login') {
-        prompt = '';
-      }
       if (onboardingShown) {
-        // Refresh auth-dependent services now that the user has logged in during onboarding.
-        // Keep in sync with the post-login logic in src/commands/login.tsx
         void refreshRemoteManagedSettings();
         void refreshPolicyLimits();
-        // Clear user data cache BEFORE GrowthBook refresh so it picks up fresh credentials
         resetUserCache();
-        // Refresh GrowthBook after login to get updated feature flags (e.g., for claude.ai MCPs)
         refreshGrowthBookAfterAuthChange();
-        // Clear any stale trusted device token then enroll for Remote Control.
-        // Both self-gate on tengu_sessions_elevated_auth_enforcement internally
-        // — enrollTrustedDevice() via checkGate_CACHED_OR_BLOCKING (awaits
-        // the GrowthBook reinit above), clearTrustedDeviceToken() via the
-        // sync cached check (acceptable since clear is idempotent).
-        void import('./bridge/trustedDevice.js').then(m => {
-          m.clearTrustedDeviceToken();
-          return m.enrollTrustedDevice();
-        });
-      }
-
-      // Validate that the active token's org matches forceLoginOrgUUID (if set
-      // in managed settings). Runs after onboarding so managed settings and
-      // login state are fully loaded.
-      const orgValidation = await validateForceLoginOrg();
-      if (!orgValidation.valid) {
-        await exitWithError(root, (orgValidation as { valid: false; message: string }).message);
       }
     }
 
@@ -2353,7 +2289,6 @@ async function run(): Promise<CommanderCommand> {
       void fetchBootstrapData();
 
       // TODO: Consolidate other prefetches into a single bootstrap request.
-      void prefetchPassesEligibility();
       if (!getFeatureValue_CACHED_MAY_BE_STALE('tengu_miraculo_the_bard', false)) {
         void prefetchFastModeStatus();
       } else {
@@ -2405,29 +2340,23 @@ async function run(): Promise<CommanderCommand> {
     // Interactive mode only: print mode defers connects until headlessStore exists
     // and pushes per-server (below), so ToolSearch's pending-client handling works
     // and one slow server doesn't block the batch.
-    const localMcpPromise = isNonInteractiveSession ? Promise.resolve({
+    const mcpPromise = isNonInteractiveSession ? Promise.all([Promise.resolve({
       clients: [],
       tools: [],
       commands: []
-    }) : prefetchAllMcpResources(regularMcpConfigs);
-    const claudeaiMcpPromise = isNonInteractiveSession ? Promise.resolve({
+    }), Promise.resolve({
       clients: [],
       tools: [],
       commands: []
-    }) : claudeaiConfigPromise.then(configs => Object.keys(configs).length > 0 ? prefetchAllMcpResources(configs) : {
+    })]).then(([local, claudeai]) => ({
+      clients: [...local.clients, ...claudeai.clients],
+      tools: uniqBy([...local.tools, ...claudeai.tools], 'name'),
+      commands: uniqBy([...local.commands, ...claudeai.commands], 'name')
+    })) : Promise.resolve({
       clients: [],
       tools: [],
       commands: []
     });
-    // Merge with dedup by name: each prefetchAllMcpResources call independently
-    // adds helper tools (ListMcpResourcesTool, ReadMcpResourceTool) via
-    // local dedup flags, so merging two calls can yield duplicates. print.ts
-    // already uniqBy's the final tool pool, but dedup here keeps appState clean.
-    const mcpPromise = Promise.all([localMcpPromise, claudeaiMcpPromise]).then(([local, claudeai]) => ({
-      clients: [...local.clients, ...claudeai.clients],
-      tools: uniqBy([...local.tools, ...claudeai.tools], 'name'),
-      commands: uniqBy([...local.commands, ...claudeai.commands], 'name')
-    }));
 
     // Start hooks early so they run in parallel with MCP connections.
     // Skip for initOnly/init/maintenance (handled separately), non-interactive
@@ -2439,17 +2368,9 @@ async function run(): Promise<CommanderCommand> {
       model: resolvedInitialModel
     });
 
-    // MCP never blocks REPL render OR turn 1 TTFT. useManageMCPConnections
-    // populates appState.mcp async as servers connect (connectToServer is
-    // memoized — the prefetch calls above and the hook converge on the same
-    // connections). getToolUseContext reads store.getState() fresh via
-    // computeTools(), so turn 1 sees whatever's connected by query time.
-    // Slow servers populate for turn 2+. Matches interactive-no-prompt
-    // behavior. Print mode: per-server push into headlessStore (below).
+    // MCP never blocks REPL render OR turn 1 TTFT.
     const hookMessages: Awaited<NonNullable<typeof hooksPromise>> = [];
-    // Suppress transient unhandledRejection — the prefetch warms the
-    // memoized connectToServer cache but nobody awaits it in interactive.
-    mcpPromise.catch(() => {});
+    void mcpPromise.catch(() => {});
     const mcpClients: Awaited<typeof mcpPromise>['clients'] = [];
     const mcpTools: Awaited<typeof mcpPromise>['tools'] = [];
     const mcpCommands: Awaited<typeof mcpPromise>['commands'] = [];
@@ -2609,13 +2530,6 @@ async function run(): Promise<CommanderCommand> {
       // loadInitialMessages awaits it. Downstream await still observes the
       // rejection — this just prevents the spurious global handler fire.
       sessionStartHooksPromise?.catch(() => {});
-      profileCheckpoint('before_validateForceLoginOrg');
-      // Validate org restriction for non-interactive sessions
-      const orgValidation = await validateForceLoginOrg();
-      if (!orgValidation.valid) {
-        process.stderr.write((orgValidation as { valid: false; message: string }).message + '\n');
-        process.exit(1);
-      }
 
       // Headless mode supports all prompt commands and some local commands
       // If disableSlashCommands is true, return empty array
@@ -2865,7 +2779,6 @@ async function run(): Promise<CommanderCommand> {
       cli_flag: options.model as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
       env_var: process.env.ANTHROPIC_MODEL as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
       settings_file: (getInitialSettings() || {}).model as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-      subscriptionType: getSubscriptionType() as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
       agent: agentSetting as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
     });
 
@@ -3306,52 +3219,7 @@ async function run(): Promise<CommanderCommand> {
         }
       }
 
-      // Auth — call prepareApiRequest() once for orgUUID, but use a
-      // getAccessToken closure for the token so reconnects get fresh tokens.
-      const {
-        checkAndRefreshOAuthTokenIfNeeded,
-        getClaudeAIOAuthTokens
-      } = await import('./utils/auth.js');
-      await checkAndRefreshOAuthTokenIfNeeded();
-      let apiCreds;
-      try {
-        apiCreds = await prepareApiRequest();
-      } catch (e) {
-        return await exitWithError(root, `Error: ${e instanceof Error ? e.message : 'Failed to authenticate'}`, () => gracefulShutdown(1));
-      }
-      const getAccessToken = (): string => getClaudeAIOAuthTokens()?.accessToken ?? apiCreds.accessToken;
-
-      // Brief mode activation: setKairosActive(true) satisfies BOTH opt-in
-      // and entitlement for isBriefEnabled() (BriefTool.ts:124-132).
-      setKairosActive(true);
-      setUserMsgOptIn(true);
-      setIsRemoteMode(true);
-      const remoteSessionConfig = createRemoteSessionConfig(targetSessionId, getAccessToken, apiCreds.orgUUID, /* hasInitialPrompt */false, /* viewerOnly */true);
-      const infoMessage = createSystemMessage(`Attached to assistant session ${targetSessionId.slice(0, 8)}…`, 'info');
-      const assistantInitialState: AppState = {
-        ...initialState,
-        isBriefOnly: true,
-        kairosEnabled: false,
-        replBridgeEnabled: false
-      };
-      const remoteCommands = filterCommandsForRemoteMode(commands);
-      await launchRepl(root, {
-        getFpsMetrics,
-        stats,
-        initialState: assistantInitialState
-      }, {
-        debug: debug || debugToStderr,
-        commands: remoteCommands,
-        initialTools: [],
-        initialMessages: [infoMessage],
-        mcpClients: [],
-        autoConnectIdeFlag: ide,
-        mainThreadAgentDefinition,
-        disableSlashCommands,
-        remoteSessionConfig,
-        thinkingConfig
-      }, renderAndRun);
-      return;
+      return await exitWithError(root, 'Error: Remote assistant sessions are unavailable in API-only mode.', () => gracefulShutdown(1));
     } else if (options.resume || options.fromPr || teleport || remote !== null) {
       // Handle resume flow - from file (ant-only), session ID, or interactive selector
 
@@ -3447,60 +3315,7 @@ async function run(): Promise<CommanderCommand> {
         setIsRemoteMode(true);
         switchSession(asSessionId(createdSession.id));
 
-        // Get OAuth credentials for remote session
-        let apiCreds: {
-          accessToken: string;
-          orgUUID: string;
-        };
-        try {
-          apiCreds = await prepareApiRequest();
-        } catch (error) {
-          logError(toError(error));
-          return await exitWithError(root, `Error: ${errorMessage(error) || 'Failed to authenticate'}`, () => gracefulShutdown(1));
-        }
-
-        // Create remote session config for the REPL
-        const {
-          getClaudeAIOAuthTokens: getTokensForRemote
-        } = await import('./utils/auth.js');
-        const getAccessTokenForRemote = (): string => getTokensForRemote()?.accessToken ?? apiCreds.accessToken;
-        const remoteSessionConfig = createRemoteSessionConfig(createdSession.id, getAccessTokenForRemote, apiCreds.orgUUID, hasInitialPrompt);
-
-        // Add remote session info as initial system message
-        const remoteSessionUrl = `${getRemoteSessionUrl(createdSession.id)}?m=0`;
-        const remoteInfoMessage = createSystemMessage(`/remote-control is active. Code in CLI or at ${remoteSessionUrl}`, 'info');
-
-        // Create initial user message from the prompt if provided (CCR echoes it back but we ignore that)
-        const initialUserMessage = hasInitialPrompt ? createUserMessage({
-          content: remote
-        }) : null;
-
-        // Set remote session URL in app state for footer indicator
-        const remoteInitialState = {
-          ...initialState,
-          remoteSessionUrl
-        };
-
-        // Pre-filter commands to only include remote-safe ones.
-        // CCR's init response may further refine the list (via handleRemoteInit in REPL).
-        const remoteCommands = filterCommandsForRemoteMode(commands);
-        await launchRepl(root, {
-          getFpsMetrics,
-          stats,
-          initialState: remoteInitialState
-        }, {
-          debug: debug || debugToStderr,
-          commands: remoteCommands,
-          initialTools: [],
-          initialMessages: initialUserMessage ? [remoteInfoMessage, initialUserMessage] : [remoteInfoMessage],
-          mcpClients: [],
-          autoConnectIdeFlag: ide,
-          mainThreadAgentDefinition,
-          disableSlashCommands,
-          remoteSessionConfig,
-          thinkingConfig
-        }, renderAndRun);
-        return;
+        return await exitWithError(root, 'Error: Remote sessions are unavailable in API-only mode.', () => gracefulShutdown(1));
       } else if (teleport) {
         if (teleport === true || teleport === '') {
           // Interactive mode: show task selector and handle resume
@@ -3521,52 +3336,7 @@ async function run(): Promise<CommanderCommand> {
             mode: 'direct' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
           });
           try {
-            // First, fetch session and validate repository before checking git state
-            const sessionData = await fetchSession(teleport);
-            const repoValidation = await validateSessionRepository(sessionData);
-
-            // Handle repo mismatch or not in repo cases
-            if (repoValidation.status === 'mismatch' || repoValidation.status === 'not_in_repo') {
-              const sessionRepo = repoValidation.sessionRepo;
-              if (sessionRepo) {
-                // Check for known paths
-                const knownPaths = getKnownPathsForRepo(sessionRepo);
-                const existingPaths = await filterExistingPaths(knownPaths);
-                if (existingPaths.length > 0) {
-                  // Show directory switch dialog
-                  const selectedPath = await launchTeleportRepoMismatchDialog(root, {
-                    targetRepo: sessionRepo,
-                    initialPaths: existingPaths
-                  });
-                  if (selectedPath) {
-                    // Change to the selected directory
-                    process.chdir(selectedPath);
-                    setCwd(selectedPath);
-                    setOriginalCwd(selectedPath);
-                  } else {
-                    // User cancelled
-                    await gracefulShutdown(0);
-                  }
-                } else {
-                  // No known paths - show original error
-                  throw new TeleportOperationError(`You must run claude --teleport ${teleport} from a checkout of ${sessionRepo}.`, chalk.red(`You must run claude --teleport ${teleport} from a checkout of ${chalk.bold(sessionRepo)}.\n`));
-                }
-              }
-            } else if (repoValidation.status === 'error') {
-              throw new TeleportOperationError(repoValidation.errorMessage || 'Failed to validate session', chalk.red(`Error: ${repoValidation.errorMessage || 'Failed to validate session'}\n`));
-            }
-            await validateGitState();
-
-            // Use progress UI for teleport
-            const {
-              teleportWithProgress
-            } = await import('./components/TeleportProgress.js');
-            const result = await teleportWithProgress(root, teleport);
-            // Track teleported session for reliability logging
-            setTeleportedSessionInfo({
-              sessionId: teleport
-            });
-            messages = result.messages;
+            throw new TeleportOperationError('Remote sessions are unavailable in API-only mode.', chalk.red('Remote sessions are unavailable in API-only mode.\n'));
           } catch (error) {
             if (error instanceof TeleportOperationError) {
               process.stderr.write(error.formattedMessage + '\n');
@@ -3795,6 +3565,7 @@ async function run(): Promise<CommanderCommand> {
         }
       }
       const initialMessages = deepLinkBanner ? [deepLinkBanner, ...hookMessages] : hookMessages.length > 0 ? hookMessages : undefined;
+      logForDebugging('[STARTUP] About to launch REPL');
       await launchRepl(root, {
         getFpsMetrics,
         stats,
@@ -4047,7 +3818,7 @@ async function run(): Promise<CommanderCommand> {
       // Argv rewriting in main() should have consumed `ssh <host>` before
       // commander runs. Reaching here means host was missing or the
       // rewrite predicate didn't match.
-      process.stderr.write('Usage: claude ssh <user@host | ssh-config-alias> [dir]\n\n' + "Runs Claude Code on a remote Linux host. You don't need to install\n" + 'anything on the remote or run `claude auth login` there — the binary is\n' + 'deployed over SSH and API auth tunnels back through your local machine.\n');
+      process.stderr.write('Usage: claude ssh <user@host | ssh-config-alias> [dir]\n\n' + "Runs Claude Code on a remote Linux host. You don't need to install\n" + 'anything on the remote or configure authentication there — the binary is\n' + 'deployed over SSH and API auth tunnels back through your local machine.\n');
       process.exit(1);
     });
   }
@@ -4094,28 +3865,7 @@ async function run(): Promise<CommanderCommand> {
 
   // claude auth
 
-  const auth = program.command('auth').description('Manage authentication').configureHelp(createSortedHelpConfig());
-  auth.command('login').description('Sign in to your Anthropic account').option('--email <email>', 'Pre-populate email address on the login page').option('--sso', 'Force SSO login flow').option('--console', 'Use Anthropic Console (API usage billing) instead of Claude subscription').option('--claudeai', 'Use Claude subscription (default)').action(async ({
-    email,
-    sso,
-    console: useConsole,
-    claudeai
-  }: {
-    email?: string;
-    sso?: boolean;
-    console?: boolean;
-    claudeai?: boolean;
-  }) => {
-    const {
-      authLogin
-    } = await import('./cli/handlers/auth.js');
-    await authLogin({
-      email,
-      sso,
-      console: useConsole,
-      claudeai
-    });
-  });
+  const auth = program.command('auth').description('Show authentication information').configureHelp(createSortedHelpConfig());
   auth.command('status').description('Show authentication status').option('--json', 'Output as JSON (default)').option('--text', 'Output as human-readable text').action(async (opts: {
     json?: boolean;
     text?: boolean;
@@ -4124,12 +3874,6 @@ async function run(): Promise<CommanderCommand> {
       authStatus
     } = await import('./cli/handlers/auth.js');
     await authStatus(opts);
-  });
-  auth.command('logout').description('Log out from your Anthropic account').action(async () => {
-    const {
-      authLogout
-    } = await import('./cli/handlers/auth.js');
-    await authLogout();
   });
 
   /**
@@ -4312,8 +4056,8 @@ async function run(): Promise<CommanderCommand> {
   // The actual command is intercepted by the fast-path in cli.tsx before
   // Commander.js runs, so this registration exists only for help output.
   // Always hidden: isBridgeEnabled() at this point (before enableConfigs)
-  // would throw inside isClaudeAISubscriber → getGlobalConfig and return
-  // false via the try/catch — but not before paying ~65ms of side effects
+  // previously depended on auth/config state and paid ~65ms of side effects
+  // before returning false, so the command stays hidden here.
   // (25ms settings Zod parse + 40ms sync `security` keychain subprocess).
   // The dynamic visibility never worked; the command was always hidden.
   if (feature('BRIDGE_MODE')) {

@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { useTerminalSize } from 'src/hooks/useTerminalSize.js';
-import { type CodeSession, fetchCodeSessionsFromSessionsAPI } from 'src/utils/teleport/api.js';
+import type { CodeSession } from 'src/utils/teleport/api.js';
 // eslint-disable-next-line custom-rules/prefer-use-keybindings -- raw j/k/arrow list navigation
 import { Box, Text, useInput } from '../ink.js';
 import { useKeybinding } from '../keybindings/useKeybinding.js';
@@ -49,7 +49,7 @@ export function ResumeTask({
       const detectedRepo = await detectCurrentRepository();
       setCurrentRepo(detectedRepo);
       logForDebugging(`Current repository: ${detectedRepo || 'not detected'}`);
-      const codeSessions = await fetchCodeSessionsFromSessionsAPI();
+      const codeSessions: CodeSession[] = [];
 
       // Filter sessions by current repository if detected
       let filteredSessions = codeSessions;
@@ -249,10 +249,9 @@ function renderErrorSpecificGuidance(errorType: LoadErrorType): React.ReactNode 
         </Box>;
     case 'auth':
       return <Box marginY={1} flexDirection="column">
-          <Text dimColor>Teleport requires a Claude account</Text>
+          <Text dimColor>Teleport is unavailable in API-only mode</Text>
           <Text dimColor>
-            Run <Text bold>/login</Text> and select &quot;Claude account with
-            subscription&quot;
+            Use <Text bold>ANTHROPIC_API_KEY</Text>, configure apiKeyHelper, or use a supported third-party provider
           </Text>
         </Box>;
     case 'api':

@@ -29,21 +29,12 @@ import { createHash } from 'crypto'
 import { mkdir, readdir, readFile, stat, writeFile } from 'fs/promises'
 import { join, relative, sep } from 'path'
 import {
-  CLAUDE_AI_INFERENCE_SCOPE,
-  CLAUDE_AI_PROFILE_SCOPE,
-  getOauthConfig,
-  OAUTH_BETA_HEADER,
-} from '../../constants/oauth.js'
-import {
   getTeamMemPath,
   PathTraversalError,
   validateTeamMemKey,
 } from '../../memdir/teamMemPaths.js'
 import { count } from '../../utils/array.js'
-import {
-  checkAndRefreshOAuthTokenIfNeeded,
-  getClaudeAIOAuthTokens,
-} from '../../utils/auth.js'
+import { getAnthropicApiKeyWithSource } from '../../utils/auth.js'
 import { logForDebugging } from '../../utils/debug.js'
 import { classifyAxiosError } from '../../utils/errors.js'
 import { getGithubRepo } from '../../utils/git.js'
@@ -148,21 +139,25 @@ function isErrnoException(e: unknown): e is NodeJS.ErrnoException {
 /**
  * Check if user is authenticated with first-party OAuth (required for team memory sync).
  */
-function isUsingOAuth(): boolean {
+function hasTeamMemoryAuth(): boolean {
   if (getAPIProvider() !== 'firstParty' || !isFirstPartyAnthropicBaseUrl()) {
     return false
   }
-  const tokens = getClaudeAIOAuthTokens()
-  return Boolean(
-    tokens?.accessToken &&
-      tokens.scopes?.includes(CLAUDE_AI_INFERENCE_SCOPE) &&
-      tokens.scopes.includes(CLAUDE_AI_PROFILE_SCOPE),
-  )
+  try {
+    const { key: apiKey } = getAnthropicApiKeyWithSource({
+      skipRetrievingKeyFromApiKeyHelper: true,
+    })
+    return Boolean(apiKey)
+  } catch {
+    return false
+  }
 }
 
 function getTeamMemorySyncEndpoint(repoSlug: string): string {
   const baseUrl =
-    process.env.TEAM_MEMORY_SYNC_URL || getOauthConfig().BASE_API_URL
+    process.env.TEAM_MEMORY_SYNC_URL ||
+    process.env.ANTHROPIC_BASE_URL ||
+    'https://api.anthropic.com'
   return `${baseUrl}/api/claude_code/team_memory?repo=${encodeURIComponent(repoSlug)}`
 }
 
@@ -170,17 +165,22 @@ function getAuthHeaders(): {
   headers?: Record<string, string>
   error?: string
 } {
-  const oauthTokens = getClaudeAIOAuthTokens()
-  if (oauthTokens?.accessToken) {
-    return {
-      headers: {
-        Authorization: `Bearer ${oauthTokens.accessToken}`,
-        'anthropic-beta': OAUTH_BETA_HEADER,
-        'User-Agent': getClaudeCodeUserAgent(),
-      },
+  try {
+    const { key: apiKey } = getAnthropicApiKeyWithSource({
+      skipRetrievingKeyFromApiKeyHelper: true,
+    })
+    if (apiKey) {
+      return {
+        headers: {
+          'x-api-key': apiKey,
+          'User-Agent': getClaudeCodeUserAgent(),
+        },
+      }
     }
+  } catch {
+    // ignore
   }
-  return { error: 'No OAuth token available for team memory sync' }
+  return { error: 'No API key available for team memory sync' }
 }
 
 // ─── Fetch (pull) ────────────────────────────────────────────
@@ -191,7 +191,6 @@ async function fetchTeamMemoryOnce(
   etag?: string | null,
 ): Promise<TeamMemorySyncFetchResult> {
   try {
-    await checkAndRefreshOAuthTokenIfNeeded()
 
     const auth = getAuthHeaders()
     if (auth.error) {
@@ -317,7 +316,6 @@ async function fetchTeamMemoryHashes(
   repoSlug: string,
 ): Promise<TeamMemoryHashesResult> {
   try {
-    await checkAndRefreshOAuthTokenIfNeeded()
     const auth = getAuthHeaders()
     if (auth.error) {
       return { success: false, error: auth.error, errorType: 'auth' }
@@ -466,7 +464,6 @@ async function uploadTeamMemory(
   ifMatchChecksum?: string | null,
 ): Promise<TeamMemorySyncUploadResult> {
   try {
-    await checkAndRefreshOAuthTokenIfNeeded()
 
     const auth = getAuthHeaders()
     if (auth.error) {
@@ -757,10 +754,10 @@ async function writeRemoteEntriesToLocal(
 // ─── Public API ──────────────────────────────────────────────
 
 /**
- * Check if team memory sync is available (requires first-party OAuth).
+ * Check if team memory sync is available (requires first-party API key).
  */
 export function isTeamMemorySyncAvailable(): boolean {
-  return isUsingOAuth()
+  return hasTeamMemoryAuth()
 }
 
 /**
@@ -781,13 +778,13 @@ export async function pullTeamMemory(
   const skipEtagCache = options?.skipEtagCache ?? false
   const startTime = Date.now()
 
-  if (!isUsingOAuth()) {
+  if (!hasTeamMemoryAuth()) {
     logPull(startTime, { success: false, errorType: 'no_oauth' })
     return {
       success: false,
       filesWritten: 0,
       entryCount: 0,
-      error: 'OAuth not available',
+      error: 'API key not available',
     }
   }
 
@@ -892,12 +889,12 @@ export async function pushTeamMemory(
   const startTime = Date.now()
   let conflictRetries = 0
 
-  if (!isUsingOAuth()) {
+  if (!hasTeamMemoryAuth()) {
     logPush(startTime, { success: false, errorType: 'no_oauth' })
     return {
       success: false,
       filesUploaded: 0,
-      error: 'OAuth not available',
+      error: 'API key not available',
       errorType: 'no_oauth',
     }
   }

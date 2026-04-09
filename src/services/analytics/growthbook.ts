@@ -38,8 +38,6 @@ export type GrowthBookUserAttributes = {
   organizationUUID?: string
   accountUUID?: string
   userType?: string
-  subscriptionType?: string
-  rateLimitTier?: string
   firstTokenTime?: number
   email?: string
   appVersion?: string
@@ -472,8 +470,6 @@ function getUserAttributes(): GrowthBookUserAttributes {
     ...(user.organizationUuid && { organizationUUID: user.organizationUuid }),
     ...(user.accountUuid && { accountUUID: user.accountUuid }),
     ...(user.userType && { userType: user.userType }),
-    ...(user.subscriptionType && { subscriptionType: user.subscriptionType }),
-    ...(user.rateLimitTier && { rateLimitTier: user.rateLimitTier }),
     ...(user.firstTokenTime && { firstTokenTime: user.firstTokenTime }),
     ...(email && { email }),
     ...(user.appVersion && { appVersion: user.appVersion }),

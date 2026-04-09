@@ -157,8 +157,7 @@ export function useManageMCPConnections(
   const reconnectTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
 
   // Dedup the --channels blocked warning per skip kind so that a user who
-  // sees "run /login" (auth skip), logs in, then hits the policy gate
-  // gets a second toast.
+  // first hits the auth gate and then the policy gate still gets a second toast.
   const channelWarnedKindsRef = useRef<
     Set<'disabled' | 'auth' | 'policy' | 'marketplace' | 'allowlist'>
   >(new Set())
@@ -597,7 +596,7 @@ export function useManageMCPConnections(
                     gate.kind === 'disabled'
                       ? 'Channels are not currently available'
                       : gate.kind === 'auth'
-                        ? 'Channels require claude.ai authentication · run /login'
+                        ? 'Channels require legacy claude.ai authentication and are unavailable in API-only mode'
                         : gate.kind === 'policy'
                           ? 'Channels are not enabled for your org · have an administrator set channelsEnabled: true in managed settings'
                           : gate.reason

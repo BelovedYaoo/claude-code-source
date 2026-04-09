@@ -161,13 +161,7 @@ export function useReplBridge(messages: Message[], setMessages: (action: React.S
           // pointer-clear so the session survives clean exits, not just
           // crashes. Non-assistant bridges clear the pointer on teardown
           // (crash-recovery only).
-          let perpetual = false;
-          if (feature('KAIROS')) {
-            const {
-              isAssistantMode
-            } = await import('../assistant/index.js');
-            perpetual = isAssistantMode();
-          }
+          const perpetual = false;
 
           // When a user message arrives from claude.ai, inject it into the REPL.
           // Preserves the original UUID so that when the message is forwarded

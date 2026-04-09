@@ -129,7 +129,6 @@ import {
   shouldInjectAgentListInMessages,
 } from '../tools/AgentTool/prompt.js'
 import { filterDeniedAgents } from './permissions/permissions.js'
-import { getSubscriptionType } from './auth.js'
 import { mcpInfoFromString } from '../services/mcp/mcpStringUtils.js'
 import {
   matchingRuleForInput,
@@ -1558,7 +1557,7 @@ export function getAgentListingDeltaAttachment(
       addedLines: added.map(formatAgentLine),
       removedTypes: removed,
       isInitial: announced.size === 0,
-      showConcurrencyNote: getSubscriptionType() !== 'pro',
+      showConcurrencyNote: true,
     },
   ]
 }

@@ -2,11 +2,6 @@ import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   logEvent,
 } from '../services/analytics/index.js'
-import {
-  isMaxSubscriber,
-  isProSubscriber,
-  isTeamPremiumSubscriber,
-} from '../utils/auth.js'
 import { getGlobalConfig, saveGlobalConfig } from '../utils/config.js'
 import { getAPIProvider } from '../utils/model/providers.js'
 import {
@@ -28,10 +23,6 @@ import {
  */
 export function migrateSonnet45ToSonnet46(): void {
   if (getAPIProvider() !== 'firstParty') {
-    return
-  }
-
-  if (!isProSubscriber() && !isMaxSubscriber() && !isTeamPremiumSubscriber()) {
     return
   }
 

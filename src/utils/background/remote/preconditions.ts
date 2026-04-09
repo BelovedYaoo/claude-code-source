@@ -1,12 +1,4 @@
-import axios from 'axios'
-import { getOauthConfig } from 'src/constants/oauth.js'
-import { getOrganizationUUID } from 'src/services/oauth/client.js'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../../../services/analytics/growthbook.js'
-import {
-  checkAndRefreshOAuthTokenIfNeeded,
-  getClaudeAIOAuthTokens,
-  isClaudeAISubscriber,
-} from '../../auth.js'
 import { getCwd } from '../../cwd.js'
 import { logForDebugging } from '../../debug.js'
 import { detectCurrentRepository } from '../../detectRepository.js'
@@ -16,15 +8,12 @@ import { getOAuthHeaders } from '../../teleport/api.js'
 import { fetchEnvironments } from '../../teleport/environments.js'
 
 /**
- * Checks if user needs to log in with Claude.ai
+ * Remote sessions are unavailable in API-only mode.
  * Extracted from getTeleportErrors() in TeleportError.tsx
- * @returns true if login is required, false otherwise
+ * @returns true when the unavailable state should be shown
  */
-export async function checkNeedsClaudeAiLogin(): Promise<boolean> {
-  if (!isClaudeAISubscriber()) {
-    return false
-  }
-  return checkAndRefreshOAuthTokenIfNeeded()
+export async function checkRemoteUnavailableInApiMode(): Promise<boolean> {
+  return true
 }
 
 /**
@@ -76,85 +65,11 @@ export async function checkHasGitRemote(): Promise<boolean> {
  * @returns true if GitHub app is installed, false otherwise
  */
 export async function checkGithubAppInstalled(
-  owner: string,
-  repo: string,
-  signal?: AbortSignal,
+  _owner: string,
+  _repo: string,
+  _signal?: AbortSignal,
 ): Promise<boolean> {
-  try {
-    const accessToken = getClaudeAIOAuthTokens()?.accessToken
-    if (!accessToken) {
-      logForDebugging(
-        'checkGithubAppInstalled: No access token found, assuming app not installed',
-      )
-      return false
-    }
-
-    const orgUUID = await getOrganizationUUID()
-    if (!orgUUID) {
-      logForDebugging(
-        'checkGithubAppInstalled: No org UUID found, assuming app not installed',
-      )
-      return false
-    }
-
-    const url = `${getOauthConfig().BASE_API_URL}/api/oauth/organizations/${orgUUID}/code/repos/${owner}/${repo}`
-    const headers = {
-      ...getOAuthHeaders(accessToken),
-      'x-organization-uuid': orgUUID,
-    }
-
-    logForDebugging(`Checking GitHub app installation for ${owner}/${repo}`)
-
-    const response = await axios.get<{
-      repo: {
-        name: string
-        owner: { login: string }
-        default_branch: string
-      }
-      status: {
-        app_installed: boolean
-        relay_enabled: boolean
-      } | null
-    }>(url, {
-      headers,
-      timeout: 15000,
-      signal,
-    })
-
-    if (response.status === 200) {
-      if (response.data.status) {
-        const installed = response.data.status.app_installed
-        logForDebugging(
-          `GitHub app ${installed ? 'is' : 'is not'} installed on ${owner}/${repo}`,
-        )
-        return installed
-      }
-      // status is null - app is not installed on this repo
-      logForDebugging(
-        `GitHub app is not installed on ${owner}/${repo} (status is null)`,
-      )
-      return false
-    }
-
-    logForDebugging(
-      `checkGithubAppInstalled: Unexpected response status ${response.status}`,
-    )
-    return false
-  } catch (error) {
-    // 4XX errors typically mean app is not installed or repo not accessible
-    if (axios.isAxiosError(error)) {
-      const status = error.response?.status
-      if (status && status >= 400 && status < 500) {
-        logForDebugging(
-          `checkGithubAppInstalled: Got ${status} error, app likely not installed on ${owner}/${repo}`,
-        )
-        return false
-      }
-    }
-
-    logForDebugging(`checkGithubAppInstalled error: ${errorMessage(error)}`)
-    return false
-  }
+  return false
 }
 
 /**
@@ -162,52 +77,7 @@ export async function checkGithubAppInstalled(
  * @returns true if GitHub token is synced, false otherwise
  */
 export async function checkGithubTokenSynced(): Promise<boolean> {
-  try {
-    const accessToken = getClaudeAIOAuthTokens()?.accessToken
-    if (!accessToken) {
-      logForDebugging('checkGithubTokenSynced: No access token found')
-      return false
-    }
-
-    const orgUUID = await getOrganizationUUID()
-    if (!orgUUID) {
-      logForDebugging('checkGithubTokenSynced: No org UUID found')
-      return false
-    }
-
-    const url = `${getOauthConfig().BASE_API_URL}/api/oauth/organizations/${orgUUID}/sync/github/auth`
-    const headers = {
-      ...getOAuthHeaders(accessToken),
-      'x-organization-uuid': orgUUID,
-    }
-
-    logForDebugging('Checking if GitHub token is synced via web-setup')
-
-    const response = await axios.get(url, {
-      headers,
-      timeout: 15000,
-    })
-
-    const synced =
-      response.status === 200 && response.data?.is_authenticated === true
-    logForDebugging(
-      `GitHub token synced: ${synced} (status=${response.status}, data=${JSON.stringify(response.data)})`,
-    )
-    return synced
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      const status = error.response?.status
-      if (status && status >= 400 && status < 500) {
-        logForDebugging(
-          `checkGithubTokenSynced: Got ${status}, token not synced`,
-        )
-        return false
-      }
-    }
-
-    logForDebugging(`checkGithubTokenSynced error: ${errorMessage(error)}`)
-    return false
-  }
+  return false
 }
 
 type RepoAccessMethod = 'github-app' | 'token-sync' | 'none'

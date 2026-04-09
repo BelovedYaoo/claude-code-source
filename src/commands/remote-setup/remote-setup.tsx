@@ -95,7 +95,7 @@ function Web({
           logEvent('tengu_remote_setup_result', {
             result: 'not_signed_in' as SafeString
           });
-          onDone('Not signed in to Claude. Run /login first.');
+          onDone('Remote setup is unavailable in API-only mode. Use ANTHROPIC_API_KEY, apiKeyHelper, or a supported third-party provider.');
           return;
         case 'gh_not_installed':
         case 'gh_not_authenticated':

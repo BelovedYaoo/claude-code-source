@@ -8,7 +8,7 @@ import {
   checkGithubAppInstalled,
   checkHasRemoteEnvironment,
   checkIsInGitRepo,
-  checkNeedsClaudeAiLogin,
+  checkRemoteUnavailableInApiMode,
 } from './preconditions.js'
 
 /**
@@ -29,7 +29,7 @@ export type BackgroundRemoteSession = {
  * Precondition failures for background remote sessions
  */
 export type BackgroundRemoteSessionPrecondition =
-  | { type: 'not_logged_in' }
+  | { type: 'api_only_unavailable' }
   | { type: 'no_remote_environment' }
   | { type: 'not_in_git_repo' }
   | { type: 'no_git_remote' }
@@ -55,14 +55,15 @@ export async function checkBackgroundRemoteSessionEligibility({
     return errors
   }
 
-  const [needsLogin, hasRemoteEnv, repository] = await Promise.all([
-    checkNeedsClaudeAiLogin(),
+  const [remoteUnavailable, hasRemoteEnv, repository] = await Promise.all([
+    checkRemoteUnavailableInApiMode(),
     checkHasRemoteEnvironment(),
     detectCurrentRepositoryWithHost(),
   ])
 
-  if (needsLogin) {
-    errors.push({ type: 'not_logged_in' })
+  if (remoteUnavailable) {
+    errors.push({ type: 'api_only_unavailable' })
+    return errors
   }
 
   if (!hasRemoteEnv) {

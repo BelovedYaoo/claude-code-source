@@ -15,11 +15,7 @@ import {
 } from '../../bootstrap/state.js'
 import { ClaudeCodeInternalEvent } from '../../types/generated/events_mono/claude_code/v1/claude_code_internal_event.js'
 import { GrowthbookExperimentEvent } from '../../types/generated/events_mono/growthbook/v1/growthbook_experiment_event.js'
-import {
-  getClaudeAIOAuthTokens,
-  hasProfileScope,
-  isClaudeAISubscriber,
-} from '../../utils/auth.js'
+import { getAnthropicApiKey } from '../../utils/auth.js'
 import { checkHasTrustDialogAccepted } from '../../utils/config.js'
 import { logForDebugging } from '../../utils/debug.js'
 import { getClaudeConfigHomeDir } from '../../utils/envUtils.js'
@@ -30,7 +26,6 @@ import { logError } from '../../utils/log.js'
 import { sleep } from '../../utils/sleep.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
 import { getClaudeCodeUserAgent } from '../../utils/userAgent.js'
-import { isOAuthTokenExpired } from '../oauth/client.js'
 import { stripProtoFields } from './index.js'
 import { type EventMetadata, to1PEventFormat } from './metadata.js'
 
@@ -550,26 +545,11 @@ export class FirstPartyEventLoggingExporter implements LogRecordExporter {
       logForDebugging('1P event logging: Trust not accepted')
     }
 
-    // Skip auth when the OAuth token is expired or lacks user:profile
-    // scope (service key sessions). Falls through to unauthenticated send.
-    let shouldSkipAuth = this.skipAuth || !hasTrust
-    if (!shouldSkipAuth && isClaudeAISubscriber()) {
-      const tokens = getClaudeAIOAuthTokens()
-      if (!hasProfileScope()) {
-        shouldSkipAuth = true
-      } else if (tokens && isOAuthTokenExpired(tokens.expiresAt)) {
-        shouldSkipAuth = true
-        if (process.env.USER_TYPE === 'ant') {
-          logForDebugging(
-            '1P event logging: OAuth token expired, skipping auth to avoid 401',
-          )
-        }
-      }
-    }
+    const shouldSkipAuth =
+      this.skipAuth || !hasTrust || getAnthropicApiKey() === null
 
-    // Try with auth headers first (unless trust not established or token is known to be expired)
     const authResult = shouldSkipAuth
-      ? { headers: {}, error: 'trust not established or Oauth token expired' }
+      ? { headers: {}, error: 'trust not established or no API key available' }
       : getAuthHeaders()
     const useAuth = !authResult.error
 

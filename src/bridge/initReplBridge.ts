@@ -19,7 +19,6 @@ import { getOriginalCwd, getSessionId } from '../bootstrap/state.js'
 import type { SDKMessage } from '../entrypoints/agentSdkTypes.js'
 import type { SDKControlResponse } from '../entrypoints/sdk/controlTypes.js'
 import { getFeatureValue_CACHED_WITH_REFRESH } from '../services/analytics/growthbook.js'
-import { getOrganizationUUID } from '../services/oauth/client.js'
 import {
   isPolicyAllowed,
   waitForPolicyLimitsToLoad,
@@ -131,11 +130,8 @@ export async function initReplBridge(
   // GrowthBook gate. Daemon/SDK paths skip this — shim defaults to active.
   setCseShimGate(isCseShimEnabled)
 
-  // 1. Runtime gate
-  if (!(await isBridgeEnabledBlocking())) {
-    logBridgeSkip('not_enabled', '[bridge:repl] Skipping: bridge not enabled')
-    return null
-  }
+  logBridgeSkip('not_enabled', '[bridge:repl] Skipping: bridge not enabled')
+  return null
 
   // 1b. Minimum version check — deferred to after the v1/v2 branch below,
   // since each implementation has its own floor (tengu_bridge_min_version
@@ -146,7 +142,7 @@ export async function initReplBridge(
   // instead of a misleading policy error from a stale/wrong-org cache.
   if (!getBridgeAccessToken()) {
     logBridgeSkip('no_oauth', '[bridge:repl] Skipping: no OAuth tokens')
-    onStateChange?.('failed', '/login')
+    onStateChange?.('failed', 'API-only mode')
     return null
   }
 
@@ -221,7 +217,7 @@ export async function initReplBridge(
         'oauth_expired_unrefreshable',
         '[bridge:repl] Skipping: OAuth token expired and refresh failed (re-login required)',
       )
-      onStateChange?.('failed', '/login')
+      onStateChange?.('failed', 'API-only mode')
       // Persist for the next process. Increments failCount when re-discovering
       // the same dead token (matched by expiresAt); resets to 1 for a different
       // token. Once count reaches 3, step 2a's early-return fires and this path
@@ -383,16 +379,8 @@ export async function initReplBridge(
     5 * 60 * 1000,
   )
 
-  // Fetch orgUUID before the v1/v2 branch — both paths need it. v1 for
-  // environment registration; v2 for archive (which lives at the compat
-  // /v1/sessions/{id}/archive, not /v1/code/sessions). Without it, v2
-  // archive 404s and sessions stay alive in CCR after /exit.
-  const orgUUID = await getOrganizationUUID()
-  if (!orgUUID) {
-    logBridgeSkip('no_org_uuid', '[bridge:repl] Skipping: no org UUID')
-    onStateChange?.('failed', '/login')
-    return null
-  }
+  onStateChange?.('failed', 'API-only mode')
+  return null
 
   // ── GrowthBook gate: env-less bridge ──────────────────────────────────
   // When enabled, skips the Environments API layer entirely (no register/
@@ -424,7 +412,7 @@ export async function initReplBridge(
     const { initEnvLessBridgeCore } = await import('./remoteBridgeCore.js')
     return initEnvLessBridgeCore({
       baseUrl,
-      orgUUID,
+      orgUUID: '',
       title,
       getAccessToken: getBridgeAccessToken,
       onAuth401: handleOAuth401Error,
@@ -473,16 +461,7 @@ export async function initReplBridge(
   // Assistant-mode sessions advertise a distinct worker_type so the web UI
   // can filter them into a dedicated picker. KAIROS guard keeps the
   // assistant module out of external builds entirely.
-  let workerType: BridgeWorkerType = 'claude_code'
-  if (feature('KAIROS')) {
-    /* eslint-disable @typescript-eslint/no-require-imports */
-    const { isAssistantMode } =
-      require('../assistant/index.js') as typeof import('../assistant/index.js')
-    /* eslint-enable @typescript-eslint/no-require-imports */
-    if (isAssistantMode()) {
-      workerType = 'claude_code_assistant'
-    }
-  }
+  const workerType: BridgeWorkerType = 'claude_code'
 
   // 6. Delegate. BridgeCoreHandle is a structural superset of
   // ReplBridgeHandle (adds writeSdkMessages which REPL callers don't use),

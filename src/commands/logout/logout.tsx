@@ -1,4 +1,5 @@
 import * as React from 'react';
+import type { LocalJSXCommandContext } from '../../commands.js';
 import { clearTrustedDeviceTokenCache } from '../../bridge/trustedDevice.js';
 import { Text } from '../../ink.js';
 import { refreshGrowthBookAfterAuthChange } from '../../services/analytics/growthbook.js';
@@ -7,6 +8,7 @@ import { clearPolicyLimitsCache } from '../../services/policyLimits/index.js';
 // flushTelemetry is loaded lazily to avoid pulling in ~1.1MB of OpenTelemetry at startup
 import { clearRemoteManagedSettingsCache } from '../../services/remoteManagedSettings/index.js';
 import { getClaudeAIOAuthTokens, removeApiKey } from '../../utils/auth.js';
+import type { LocalJSXCommandOnDone } from '../../types/command.js';
 import { clearBetasCaches } from '../../utils/betas.js';
 import { saveGlobalConfig } from '../../utils/config.js';
 import { gracefulShutdownSync } from '../../utils/gracefulShutdown.js';
@@ -69,7 +71,10 @@ export async function clearAuthRelatedCaches(): Promise<void> {
   // Clear policy limits cache
   await clearPolicyLimitsCache();
 }
-export async function call(): Promise<React.ReactNode> {
+export async function call(
+  _onDone: LocalJSXCommandOnDone,
+  _context: LocalJSXCommandContext,
+): Promise<React.ReactNode> {
   await performLogout({
     clearOnboarding: true
   });

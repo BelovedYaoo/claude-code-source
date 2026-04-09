@@ -1,13 +1,10 @@
 import type { Command } from '../../commands.js'
-import { isConsumerSubscriber } from '../../utils/auth.js'
-
 const privacySettings = {
   type: 'local-jsx',
   name: 'privacy-settings',
-  description: 'View and update your privacy settings',
-  isEnabled: () => {
-    return isConsumerSubscriber()
-  },
+  description: 'Removed command placeholder',
+  isEnabled: () => false,
+  isHidden: true,
   load: () => import('./privacy-settings.js'),
 } satisfies Command
 

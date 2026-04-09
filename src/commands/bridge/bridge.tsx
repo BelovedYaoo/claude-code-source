@@ -3,7 +3,6 @@ import { feature } from 'bun:bundle';
 import { toString as qrToString } from 'qrcode';
 import * as React from 'react';
 import { useEffect, useState } from 'react';
-import { getBridgeAccessToken } from '../../bridge/bridgeConfig.js';
 import { checkBridgeMinVersion, getBridgeDisabledReason, isEnvLessBridgeEnabled } from '../../bridge/bridgeEnabled.js';
 import { checkEnvLessBridgeMinVersion } from '../../bridge/envLessBridgeConfig.js';
 import { BRIDGE_LOGIN_INSTRUCTION, REMOTE_CONTROL_DISCONNECTED_MSG } from '../../bridge/types.js';
@@ -17,7 +16,6 @@ import { type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS, logEve
 import { useAppState, useSetAppState } from '../../state/AppState.js';
 import type { ToolUseContext } from '../../Tool.js';
 import type { LocalJSXCommandContext, LocalJSXCommandOnDone } from '../../types/command.js';
-import { logForDebugging } from '../../utils/debug.js';
 type Props = {
   onDone: LocalJSXCommandOnDone;
   name?: string;
@@ -483,24 +481,12 @@ async function checkBridgePrerequisites(): Promise<string | null> {
   // only when the flag is on AND the session is not perpetual.  In assistant
   // mode (KAIROS) useReplBridge sets perpetual=true, which forces
   // initReplBridge onto the v1 path — so the prerequisite check must match.
-  let useV2 = isEnvLessBridgeEnabled();
-  if (feature('KAIROS') && useV2) {
-    const {
-      isAssistantMode
-    } = await import('../../assistant/index.js');
-    if (isAssistantMode()) {
-      useV2 = false;
-    }
-  }
+  const useV2 = false;
   const versionError = useV2 ? await checkEnvLessBridgeMinVersion() : checkBridgeMinVersion();
   if (versionError) {
     return versionError;
   }
-  if (!getBridgeAccessToken()) {
-    return BRIDGE_LOGIN_INSTRUCTION;
-  }
-  logForDebugging('[bridge] Prerequisites passed, enabling bridge');
-  return null;
+  return BRIDGE_LOGIN_INSTRUCTION;
 }
 export async function call(onDone: LocalJSXCommandOnDone, _context: ToolUseContext & LocalJSXCommandContext, args: string): Promise<React.ReactNode> {
   const name = args.trim() || undefined;

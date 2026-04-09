@@ -74,7 +74,6 @@ const TAG_FIELDS = [
   'platform',
   'provider',
   'skillMode',
-  'subscriptionType',
   'toolName',
   'userBucket',
   'userType',

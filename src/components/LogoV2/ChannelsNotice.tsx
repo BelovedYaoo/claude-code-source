@@ -1,9 +1,7 @@
 import { c as _c } from "react/compiler-runtime";
 // Conditionally require()'d in LogoV2.tsx behind feature('KAIROS') ||
 // feature('KAIROS_CHANNELS'). No feature() guard here — the whole file
-// tree-shakes via the require pattern when both flags are false (see
-// docs/feature-gating.md). Do NOT import this module statically from
-// unguarded code.
+// tree-shakes via the require pattern when both flags are false.
 
 import * as React from 'react';
 import { useState } from 'react';
@@ -12,9 +10,7 @@ import { Box, Text } from '../../ink.js';
 import { isChannelsEnabled } from '../../services/mcp/channelAllowlist.js';
 import { getEffectiveChannelAllowlist } from '../../services/mcp/channelNotification.js';
 import { getMcpConfigsByScope } from '../../services/mcp/config.js';
-import { getClaudeAIOAuthTokens, getSubscriptionType } from '../../utils/auth.js';
 import { loadInstalledPluginsV2 } from '../../utils/plugins/installedPluginsManager.js';
-import { getSettingsForSource } from '../../utils/settings/settings.js';
 export function ChannelsNotice() {
   const $ = _c(32);
   const [t0] = useState(_temp);
@@ -70,7 +66,7 @@ export function ChannelsNotice() {
     }
     let t2;
     if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
-      t2 = <Text dimColor={true}>Channels require claude.ai authentication · run /login, then restart</Text>;
+      t2 = <Text dimColor={true}>Channels are unavailable in API-only mode</Text>;
       $[9] = t2;
     } else {
       t2 = $[9];
@@ -183,15 +179,12 @@ function _temp() {
     };
   }
   const l = ch.map(formatEntry).join(", ");
-  const sub = getSubscriptionType();
-  const managed = sub === "team" || sub === "enterprise";
-  const policy = getSettingsForSource("policySettings");
-  const allowlist = getEffectiveChannelAllowlist(sub, policy?.allowedChannelPlugins);
+  const allowlist = getEffectiveChannelAllowlist();
   return {
     channels: ch,
     disabled: !isChannelsEnabled(),
-    noAuth: !getClaudeAIOAuthTokens()?.accessToken,
-    policyBlocked: managed && policy?.channelsEnabled !== true,
+    noAuth: true,
+    policyBlocked: false,
     list: l,
     unmatched: findUnmatched(ch, allowlist)
   };
@@ -257,7 +250,7 @@ function findUnmatched(entries: readonly ChannelEntry[], allowlist: ReturnType<t
     if (!entry.dev && !allowed.some(e => e.plugin === entry.name && e.marketplace === entry.marketplace)) {
       out.push({
         entry,
-        why: source === 'org' ? "not on your org's approved channels list" : 'not on the approved channels allowlist'
+        why: 'not on the approved channels allowlist'
       });
     }
   }

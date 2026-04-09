@@ -14,12 +14,7 @@ import type {
   Message,
   UserMessage,
 } from 'src/types/message.js'
-import {
-  getAnthropicApiKeyWithSource,
-  getClaudeAIOAuthTokens,
-  getOauthAccountInfo,
-  isClaudeAISubscriber,
-} from 'src/utils/auth.js'
+import { getAnthropicApiKeyWithSource } from 'src/utils/auth.js'
 import {
   createAssistantAPIErrorMessage,
   NO_RESPONSE_REQUESTED,
@@ -54,10 +49,7 @@ import { extractConnectionErrorDetails, formatAPIError } from './errorUtils.js'
 export const API_ERROR_MESSAGE_PREFIX = 'API Error'
 
 export function startsWithApiErrorPrefix(text: string): boolean {
-  return (
-    text.startsWith(API_ERROR_MESSAGE_PREFIX) ||
-    text.startsWith(`Please run /login · ${API_ERROR_MESSAGE_PREFIX}`)
-  )
+  return text.startsWith(API_ERROR_MESSAGE_PREFIX)
 }
 export const PROMPT_TOO_LONG_ERROR_MESSAGE = 'Prompt is too long'
 
@@ -152,15 +144,16 @@ export function isMediaSizeErrorMessage(msg: AssistantMessage): boolean {
   )
 }
 export const CREDIT_BALANCE_TOO_LOW_ERROR_MESSAGE = 'Credit balance is too low'
-export const INVALID_API_KEY_ERROR_MESSAGE = 'Authentication required · Set ANTHROPIC_API_KEY or run /login'
+export const INVALID_API_KEY_ERROR_MESSAGE =
+  'Authentication required · Set ANTHROPIC_API_KEY or configure apiKeyHelper'
 export const INVALID_API_KEY_ERROR_MESSAGE_EXTERNAL =
   'Invalid API key · Fix external API key'
-export const ORG_DISABLED_ERROR_MESSAGE_ENV_KEY_WITH_OAUTH =
-  'Your ANTHROPIC_API_KEY belongs to a disabled organization · Unset the environment variable to use your subscription instead'
 export const ORG_DISABLED_ERROR_MESSAGE_ENV_KEY =
   'Your ANTHROPIC_API_KEY belongs to a disabled organization · Update or unset the environment variable'
+export const ORG_DISABLED_ERROR_MESSAGE_ENV_KEY_WITH_OAUTH =
+  ORG_DISABLED_ERROR_MESSAGE_ENV_KEY
 export const TOKEN_REVOKED_ERROR_MESSAGE =
-  'OAuth token revoked · Please run /login'
+  'Authentication expired · Refresh your credentials and try again'
 export const CCR_AUTH_ERROR_MESSAGE =
   'Authentication error · This may be a temporary network issue, please try again'
 export const REPEATED_529_ERROR_MESSAGE = 'Repeated 529 Overloaded errors'
@@ -195,24 +188,24 @@ export function getRequestTooLargeErrorMessage(): string {
     : `Request too large (${limits}). Double press esc to go back and try with a smaller file.`
 }
 export const OAUTH_ORG_NOT_ALLOWED_ERROR_MESSAGE =
-  'Your account does not have access to Claude Code. Please run /login.'
+  'Your credentials do not have access to Claude Code. Use a valid API key or supported provider.'
 
 export function getTokenRevokedErrorMessage(): string {
   return getIsNonInteractiveSession()
-    ? 'Your account does not have access to Claude. Please login again or contact your administrator.'
+    ? 'Authentication expired. Refresh your credentials or contact your administrator.'
     : TOKEN_REVOKED_ERROR_MESSAGE
 }
 
 export function getOauthOrgNotAllowedErrorMessage(): string {
   return getIsNonInteractiveSession()
-    ? 'Your organization does not have access to Claude. Please login again or contact your administrator.'
+    ? 'Your credentials do not have access to Claude Code. Use a valid API key, supported provider, or contact your administrator.'
     : OAUTH_ORG_NOT_ALLOWED_ERROR_MESSAGE
 }
 
 /**
  * Check if we're in CCR (Claude Code Remote) mode.
- * In CCR mode, auth is handled via JWTs provided by the infrastructure,
- * not via /login. Transient auth errors should suggest retrying, not logging in.
+ * In CCR mode, auth is handled via JWTs provided by the infrastructure.
+ * Transient auth errors should suggest retrying instead of changing local credentials.
  */
 function isCCRMode(): boolean {
   return isEnvTruthy(process.env.CLAUDE_CODE_REMOTE)
@@ -465,7 +458,7 @@ export function getAssistantMessageFromError(
   if (
     error instanceof APIError &&
     error.status === 429 &&
-    shouldProcessRateLimits(isClaudeAISubscriber())
+    shouldProcessRateLimits(false)
   ) {
     // Check if this is the new API with multiple rate limit headers
     const rateLimitType = error.headers?.get?.(
@@ -539,8 +532,8 @@ export function getAssistantMessageFromError(
     // (e.g. 1M context without Extra Usage) and infra capacity 429s land here.
     if (error.message.includes('Extra usage is required for long context')) {
       const hint = getIsNonInteractiveSession()
-        ? 'enable extra usage at claude.ai/settings/usage, or use --model to switch to standard context'
-        : 'run /extra-usage to enable, or /model to switch to standard context'
+        ? 'use ANTHROPIC_API_KEY or apiKeyHelper, or use --model to switch to standard context'
+        : 'configure ANTHROPIC_API_KEY or apiKeyHelper, or run /model to switch to standard context'
       return createAssistantAPIErrorMessage({
         content: `${API_ERROR_MESSAGE_PREFIX}: Extra usage is required for 1M context · ${hint}`,
         error: 'rate_limit',
@@ -732,9 +725,8 @@ export function getAssistantMessageFromError(
     })
   }
 
-  // Check for invalid model name error for subscription users trying to use Opus
+  // Check for invalid model name error when using Opus
   if (
-    isClaudeAISubscriber() &&
     error instanceof APIError &&
     error.status === 400 &&
     error.message.toLowerCase().includes('invalid model name') &&
@@ -742,7 +734,7 @@ export function getAssistantMessageFromError(
   ) {
     return createAssistantAPIErrorMessage({
       content:
-        'Claude Opus is not available with the Claude Pro plan. If you have updated your subscription plan recently, run /logout and /login for the plan to take effect.',
+        'Claude Opus is not available for the current account or provider configuration. Update your model or credentials and try again.',
       error: 'invalid_request',
     })
   }
@@ -756,12 +748,8 @@ export function getAssistantMessageFromError(
     error instanceof Error &&
     error.message.toLowerCase().includes('invalid model name')
   ) {
-    // Get organization ID from config - only use OAuth account data when actively using OAuth
-    const orgId = getOauthAccountInfo()?.organizationUuid
     const baseMsg = `[ANT-ONLY] Your org isn't gated into the \`${model}\` model. Either run \`claude\` with \`ANTHROPIC_MODEL=${getDefaultMainLoopModelSetting()}\``
-    const msg = orgId
-      ? `${baseMsg} or share your orgId (${orgId}) in ${MACRO.FEEDBACK_CHANNEL} for help getting access.`
-      : `${baseMsg} or reach out in ${MACRO.FEEDBACK_CHANNEL} for help getting access.`
+    const msg = `${baseMsg} or reach out in ${MACRO.FEEDBACK_CHANNEL} for help getting access.`
 
     return createAssistantAPIErrorMessage({
       content: msg,
@@ -778,10 +766,8 @@ export function getAssistantMessageFromError(
       error: 'billing_error',
     })
   }
-  // "Organization has been disabled" — commonly a stale ANTHROPIC_API_KEY
-  // from a previous employer/project overriding subscription auth. Only handle
-  // the env-var case; apiKeyHelper and /login-managed keys mean the active
-  // auth's org is genuinely disabled with no dormant fallback to point at.
+  // "Organization has been disabled" usually means the active environment key
+  // points at an organization that can no longer be used.
   if (
     error instanceof APIError &&
     error.status === 400 &&
@@ -792,20 +778,10 @@ export function getAssistantMessageFromError(
     // under the same source value, and in CCR mode OAuth stays active despite
     // the env var. The three guards ensure we only blame the env var when it's
     // actually set and actually on the wire.
-    if (
-      source === 'ANTHROPIC_API_KEY' &&
-      process.env.ANTHROPIC_API_KEY &&
-      !isClaudeAISubscriber()
-    ) {
-      const hasStoredOAuth = getClaudeAIOAuthTokens()?.accessToken != null
-      // Not 'authentication_failed' — that triggers VS Code's showLogin(), but
-      // login can't fix this (approved env var keeps overriding OAuth). The fix
-      // is configuration-based (unset the var), so invalid_request is correct.
+    if (source === 'ANTHROPIC_API_KEY' && process.env.ANTHROPIC_API_KEY) {
       return createAssistantAPIErrorMessage({
         error: 'invalid_request',
-        content: hasStoredOAuth
-          ? ORG_DISABLED_ERROR_MESSAGE_ENV_KEY_WITH_OAUTH
-          : ORG_DISABLED_ERROR_MESSAGE_ENV_KEY,
+        content: ORG_DISABLED_ERROR_MESSAGE_ENV_KEY,
       })
     }
   }
@@ -835,7 +811,7 @@ export function getAssistantMessageFromError(
     })
   }
 
-  // Check for OAuth token revocation error
+  // Check for expired or disallowed credentials from legacy auth backends.
   if (
     error instanceof APIError &&
     error.status === 403 &&
@@ -847,7 +823,6 @@ export function getAssistantMessageFromError(
     })
   }
 
-  // Check for OAuth organization not allowed error
   if (
     error instanceof APIError &&
     (error.status === 401 || error.status === 403) &&
@@ -878,7 +853,7 @@ export function getAssistantMessageFromError(
       error: 'authentication_failed',
       content: getIsNonInteractiveSession()
         ? `Failed to authenticate. ${API_ERROR_MESSAGE_PREFIX}: ${error.message}`
-        : `Please run /login · ${API_ERROR_MESSAGE_PREFIX}: ${error.message}`,
+        : `Authentication required · ${API_ERROR_MESSAGE_PREFIX}: ${error.message}`,
     })
   }
 
@@ -1121,7 +1096,7 @@ export function classifyAPIError(error: unknown): string {
       'OAuth authentication is currently not allowed for this organization',
     )
   ) {
-    return 'oauth_org_not_allowed'
+    return 'credential_org_not_allowed'
   }
 
   // Generic auth errors

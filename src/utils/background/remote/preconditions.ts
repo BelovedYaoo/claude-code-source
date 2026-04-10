@@ -2,14 +2,10 @@ import { getFeatureValue_CACHED_MAY_BE_STALE } from '../../../services/analytics
 import { getCwd } from '../../cwd.js'
 import { logForDebugging } from '../../debug.js'
 import { detectCurrentRepository } from '../../detectRepository.js'
-import { errorMessage } from '../../errors.js'
 import { findGitRoot, getIsClean } from '../../git.js'
-import { getOAuthHeaders } from '../../teleport/api.js'
-import { fetchEnvironments } from '../../teleport/environments.js'
 
 /**
- * Remote sessions are unavailable in API-only mode.
- * Extracted from getTeleportErrors() in TeleportError.tsx
+ * API-only 模式下远程会话不可用。
  * @returns true when the unavailable state should be shown
  */
 export async function checkRemoteUnavailableInApiMode(): Promise<boolean> {
@@ -17,28 +13,11 @@ export async function checkRemoteUnavailableInApiMode(): Promise<boolean> {
 }
 
 /**
- * Checks if git working directory is clean (no uncommitted changes)
- * Ignores untracked files since they won't be lost during branch switching
- * Extracted from getTeleportErrors() in TeleportError.tsx
- * @returns true if git is clean, false otherwise
- */
-export async function checkIsGitClean(): Promise<boolean> {
-  const isClean = await getIsClean({ ignoreUntracked: true })
-  return isClean
-}
-
-/**
- * Checks if user has access to at least one remote environment
- * @returns true if user has remote environments, false otherwise
+ * API-only 模式下远程环境不可用。
  */
 export async function checkHasRemoteEnvironment(): Promise<boolean> {
-  try {
-    const environments = await fetchEnvironments()
-    return environments.length > 0
-  } catch (error) {
-    logForDebugging(`checkHasRemoteEnvironment failed: ${errorMessage(error)}`)
-    return false
-  }
+  logForDebugging('Remote environments are unavailable in API-only mode')
+  return false
 }
 
 /**

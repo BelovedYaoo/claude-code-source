@@ -170,7 +170,7 @@ export async function showSetupScreens(root: Root, permissionMode: PermissionMod
     }
   }
 
-  // Track current repo path for teleport directory switching (fire-and-forget)
+  // 跟踪当前仓库路径，用于远程仓库路径切换（fire-and-forget）
   // This must happen AFTER trust to prevent untrusted directories from poisoning the mapping
   void updateGithubRepoPathMapping();
   if (feature('LODESTONE')) {

@@ -7,10 +7,7 @@ import type {
 } from '../entrypoints/sdk/controlTypes.js'
 import { logForDebugging } from '../utils/debug.js'
 import { logError } from '../utils/log.js'
-import {
-  type RemoteMessageContent,
-  sendEventToRemoteSession,
-} from '../utils/teleport/api.js'
+import type { RemoteMessageContent } from '../utils/teleport/api.js'
 import {
   SessionsWebSocket,
   type SessionsWebSocketCallbacks,
@@ -224,11 +221,7 @@ export class RemoteSessionManager {
       `[RemoteSessionManager] Sending message to session ${this.config.sessionId}`,
     )
 
-    const success = await sendEventToRemoteSession(
-      this.config.sessionId,
-      content,
-      opts,
-    )
+    const success = false
 
     if (!success) {
       logError(

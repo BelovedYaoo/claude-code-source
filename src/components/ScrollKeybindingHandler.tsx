@@ -422,7 +422,7 @@ export function ScrollKeybindingHandler({
     if (sel.anchor.row < top || sel.anchor.row > bottom) return;
     // Cross-boundary: anchor in scrollbox, focus in footer/header. Mirror
     // ink.tsx's Flag-3 guard — fall through without shifting OR capturing.
-    // The static endpoint pins the selection; shifting would teleport it
+    // The static endpoint pins the selection; shifting would jump it
     // into scrollbox content.
     if (sel.focus.row < top || sel.focus.row > bottom) return;
     const max = Math.max(0, s.getScrollHeight() - s.getViewportHeight());

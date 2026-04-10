@@ -12,7 +12,7 @@ import {
 } from './preconditions.js'
 
 /**
- * Background remote session type for managing teleport sessions
+ * 后台远程会话类型，用于管理远程会话。
  */
 export type BackgroundRemoteSession = {
   id: string
@@ -72,7 +72,7 @@ export async function checkBackgroundRemoteSessionEligibility({
 
   // When bundle seeding is on, in-git-repo is enough — CCR can seed from
   // a local bundle. No GitHub remote or app needed. Same gate as
-  // teleport.tsx bundleSeedGateOn.
+  // 与旧远程创建逻辑相同的 bundle seed gate。
   const bundleSeedGateOn =
     !skipBundle &&
     (isEnvTruthy(process.env.CCR_FORCE_BUNDLE) ||

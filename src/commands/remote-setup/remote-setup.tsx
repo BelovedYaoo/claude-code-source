@@ -9,7 +9,7 @@ import { logEvent, type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPAT
 import type { LocalJSXCommandOnDone } from '../../types/command.js';
 import { openBrowser } from '../../utils/browser.js';
 import { getGhAuthStatus } from '../../utils/github/ghAuthStatus.js';
-import { createDefaultEnvironment, getCodeWebUrl, type ImportTokenError, importGithubToken, isSignedIn, RedactedGithubToken } from './api.js';
+import { getCodeWebUrl, type ImportTokenError, importGithubToken, isSignedIn, RedactedGithubToken } from './api.js';
 type CheckResult = {
   status: 'not_signed_in';
 } | {
@@ -141,7 +141,6 @@ function Web({
     // Token import succeeded. Environment creation is best-effort — if it
     // fails, the web state machine routes to env-setup on landing, which is
     // one extra click but still better than the OAuth dance.
-    await createDefaultEnvironment();
     const url = getCodeWebUrl();
     await openBrowser(url);
     logEvent('tengu_remote_setup_result', {

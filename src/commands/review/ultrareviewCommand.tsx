@@ -18,8 +18,8 @@ async function launchAndDone(args: string, context: Parameters<LocalJSXCommandCa
     });
   } else {
     // Precondition failures now return specific ContentBlockParam[] above.
-    // null only reaches here on teleport failure (PR mode) or non-github
-    // repo — both are CCR/repo connectivity issues.
+    // null 只会在远程启动失败（PR 模式）或非 GitHub 仓库时到达这里。
+    // 这两种情况都属于 CCR / 仓库连通性问题。
     onDone('Ultrareview failed to launch the remote session. Check that this is a GitHub repo and try again.', {
       display: 'system'
     });

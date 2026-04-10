@@ -7,11 +7,11 @@ import type {
 } from '../entrypoints/sdk/controlTypes.js'
 import { logForDebugging } from '../utils/debug.js'
 import { logError } from '../utils/log.js'
-import type { RemoteMessageContent } from '../utils/teleport/api.js'
 import {
   SessionsWebSocket,
   type SessionsWebSocketCallbacks,
 } from './SessionsWebSocket.js'
+import { RemoteMessageContent } from "src/types/remoteMessage";
 
 /**
  * Type guard to check if a message is an SDKMessage (not a control message)

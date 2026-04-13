@@ -2,7 +2,6 @@ import { feature } from 'bun:bundle'
 import { writeFile } from 'fs/promises'
 import { z } from 'zod/v4'
 import {
-  getAllowedChannels,
   hasExitedPlanModeInSession,
   setHasExitedPlanMode,
   setNeedsAutoModeExitAttachment,
@@ -47,15 +46,15 @@ import {
   renderToolUseMessage,
   renderToolUseRejectedMessage,
 } from './UI.js'
+import * as autoModeStateModuleImport from '../../utils/permissions/autoModeState.js'
+import * as permissionSetupModuleImport from '../../utils/permissions/permissionSetup.js'
 
-/* eslint-disable @typescript-eslint/no-require-imports */
 const autoModeStateModule = feature('TRANSCRIPT_CLASSIFIER')
-  ? (require('../../utils/permissions/autoModeState.js') as typeof import('../../utils/permissions/autoModeState.js'))
+  ? autoModeStateModuleImport
   : null
 const permissionSetupModule = feature('TRANSCRIPT_CLASSIFIER')
-  ? (require('../../utils/permissions/permissionSetup.js') as typeof import('../../utils/permissions/permissionSetup.js'))
+  ? permissionSetupModuleImport
   : null
-/* eslint-enable @typescript-eslint/no-require-imports */
 
 /**
  * Schema for prompt-based permission requests.
@@ -88,24 +87,6 @@ const inputSchema = lazySchema(() =>
     .passthrough(),
 )
 type InputSchema = ReturnType<typeof inputSchema>
-
-/**
- * SDK-facing input schema - includes fields injected by normalizeToolInput.
- * The internal inputSchema doesn't have these fields because plan is read from disk,
- * but the SDK/hooks see the normalized version with plan and file path included.
- */
-export const _sdkInputSchema = lazySchema(() =>
-  inputSchema().extend({
-    plan: z
-      .string()
-      .optional()
-      .describe('The plan content (injected by normalizeToolInput from disk)'),
-    planFilePath: z
-      .string()
-      .optional()
-      .describe('The plan file path (injected by normalizeToolInput)'),
-  }),
-)
 
 export const outputSchema = lazySchema(() =>
   z.object({
@@ -165,15 +146,6 @@ export const ExitPlanModeV2Tool: Tool<InputSchema, Output> = buildTool({
   },
   shouldDefer: true,
   isEnabled() {
-    // When --channels is active the user is likely on Telegram/Discord, not
-    // watching the TUI. The plan-approval dialog would hang. Paired with the
-    // same gate on EnterPlanMode so plan mode isn't a trap.
-    if (
-      (feature('KAIROS') || feature('KAIROS_CHANNELS')) &&
-      getAllowedChannels().length > 0
-    ) {
-      return false
-    }
     return true
   },
   isConcurrencySafe() {

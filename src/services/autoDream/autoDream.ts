@@ -27,12 +27,7 @@ import { getFeatureValue_CACHED_MAY_BE_STALE } from '../analytics/growthbook.js'
 import { isAutoMemoryEnabled, getAutoMemPath } from '../../memdir/paths.js'
 import { isAutoDreamEnabled } from './config.js'
 import { getProjectDir } from '../../utils/sessionStorage.js'
-import {
-  getOriginalCwd,
-  getKairosActive,
-  getIsRemoteMode,
-  getSessionId,
-} from '../../bootstrap/state.js'
+import { getOriginalCwd, getSessionId } from '../../bootstrap/state.js'
 import { createAutoMemCanUseTool } from '../extractMemories/extractMemories.js'
 import { buildConsolidationPrompt } from './consolidationPrompt.js'
 import {
@@ -65,36 +60,14 @@ const DEFAULTS: AutoDreamConfig = {
   minSessions: 5,
 }
 
-/**
- * Thresholds from tengu_onyx_plover. The enabled gate lives in config.ts
- * (isAutoDreamEnabled); this returns only the scheduling knobs. Defensive
- * per-field validation since GB cache can return stale wrong-type values.
- */
 function getConfig(): AutoDreamConfig {
-  const raw =
-    getFeatureValue_CACHED_MAY_BE_STALE<Partial<AutoDreamConfig> | null>(
-      'tengu_onyx_plover',
-      null,
-    )
   return {
-    minHours:
-      typeof raw?.minHours === 'number' &&
-      Number.isFinite(raw.minHours) &&
-      raw.minHours > 0
-        ? raw.minHours
-        : DEFAULTS.minHours,
-    minSessions:
-      typeof raw?.minSessions === 'number' &&
-      Number.isFinite(raw.minSessions) &&
-      raw.minSessions > 0
-        ? raw.minSessions
-        : DEFAULTS.minSessions,
+    minHours: DEFAULTS.minHours,
+    minSessions: DEFAULTS.minSessions,
   }
 }
 
 function isGateOpen(): boolean {
-  if (getKairosActive()) return false // KAIROS mode uses disk-skill dream
-  if (getIsRemoteMode()) return false
   if (!isAutoMemoryEnabled()) return false
   return isAutoDreamEnabled()
 }

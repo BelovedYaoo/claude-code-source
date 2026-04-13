@@ -5,7 +5,6 @@ import { Text } from 'src/ink.js';
 import type { MCPServerConnection } from 'src/services/mcp/types.js';
 import { getGlobalConfig, saveGlobalConfig } from 'src/utils/config.js';
 import { detectIDEs, type IDEExtensionInstallationStatus, isJetBrainsIde, isSupportedTerminal } from 'src/utils/ide.js';
-import { getIsRemoteMode } from '../../bootstrap/state.js';
 import { useIdeConnectionStatus } from '../useIdeConnectionStatus.js';
 import type { IDESelection } from '../useIdeSelection.js';
 const MAX_IDE_HINT_SHOW_COUNT = 5;
@@ -48,9 +47,6 @@ export function useIDEStatusIndicator(t0: Props) {
   let t3;
   if ($[2] !== addNotification || $[3] !== ideStatus || $[4] !== removeNotification || $[5] !== showJetBrainsInfo) {
     t2 = () => {
-      if (getIsRemoteMode()) {
-        return;
-      }
       if (isSupportedTerminal() || ideStatus !== null || showJetBrainsInfo) {
         removeNotification("ide-status-hint");
         return;
@@ -77,9 +73,6 @@ export function useIDEStatusIndicator(t0: Props) {
   let t5;
   if ($[8] !== addNotification || $[9] !== ideName || $[10] !== ideStatus || $[11] !== removeNotification || $[12] !== showIDEInstallError || $[13] !== showJetBrainsInfo) {
     t4 = () => {
-      if (getIsRemoteMode()) {
-        return;
-      }
       if (showIDEInstallError || showJetBrainsInfo || ideStatus !== "disconnected" || !ideName) {
         removeNotification("ide-status-disconnected");
         return;
@@ -109,9 +102,6 @@ export function useIDEStatusIndicator(t0: Props) {
   let t7;
   if ($[16] !== addNotification || $[17] !== removeNotification || $[18] !== showJetBrainsInfo) {
     t6 = () => {
-      if (getIsRemoteMode()) {
-        return;
-      }
       if (!showJetBrainsInfo) {
         removeNotification("ide-status-jetbrains-disconnected");
         return;
@@ -137,9 +127,6 @@ export function useIDEStatusIndicator(t0: Props) {
   let t9;
   if ($[21] !== addNotification || $[22] !== removeNotification || $[23] !== showIDEInstallError) {
     t8 = () => {
-      if (getIsRemoteMode()) {
-        return;
-      }
       if (!showIDEInstallError) {
         removeNotification("ide-status-install-error");
         return;

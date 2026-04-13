@@ -32,9 +32,6 @@ export function maybePersistTokenForSubprocesses(
   token: string,
   tokenName: string,
 ): void {
-  if (!isEnvTruthy(process.env.CLAUDE_CODE_REMOTE)) {
-    return
-  }
   try {
     // eslint-disable-next-line custom-rules/no-sync-fs -- one-shot startup write in CCR, caller is sync
     mkdirSync(CCR_TOKEN_DIR, { recursive: true, mode: 0o700 })

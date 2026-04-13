@@ -39,6 +39,7 @@ import {
   clearSessionMetadata,
   getAgentTranscriptPath,
   resetSessionFilePointer,
+  saveMode,
   saveWorktreeState,
 } from '../../utils/sessionStorage.js'
 import {
@@ -110,13 +111,6 @@ export async function clearConversation({
 
   setMessages(() => [])
 
-  // Clear context-blocked flag so proactive ticks resume after /clear
-  if (feature('PROACTIVE') || feature('KAIROS')) {
-    /* eslint-disable @typescript-eslint/no-require-imports */
-    const { setContextBlocked } = require('../../proactive/index.js')
-    /* eslint-enable @typescript-eslint/no-require-imports */
-    setContextBlocked(false)
-  }
 
   // Force logo re-render by updating conversationId
   if (setConversationId) {
@@ -171,8 +165,7 @@ export async function clearConversation({
         ...prev,
         tasks: nextTasks,
         attribution: createEmptyAttributionState(),
-        // Clear standalone agent context (name/color set by /rename, /color)
-        // so the new session doesn't display the old session's identity badge
+        // 清除独立 agent 上下文（名称/颜色），避免新会话继续显示旧标识
         standaloneAgentContext: undefined,
         fileHistory: {
           snapshots: [],
@@ -230,12 +223,7 @@ export async function clearConversation({
   // wiped both from the cache, but the process is still in the same mode
   // and (if applicable) the same worktree directory.
   if (feature('COORDINATOR_MODE')) {
-    /* eslint-disable @typescript-eslint/no-require-imports */
-    const { saveMode } = require('../../utils/sessionStorage.js')
-    const {
-      isCoordinatorMode,
-    } = require('../../coordinator/coordinatorMode.js')
-    /* eslint-enable @typescript-eslint/no-require-imports */
+    const { isCoordinatorMode } = await import('../../coordinator/coordinatorMode.js')
     saveMode(isCoordinatorMode() ? 'coordinator' : 'normal')
   }
   const worktreeSession = getCurrentWorktreeSession()

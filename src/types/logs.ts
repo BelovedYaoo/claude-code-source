@@ -31,8 +31,8 @@ export type LogOption = {
   isLite?: boolean // True for lite logs (messages not loaded)
   sessionId?: string // Session ID for lite logs
   teamName?: string // Team name if this is a spawned agent session
-  agentName?: string // Agent's custom name (from /rename or swarm)
-  agentColor?: string // Agent's color (from /rename or swarm)
+  agentName?: string // Agent 的自定义名称（来自会话或 swarm）
+  agentColor?: string // Agent 的颜色（来自会话或 swarm）
   agentSetting?: string // Agent definition used (from --agent flag or settings.agent)
   isTeammate?: boolean // Whether this session was created by a swarm teammate
   leafUuid?: UUID // If given, this uuid must appear in the DB
@@ -226,8 +226,8 @@ export type TranscriptMessage = SerializedMessage & {
   gitBranch?: string
   agentId?: string // Agent ID for sidechain transcripts to enable resuming agents
   teamName?: string // Team name if this is a spawned agent session
-  agentName?: string // Agent's custom name (from /rename or swarm)
-  agentColor?: string // Agent's color (from /rename or swarm)
+  agentName?: string // Agent 的自定义名称（来自会话或 swarm）
+  agentColor?: string // Agent 的颜色（来自会话或 swarm）
   promptId?: string // Correlates with OTel prompt.id for user prompt messages
 }
 

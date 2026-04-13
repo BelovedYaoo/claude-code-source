@@ -28,17 +28,11 @@ import { logError } from './log.js'
 import { getPlatform } from './platform.js'
 import { lt } from './semver.js'
 
-// Lazy: IdeOnboardingDialog.tsx pulls React/ink; only needed in interactive onboarding path
-/* eslint-disable @typescript-eslint/no-require-imports */
-const ideOnboardingDialog =
-  (): typeof import('src/components/IdeOnboardingDialog.js') =>
-    require('src/components/IdeOnboardingDialog.js')
-
 import { createAbortController } from './abortController.js'
+import { hasIdeOnboardingDialogBeenShown } from 'src/components/IdeOnboardingDialog.js'
 import { logForDebugging } from './debug.js'
 import { envDynamic } from './envDynamic.js'
 import { errorMessage, isFsInaccessible } from './errors.js'
-/* eslint-enable @typescript-eslint/no-require-imports */
 import {
   checkWSLDistroMatch,
   WindowsToWSLConverter,
@@ -1326,7 +1320,7 @@ export async function initializeIdeIntegration(
               if (
                 !isAlreadyInstalled &&
                 status?.installed === true &&
-                !ideOnboardingDialog().hasIdeOnboardingDialogBeenShown()
+                !hasIdeOnboardingDialogBeenShown()
               ) {
                 onShowIdeOnboarding()
               }
@@ -1337,7 +1331,7 @@ export async function initializeIdeIntegration(
         void isIDEExtensionInstalled(ideType).then(async installed => {
           if (
             installed &&
-            !ideOnboardingDialog().hasIdeOnboardingDialogBeenShown()
+            !hasIdeOnboardingDialogBeenShown()
           ) {
             onShowIdeOnboarding()
           }

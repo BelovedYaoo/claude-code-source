@@ -48,7 +48,7 @@ function isSessionsMessage(value: unknown): value is SessionsMessage {
     return false
   }
   // Accept any message with a string `type` field. Downstream handlers
-  // (sdkMessageAdapter, RemoteSessionManager) decide what to do with
+  // (such as sdk adapters) decide what to do with
   // unknown types. A hardcoded allowlist here would silently drop new
   // message types the backend starts sending before the client is updated.
   return typeof value.type === 'string'

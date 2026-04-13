@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import type { ToolUseConfirm } from '../components/permissions/PermissionRequest.js'
-import type { RemotePermissionResponse } from '../remote/RemoteSessionManager.js'
+import type { RemotePermissionResponse } from '../types/remotePermission.js'
 import {
   createSyntheticAssistantMessage,
   createToolStub,
@@ -221,7 +221,7 @@ export function useDirectConnect({
     isConnectedRef.current = false
   }, [])
 
-  // Same stability concern as useRemoteSession — memoize so consumers
+  // Same stability concern as similar transport hooks — memoize so consumers
   // that depend on the result object don't see a fresh reference per render.
   return useMemo(
     () => ({ isRemoteMode, sendMessage, cancelRequest, disconnect }),

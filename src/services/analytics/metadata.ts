@@ -15,12 +15,12 @@ import { getMainLoopModel } from '../../utils/model/model.js'
 import {
   getSessionId,
   getIsInteractive,
-  getKairosActive,
   getClientType,
   getParentSessionId as getParentSessionIdFromState,
 } from '../../bootstrap/state.js'
 import { isEnvTruthy } from '../../utils/envUtils.js'
 import { isOfficialMcpUrl } from '../mcp/officialRegistry.js'
+import { COMPUTER_USE_MCP_SERVER_NAME } from '../../utils/computerUse/common.js'
 import { getRepoRemoteHash } from '../../utils/git.js'
 import {
   getWslVersion,
@@ -124,17 +124,9 @@ export function isAnalyticsToolDetailsLoggingEnabled(
  * reservation (main.tsx, config.ts addMcpServer) is itself feature-gated, so
  * a user-configured 'computer-use' is possible in builds without the feature.
  */
-/* eslint-disable @typescript-eslint/no-require-imports */
 const BUILTIN_MCP_SERVER_NAMES: ReadonlySet<string> = new Set(
-  feature('CHICAGO_MCP')
-    ? [
-        (
-          require('../../utils/computerUse/common.js') as typeof import('../../utils/computerUse/common.js')
-        ).COMPUTER_USE_MCP_SERVER_NAME,
-      ]
-    : [],
+  feature('CHICAGO_MCP') ? [COMPUTER_USE_MCP_SERVER_NAME] : [],
 )
-/* eslint-enable @typescript-eslint/no-require-imports */
 
 /**
  * Spreadable helper for logEvent payloads — returns {mcpServerName, mcpToolName}
@@ -424,7 +416,6 @@ export type EnvContext = {
   isRunningWithBun: boolean
   isCi: boolean
   isClaubbit: boolean
-  isClaudeCodeRemote: boolean
   isLocalAgentMode: boolean
   isConductor: boolean
   remoteEnvironmentType?: string
@@ -488,7 +479,6 @@ export type EventMetadata = {
   agentType?: 'teammate' | 'subagent' | 'standalone' // Distinguishes swarm teammates, Agent tool subagents, and standalone agents
   teamName?: string // Team name for swarm agents (from env var or AsyncLocalStorage)
   rh?: string // Hashed repo remote URL (first 16 chars of SHA256), for joining with server-side data
-  kairosActive?: true // KAIROS assistant mode active (ant-only; set in main.tsx after gate check)
   skillMode?: 'discovery' | 'coach' | 'discovery_and_coach' // Which skill surfacing mechanism(s) are gated on (ant-only; for BQ session segmentation)
   observerMode?: 'backseat' | 'skillcoach' | 'both' // Which observer classifiers are gated on (ant-only; for BQ cohort splits on tengu_backseat_* events)
 }
@@ -591,7 +581,6 @@ const buildEnvContext = memoize(async (): Promise<EnvContext> => {
     isRunningWithBun: env.isRunningWithBun(),
     isCi: isEnvTruthy(process.env.CI),
     isClaubbit: isEnvTruthy(process.env.CLAUBBIT),
-    isClaudeCodeRemote: isEnvTruthy(process.env.CLAUDE_CODE_REMOTE),
     isLocalAgentMode: process.env.CLAUDE_CODE_ENTRYPOINT === 'local-agent',
     isConductor: env.isConductor(),
     ...(process.env.CLAUDE_CODE_REMOTE_ENVIRONMENT_TYPE && {
@@ -723,12 +712,6 @@ export async function getEventMetadata(
     // Swarm/team agent identification
     // Priority: AsyncLocalStorage context (subagents) > env vars (swarm teammates)
     ...getAgentIdentification(),
-    // Assistant mode tag — lives outside memoized buildEnvContext() because
-    // setKairosActive() runs at main.tsx:~1648, after the first event may
-    // have already fired and memoized the env. Read fresh per-event instead.
-    ...(feature('KAIROS') && getKairosActive()
-      ? { kairosActive: true as const }
-      : {}),
     // Repo remote hash for joining with server-side repo bundle data
     ...(repoRemoteHash && { rh: repoRemoteHash }),
   }
@@ -796,7 +779,6 @@ export function to1PEventFormat(
     envContext,
     processMetrics,
     rh,
-    kairosActive,
     skillMode,
     observerMode,
     ...coreFields
@@ -822,7 +804,6 @@ export function to1PEventFormat(
     is_running_with_bun: envContext.isRunningWithBun,
     is_ci: envContext.isCi,
     is_claubbit: envContext.isClaubbit,
-    is_claude_code_remote: envContext.isClaudeCodeRemote,
     is_local_agent_mode: envContext.isLocalAgentMode,
     is_conductor: envContext.isConductor,
     is_github_action: envContext.isGithubAction,
@@ -958,7 +939,6 @@ export function to1PEventFormat(
     core,
     additional: {
       ...(rh && { rh }),
-      ...(kairosActive && { is_assistant_mode: true }),
       ...(skillMode && { skill_mode: skillMode }),
       ...(observerMode && { observer_mode: observerMode }),
       ...additionalMetadata,

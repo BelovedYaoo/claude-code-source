@@ -5,10 +5,9 @@ import figures from 'figures';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNotifications } from 'src/context/notifications.js';
 import { type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS, logEvent } from 'src/services/analytics/index.js';
-import { useAppState, useAppStateStore, useSetAppState } from 'src/state/AppState.js';
+import { useAppState, useSetAppState } from 'src/state/AppState.js';
 import { getSdkBetas, getSessionId, isSessionPersistenceDisabled, setHasExitedPlanMode, setNeedsAutoModeExitAttachment, setNeedsPlanModeExitAttachment } from '../../../bootstrap/state.js';
-import { generateSessionName } from '../../../commands/rename/generateSessionName.js';
-import { launchUltraplan } from '../../../commands/ultraplan.js';
+import { generateSessionTitle } from '../../../utils/sessionTitle.js';
 import type { KeyboardEvent } from '../../../ink/events/keyboard-event.js';
 import { Box, Text } from '../../../ink.js';
 import type { AppState } from '../../../state/AppStateStore.js';
@@ -22,13 +21,16 @@ import { getExternalEditor } from '../../../utils/editor.js';
 import { getDisplayPath } from '../../../utils/file.js';
 import { toIDEDisplayName } from '../../../utils/ide.js';
 import { logError } from '../../../utils/log.js';
-import { enqueuePendingNotification } from '../../../utils/messageQueueManager.js';
 import { createUserMessage } from '../../../utils/messages.js';
 import { getMainLoopModel, getRuntimeMainLoopModel } from '../../../utils/model/model.js';
 import { createPromptRuleContent, isClassifierPermissionsEnabled, PROMPT_PREFIX } from '../../../utils/permissions/bashClassifier.js';
 import { type PermissionMode, toExternalPermissionMode } from '../../../utils/permissions/PermissionMode.js';
 import type { PermissionUpdate } from '../../../utils/permissions/PermissionUpdateSchema.js';
 import { isAutoModeGateEnabled, restoreDangerousPermissions, stripDangerousPermissionsForAutoMode } from '../../../utils/permissions/permissionSetup.js';
+import {
+  isAutoModeActive,
+  setAutoModeActive,
+} from '../../../utils/permissions/autoModeState.js';
 import { getPewterLedgerVariant, isPlanModeInterviewPhaseEnabled } from '../../../utils/planModeV2.js';
 import { getPlan, getPlanFilePath } from '../../../utils/plans.js';
 import { editFileInEditor, editPromptInEditor } from '../../../utils/promptEditor.js';
@@ -40,15 +42,12 @@ import { PermissionDialog } from '../PermissionDialog.js';
 import type { PermissionRequestProps } from '../PermissionRequest.js';
 import { PermissionRuleExplanation } from '../PermissionRuleExplanation.js';
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-const autoModeStateModule = feature('TRANSCRIPT_CLASSIFIER') ? require('../../../utils/permissions/autoModeState.js') as typeof import('../../../utils/permissions/autoModeState.js') : null;
 import type { Base64ImageSource, ImageBlockParam } from '@anthropic-ai/sdk/resources/messages.mjs';
-/* eslint-enable @typescript-eslint/no-require-imports */
 import type { PastedContent } from '../../../utils/config.js';
 import type { ImageDimensions } from '../../../utils/imageResizer.js';
 import { maybeResizeAndDownsampleImageBlock } from '../../../utils/imageResizer.js';
 import { cacheImagePath, storeImage } from '../../../utils/imageStore.js';
-type ResponseValue = 'yes-bypass-permissions' | 'yes-accept-edits' | 'yes-accept-edits-keep-context' | 'yes-default-keep-context' | 'yes-resume-auto-mode' | 'yes-auto-clear-context' | 'ultraplan' | 'no';
+type ResponseValue = 'yes-bypass-permissions' | 'yes-accept-edits' | 'yes-accept-edits-keep-context' | 'yes-default-keep-context' | 'yes-resume-auto-mode' | 'yes-auto-clear-context' | 'no';
 
 /**
  * Build permission updates for plan approval, including prompt-based rules if provided.
@@ -77,9 +76,8 @@ export function buildPermissionUpdates(mode: PermissionMode, allowedPrompts?: Al
 }
 
 /**
- * Auto-name the session from the plan content when the user accepts a plan,
- * if they haven't already named it via /rename or --name. Fire-and-forget.
- * Mirrors /rename: kebab-case name, updates the prompt-border badge.
+ * Auto-name the session from the plan content when the user accepts a plan。
+ * 若会话尚未设置标题，则自动生成标题并同步更新提示边框徽标。
  */
 export function autoNameSessionFromPlan(plan: string, setAppState: (updater: (prev: AppState) => AppState) => void, isClearContext: boolean): void {
   if (isSessionPersistenceDisabled() || getSettings_DEPRECATED()?.cleanupPeriodDays === 0) {
@@ -89,13 +87,9 @@ export function autoNameSessionFromPlan(plan: string, setAppState: (updater: (pr
   // title (which may have been set by a PRIOR auto-name) is irrelevant.
   // Checking it would make the feature self-defeating after first use.
   if (!isClearContext && getCurrentSessionTitle(getSessionId())) return;
-  void generateSessionName(
-  // generateSessionName tail-slices to the last 1000 chars (correct for
-  // conversations, where recency matters). Plans front-load the goal and
-  // end with testing steps — head-slice so Haiku sees the summary.
-  [createUserMessage({
-    content: plan.slice(0, 1000)
-  })], new AbortController().signal).then(async name => {
+  void generateSessionTitle(
+  // 计划内容的重点通常在开头，这里截取前 1000 个字符供标题生成使用。
+  plan.slice(0, 1000), new AbortController().signal).then(async name => {
     // On clear-context acceptance, regenerateSessionId() has run by now —
     // this intentionally names the NEW execution session. Do not "fix" by
     // capturing sessionId once; that would name the abandoned planning session.
@@ -125,7 +119,6 @@ export function ExitPlanModePermissionRequest({
 }: PermissionRequestProps): React.ReactNode {
   const toolPermissionContext = useAppState(s => s.toolPermissionContext);
   const setAppState = useSetAppState();
-  const store = useAppStateStore();
   const {
     addNotification
   } = useNotifications();
@@ -136,13 +129,6 @@ export function ExitPlanModePermissionRequest({
   const [pastedContents, setPastedContents] = useState<Record<number, PastedContent>>({});
   const nextPasteIdRef = useRef(0);
   const showClearContext = useAppState(s => s.settings.showClearContextOnPlanAccept) ?? false;
-  const ultraplanSessionUrl = useAppState(s => s.ultraplanSessionUrl);
-  const ultraplanLaunching = useAppState(s => s.ultraplanLaunching);
-  // Hide the Ultraplan button while a session is active or launching —
-  // selecting it would dismiss the dialog and reject locally before
-  // launchUltraplan can notice the session exists and return "already polling".
-  // feature() must sit directly in an if/ternary (bun:bundle DCE constraint).
-  const showUltraplan = feature('ULTRAPLAN') ? !ultraplanSessionUrl && !ultraplanLaunching : false;
   const usage = toolUseConfirm.assistantMessage.message.usage;
   const {
     mode,
@@ -151,12 +137,11 @@ export function ExitPlanModePermissionRequest({
   } = toolPermissionContext;
   const options = useMemo(() => buildPlanApprovalOptions({
     showClearContext,
-    showUltraplan,
     usedPercent: showClearContext ? getContextUsedPercent(usage, mode) : null,
     isAutoModeAvailable,
     isBypassPermissionsModeAvailable,
     onFeedbackChange: setPlanFeedback
-  }), [showClearContext, showUltraplan, usage, mode, isAutoModeAvailable, isBypassPermissionsModeAvailable]);
+  }), [showClearContext, usage, mode, isAutoModeAvailable, isBypassPermissionsModeAvailable]);
   function onImagePaste(base64Image: string, mediaType?: string, filename?: string, dimensions?: ImageDimensions, _sourcePath?: string) {
     const pasteId = nextPasteIdRef.current++;
     const newContent: PastedContent = {
@@ -276,32 +261,6 @@ export function ExitPlanModePermissionRequest({
     const trimmedFeedback = planFeedback.trim();
     const acceptFeedback = trimmedFeedback || undefined;
 
-    // Ultraplan：先在本地拒绝，再把计划作为种子草稿发送到 CCR。
-    // 对话框会立刻关闭以解除查询阻塞；远程启动在后台执行，
-    // 启动消息会通过命令队列落回本地会话。
-    if (value === 'ultraplan') {
-      logEvent('tengu_plan_exit', {
-        planLengthChars: currentPlan.length,
-        outcome: 'ultraplan' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-        interviewPhaseEnabled: isPlanModeInterviewPhaseEnabled(),
-        planStructureVariant
-      });
-      onDone();
-      onReject();
-      toolUseConfirm.onReject('Plan being refined via Ultraplan — please wait for the result.');
-      void launchUltraplan({
-        blurb: '',
-        seedPlan: currentPlan,
-        getAppState: store.getState,
-        setAppState: store.setState,
-        signal: new AbortController().signal
-      }).then(msg => enqueuePendingNotification({
-        value: msg,
-        mode: 'task-notification'
-      })).catch(logError);
-      return;
-    }
-
     // V1: pass plan in input. V2: plan is on disk, but if the user edited it
     // via Ctrl+G we pass it through so the tool echoes the edit in tool_result
     // (otherwise the model never sees the user's changes).
@@ -316,9 +275,9 @@ export function ExitPlanModePermissionRequest({
       // isAutoModeActive() is the authoritative signal — prePlanMode/
       // strippedDangerousRules are stale after transitionPlanAutoMode
       // deactivates mid-plan (would cause duplicate exit attachment).
-      const autoWasUsedDuringPlan = autoModeStateModule?.isAutoModeActive() ?? false;
+      const autoWasUsedDuringPlan = feature('TRANSCRIPT_CLASSIFIER') ? isAutoModeActive() : false;
       if (value !== 'no' && !goingToAuto && autoWasUsedDuringPlan) {
-        autoModeStateModule?.setAutoModeActive(false);
+        if (feature('TRANSCRIPT_CLASSIFIER')) setAutoModeActive(false);
         setNeedsAutoModeExitAttachment(true);
         setAppState(prev => ({
           ...prev,
@@ -349,7 +308,7 @@ export function ExitPlanModePermissionRequest({
         // REPL's processInitialMessage handles stripDangerousPermissions + mode,
         // but does NOT set autoModeActive. Gate-off falls through to 'default'.
         mode = 'auto';
-        autoModeStateModule?.setAutoModeActive(true);
+        if (feature('TRANSCRIPT_CLASSIFIER')) setAutoModeActive(true);
       }
 
       // Log plan exit event
@@ -409,7 +368,7 @@ export function ExitPlanModePermissionRequest({
       });
       setHasExitedPlanMode(true);
       setNeedsPlanModeExitAttachment(true);
-      autoModeStateModule?.setAutoModeActive(true);
+      if (feature('TRANSCRIPT_CLASSIFIER')) setAutoModeActive(true);
       setAppState(prev => ({
         ...prev,
         toolPermissionContext: stripDangerousPermissionsForAutoMode({
@@ -566,9 +525,9 @@ export function ExitPlanModePermissionRequest({
           planStructureVariant
         });
         if (feature('TRANSCRIPT_CLASSIFIER')) {
-          const autoWasUsedDuringPlan = autoModeStateModule?.isAutoModeActive() ?? false;
+          const autoWasUsedDuringPlan = feature('TRANSCRIPT_CLASSIFIER') ? isAutoModeActive() : false;
           if (autoWasUsedDuringPlan) {
-            autoModeStateModule?.setAutoModeActive(false);
+            if (feature('TRANSCRIPT_CLASSIFIER')) setAutoModeActive(false);
             setNeedsAutoModeExitAttachment(true);
             setAppState(prev => ({
               ...prev,
@@ -674,14 +633,12 @@ export function ExitPlanModePermissionRequest({
 /** @internal Exported for testing. */
 export function buildPlanApprovalOptions({
   showClearContext,
-  showUltraplan,
   usedPercent,
   isAutoModeAvailable,
   isBypassPermissionsModeAvailable,
   onFeedbackChange
 }: {
   showClearContext: boolean;
-  showUltraplan: boolean;
   usedPercent: number | null;
   isAutoModeAvailable: boolean | undefined;
   isBypassPermissionsModeAvailable: boolean | undefined;
@@ -729,12 +686,6 @@ export function buildPlanApprovalOptions({
     label: 'Yes, manually approve edits',
     value: 'yes-default-keep-context'
   });
-  if (showUltraplan) {
-    options.push({
-      label: 'No, refine with Ultraplan on Claude Code on the web',
-      value: 'ultraplan'
-    });
-  }
   options.push({
     type: 'input',
     label: 'No, keep planning',

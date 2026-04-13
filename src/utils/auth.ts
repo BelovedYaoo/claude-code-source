@@ -76,10 +76,7 @@ const DEFAULT_API_KEY_HELPER_TTL = 5 * 60 * 1000
  * also use that key — and fail if it's stale/wrong-org.
  */
 function isManagedOAuthContext(): boolean {
-  return (
-    isEnvTruthy(process.env.CLAUDE_CODE_REMOTE) ||
-    process.env.CLAUDE_CODE_ENTRYPOINT === 'claude-desktop'
-  )
+  return process.env.CLAUDE_CODE_ENTRYPOINT === 'claude-desktop'
 }
 
 /** Whether we are supporting direct 1P auth. */

@@ -17,11 +17,19 @@ import { useAppState, useSetAppState } from '../state/AppState.js';
 import type { Tool } from '../Tool.js';
 import type { AgentColorName } from '../tools/AgentTool/agentColorManager.js';
 import type { AgentDefinition } from '../tools/AgentTool/loadAgentsDir.js';
+import {
+  getActiveAgentsFromList,
+  getAgentDefinitionsWithOverrides,
+} from '../tools/AgentTool/loadAgentsDir.js';
 import { asSessionId } from '../types/ids.js';
 import type { LogOption } from '../types/logs.js';
 import type { Message } from '../types/message.js';
 import { agenticSessionSearch } from '../utils/agenticSessionSearch.js';
 import { renameRecordingForSession } from '../utils/asciicast.js';
+import {
+  isCoordinatorMode,
+  matchSessionMode,
+} from '../coordinator/coordinatorMode.js';
 import { updateSessionName } from '../utils/concurrentSessions.js';
 import { loadConversationForResume } from '../utils/conversationRecovery.js';
 import { checkCrossProjectResume } from '../utils/crossProjectResume.js';
@@ -29,9 +37,10 @@ import type { FileHistorySnapshot } from '../utils/fileHistory.js';
 import { logError } from '../utils/log.js';
 import { createSystemMessage } from '../utils/messages.js';
 import { computeStandaloneAgentContext, restoreAgentFromSession, restoreWorktreeForResume } from '../utils/sessionRestore.js';
-import { adoptResumedSessionFile, enrichLogs, isCustomTitleEnabled, loadAllProjectsMessageLogsProgressive, loadSameRepoMessageLogsProgressive, recordContentReplacement, resetSessionFilePointer, restoreSessionMetadata, type SessionLogResult } from '../utils/sessionStorage.js';
+import { adoptResumedSessionFile, enrichLogs, loadAllProjectsMessageLogsProgressive, loadSameRepoMessageLogsProgressive, recordContentReplacement, resetSessionFilePointer, restoreSessionMetadata, saveMode, type SessionLogResult } from '../utils/sessionStorage.js';
 import type { ThinkingConfig } from '../utils/thinking.js';
 import type { ContentReplacementRecord } from '../utils/toolResultStorage.js';
+import { restoreFromEntries } from '../services/contextCollapse/persist.js';
 import { REPL } from './REPL.js';
 function parsePrIdentifier(value: string): number | null {
   const directNumber = parseInt(value, 10);
@@ -122,7 +131,6 @@ export function ResumeConversation({
     }
     return result;
   }, [logs, filterByPr]);
-  const isResumeWithRenameEnabled = isCustomTitleEnabled();
   React.useEffect(() => {
     loadSameRepoMessageLogsProgressive(worktreePaths).then(result_0 => {
       sessionLogResultRef.current = result_0;
@@ -193,17 +201,8 @@ export function ResumeConversation({
         throw new Error('Failed to load conversation');
       }
       if (feature('COORDINATOR_MODE')) {
-        /* eslint-disable @typescript-eslint/no-require-imports */
-        const coordinatorModule = require('../coordinator/coordinatorMode.js') as typeof import('../coordinator/coordinatorMode.js');
-        /* eslint-enable @typescript-eslint/no-require-imports */
-        const warning = coordinatorModule.matchSessionMode(result_3.mode);
+        const warning = matchSessionMode(result_3.mode);
         if (warning) {
-          /* eslint-disable @typescript-eslint/no-require-imports */
-          const {
-            getAgentDefinitionsWithOverrides,
-            getActiveAgentsFromList
-          } = require('../tools/AgentTool/loadAgentsDir.js') as typeof import('../tools/AgentTool/loadAgentsDir.js');
-          /* eslint-enable @typescript-eslint/no-require-imports */
           getAgentDefinitionsWithOverrides.cache.clear?.();
           const freshAgentDefs = await getAgentDefinitionsWithOverrides(getOriginalCwd());
           setAppState(prev_0 => ({
@@ -233,14 +232,6 @@ export function ResumeConversation({
         agent: resolvedAgentDef?.agentType
       }));
       if (feature('COORDINATOR_MODE')) {
-        /* eslint-disable @typescript-eslint/no-require-imports */
-        const {
-          saveMode
-        } = require('../utils/sessionStorage.js');
-        const {
-          isCoordinatorMode
-        } = require('../coordinator/coordinatorMode.js') as typeof import('../coordinator/coordinatorMode.js');
-        /* eslint-enable @typescript-eslint/no-require-imports */
         saveMode(isCoordinatorMode() ? 'coordinator' : 'normal');
       }
       const standaloneAgentContext = computeStandaloneAgentContext(result_3.agentName, result_3.agentColor);
@@ -262,10 +253,7 @@ export function ResumeConversation({
         }
       }
       if (feature('CONTEXT_COLLAPSE')) {
-        /* eslint-disable @typescript-eslint/no-require-imports */
-        ;
-        (require('../services/contextCollapse/persist.js') as typeof import('../services/contextCollapse/persist.js')).restoreFromEntries(result_3.contextCollapseCommits ?? [], result_3.contextCollapseSnapshot);
-        /* eslint-enable @typescript-eslint/no-require-imports */
+        restoreFromEntries(result_3.contextCollapseCommits ?? [], result_3.contextCollapseSnapshot);
       }
       logEvent('tengu_session_resumed', {
         entrypoint: 'picker' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
@@ -311,7 +299,7 @@ export function ResumeConversation({
   if (filteredLogs.length === 0) {
     return <NoConversationsMessage />;
   }
-  return <LogSelector logs={filteredLogs} maxHeight={rows} onCancel={onCancel} onSelect={onSelect} onLogsChanged={isResumeWithRenameEnabled ? () => loadLogs(showAllProjects) : undefined} onLoadMore={loadMoreLogs} initialSearchQuery={initialSearchQuery} showAllProjects={showAllProjects} onToggleAllProjects={handleToggleAllProjects} onAgenticSearch={agenticSessionSearch} />;
+  return <LogSelector logs={filteredLogs} maxHeight={rows} onCancel={onCancel} onSelect={onSelect} onLoadMore={loadMoreLogs} initialSearchQuery={initialSearchQuery} showAllProjects={showAllProjects} onToggleAllProjects={handleToggleAllProjects} onAgenticSearch={agenticSessionSearch} />;
 }
 function NoConversationsMessage() {
   const $ = _c(2);

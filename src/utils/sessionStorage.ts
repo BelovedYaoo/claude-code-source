@@ -13,7 +13,6 @@ import {
   readdir,
   readFile,
   stat,
-  unlink,
   writeFile,
 } from 'fs/promises'
 import memoize from 'lodash-es/memoize.js'
@@ -32,7 +31,7 @@ import {
   switchSession,
 } from '../bootstrap/state.js'
 import { builtInCommandNames } from '../commands.js'
-import { COMMAND_NAME_TAG, TICK_TAG } from '../constants/xml.js'
+import { COMMAND_NAME_TAG } from '../constants/xml.js'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../services/analytics/growthbook.js'
 import * as sessionIngress from '../services/api/sessionIngress.js'
 import { REPL_TOOL_NAME } from '../tools/REPLTool/constants.js'
@@ -188,9 +187,7 @@ const EPHEMERAL_PROGRESS_TYPES = new Set([
   'bash_progress',
   'powershell_progress',
   'mcp_progress',
-  ...(feature('PROACTIVE') || feature('KAIROS')
-    ? (['sleep_progress'] as const)
-    : []),
+  'sleep_progress',
 ])
 export function isEphemeralToolProgress(dataType: unknown): boolean {
   return typeof dataType === 'string' && EPHEMERAL_PROGRESS_TYPES.has(dataType)
@@ -353,12 +350,10 @@ function getProject(): Project {
     // Register flush as a cleanup handler (only once)
     if (!cleanupRegistered) {
       registerCleanup(async () => {
-        // Flush queued writes first, then re-append session metadata
-        // (customTitle, tag) so they always appear in the last 64KB tail
-        // window. readLiteMetadata only reads the tail to extract these
-        // fields — if enough messages are appended after a /rename, the
-        // custom-title entry gets pushed outside the window and --resume
-        // shows the auto-generated firstPrompt instead.
+        // 先刷出排队写入，再重新追加会话元数据（customTitle、tag），
+        // 让它们始终出现在最后 64KB 尾部窗口中。readLiteMetadata 只读
+        // 尾部提取这些字段；如果后续追加的消息太多，custom-title 记录
+        // 可能被挤出窗口，导致 --resume 回退显示自动生成的 firstPrompt。
         await project?.flush()
         try {
           project?.reAppendSessionMetadata()
@@ -4723,7 +4718,6 @@ async function readLiteMetadata(
  */
 function extractFirstPromptFromChunk(chunk: string): string {
   let start = 0
-  let hasTickMessages = false
   let firstCommandFallback = ''
   while (start < chunk.length) {
     const newlineIdx = chunk.indexOf('\n', start)
@@ -4793,11 +4787,6 @@ function extractFirstPromptFromChunk(chunk: string): string {
         if (bashInput) return `! ${bashInput}`
 
         if (SKIP_FIRST_PROMPT_PATTERN.test(result)) {
-          if (
-            (feature('PROACTIVE') || feature('KAIROS')) &&
-            result.startsWith(`<${TICK_TAG}>`)
-          )
-            hasTickMessages = true
           continue
         }
         if (result.length > 200) {
@@ -4812,10 +4801,6 @@ function extractFirstPromptFromChunk(chunk: string): string {
   // Session started with a slash command but had no subsequent real message —
   // use the clean command name so the session still appears in the resume picker
   if (firstCommandFallback) return firstCommandFallback
-  // Proactive sessions have only tick messages — give them a synthetic prompt
-  // so they're not filtered out by enrichLogs
-  if ((feature('PROACTIVE') || feature('KAIROS')) && hasTickMessages)
-    return 'Proactive session'
   return ''
 }
 

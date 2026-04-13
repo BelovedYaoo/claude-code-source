@@ -20,6 +20,7 @@ import {
 } from './bootstrap/state.js'
 import { getCommands } from './commands.js'
 import { initSessionMemory } from './services/SessionMemory/sessionMemory.js'
+import { initContextCollapse } from './services/contextCollapse/index.js'
 import { asSessionId } from './types/ids.js'
 import { isAgentSwarmsEnabled } from './utils/agentSwarmsEnabled.js'
 import { checkAndRestoreTerminalBackup } from './utils/appleTerminalBackup.js'
@@ -293,11 +294,7 @@ export async function setup(
   if (!isBareMode()) {
     initSessionMemory() // Synchronous - registers hook, gate check happens lazily
     if (feature('CONTEXT_COLLAPSE')) {
-      /* eslint-disable @typescript-eslint/no-require-imports */
-      ;(
-        require('./services/contextCollapse/index.js') as typeof import('./services/contextCollapse/index.js')
-      ).initContextCollapse()
-      /* eslint-enable @typescript-eslint/no-require-imports */
+      initContextCollapse()
     }
   }
   void lockCurrentVersion() // Lock current version to prevent deletion by other processes

@@ -15,7 +15,6 @@
 
 import { feature } from 'bun:bundle'
 import { basename } from 'path'
-import { getIsRemoteMode } from '../../bootstrap/state.js'
 import type { CanUseToolFn } from '../../hooks/useCanUseTool.js'
 import { ENTRYPOINT_NAME } from '../../memdir/memdir.js'
 import {
@@ -60,12 +59,11 @@ import {
   buildExtractAutoOnlyPrompt,
   buildExtractCombinedPrompt,
 } from './prompts.js'
+import * as teamMemPathsModule from '../../memdir/teamMemPaths.js'
 
-/* eslint-disable @typescript-eslint/no-require-imports */
 const teamMemPaths = feature('TEAMMEM')
-  ? (require('../../memdir/teamMemPaths.js') as typeof import('../../memdir/teamMemPaths.js'))
+  ? teamMemPathsModule
   : null
-/* eslint-enable @typescript-eslint/no-require-imports */
 
 // ============================================================================
 // Helpers
@@ -543,11 +541,6 @@ export function initExtractMemories(): void {
 
     // Check auto-memory is enabled
     if (!isAutoMemoryEnabled()) {
-      return
-    }
-
-    // Skip in remote mode
-    if (getIsRemoteMode()) {
       return
     }
 

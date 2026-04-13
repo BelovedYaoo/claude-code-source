@@ -491,7 +491,6 @@ async function executeUserInput(params: ExecuteUserInputParams): Promise<void> {
           uuid: cmd.uuid,
           ideSelection: isFirst ? ideSelection : undefined,
           skipSlashCommands: cmd.skipSlashCommands,
-          bridgeOrigin: cmd.bridgeOrigin,
           isMeta: cmd.isMeta,
           skipAttachments: !isFirst,
         })

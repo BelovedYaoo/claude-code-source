@@ -8,7 +8,6 @@ import {
   setLastAPIRequest,
   setLastAPIRequestMessages,
 } from '../bootstrap/state.js'
-import { TICK_TAG } from '../constants/xml.js'
 import {
   type LogOption,
   type SerializedMessage,
@@ -31,8 +30,6 @@ export function getLogDisplayTitle(
   log: LogOption,
   defaultTitle?: string,
 ): string {
-  // Skip firstPrompt if it's a tick/goal message (autonomous mode auto-prompt)
-  const isAutonomousPrompt = log.firstPrompt?.startsWith(`<${TICK_TAG}>`)
   // Strip display-unfriendly tags (command-name, ide_opened_file, etc.) early
   // so that command-only prompts (e.g. /clear) become empty and fall through
   // to the next fallback instead of showing raw XML tags.
@@ -41,15 +38,12 @@ export function getLogDisplayTitle(
   const strippedFirstPrompt = log.firstPrompt
     ? stripDisplayTagsAllowEmpty(log.firstPrompt)
     : ''
-  const useFirstPrompt = strippedFirstPrompt && !isAutonomousPrompt
   const title =
     log.agentName ||
     log.customTitle ||
     log.summary ||
-    (useFirstPrompt ? strippedFirstPrompt : undefined) ||
+    strippedFirstPrompt ||
     defaultTitle ||
-    // For autonomous sessions without other context, show a meaningful label
-    (isAutonomousPrompt ? 'Autonomous session' : undefined) ||
     // Fall back to truncated session ID for lite logs with no metadata
     (log.sessionId ? log.sessionId.slice(0, 8) : '') ||
     ''

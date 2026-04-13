@@ -1,9 +1,9 @@
-import { feature } from 'bun:bundle';
 import { appendFileSync } from 'fs';
+import { feature } from 'bun:bundle';
 import React from 'react';
 import { logEvent } from 'src/services/analytics/index.js';
 import { gracefulShutdown, gracefulShutdownSync } from 'src/utils/gracefulShutdown.js';
-import { type ChannelEntry, getAllowedChannels, setAllowedChannels, setHasDevChannels, setSessionTrustAccepted, setStatsStore } from './bootstrap/state.js';
+import { setSessionTrustAccepted, setStatsStore } from './bootstrap/state.js';
 import type { Command } from './commands.js';
 import { createStatsStore, type StatsStore } from './context/stats.js';
 import { getSystemContext } from './context.js';
@@ -12,7 +12,7 @@ import { isSynchronizedOutputSupported } from './ink/terminal.js';
 import type { RenderOptions, Root, TextProps } from './ink.js';
 import { KeybindingSetup } from './keybindings/KeybindingProviderSetup.js';
 import { startDeferredPrefetches } from './main.js';
-import { checkGate_CACHED_OR_BLOCKING, initializeGrowthBook, resetGrowthBook } from './services/analytics/growthbook.js';
+import { initializeGrowthBook, resetGrowthBook } from './services/analytics/growthbook.js';
 import { handleMcpjsonServerApprovals } from './services/mcpServerApproval.js';
 import { AppStateProvider } from './state/AppState.js';
 import { onChangeAppState } from './state/onChangeAppState.js';
@@ -101,16 +101,18 @@ export async function renderAndRun(root: Root, element: React.ReactNode): Promis
   await root.waitUntilExit();
   await gracefulShutdown(0);
 }
-export async function showSetupScreens(root: Root, permissionMode: PermissionMode, allowDangerouslySkipPermissions: boolean, commands?: Command[], claudeInChrome?: boolean, devChannels?: ChannelEntry[]): Promise<boolean> {
+export async function showSetupScreens(root: Root, permissionMode: PermissionMode, allowDangerouslySkipPermissions: boolean, commands?: Command[], claudeInChrome?: boolean): Promise<boolean> {
   if ("production" === 'test' || isEnvTruthy(false) || process.env.IS_DEMO // Skip onboarding in demo mode
   ) {
     return false;
   }
   const config = getGlobalConfig();
+  logForDebugging('[STARTUP] showSetupScreens: entered')
   let onboardingShown = false;
   if (!config.theme || !config.hasCompletedOnboarding // always show onboarding at least once
   ) {
     onboardingShown = true;
+    logForDebugging('[STARTUP] showSetupScreens: loading Onboarding')
     const {
       Onboarding
     } = await import('./components/Onboarding.js');
@@ -133,6 +135,7 @@ export async function showSetupScreens(root: Root, permissionMode: PermissionMod
     // If it returns true, the TrustDialog would auto-resolve regardless of
     // security features, so we can skip the dynamic import and render cycle.
     if (!checkHasTrustDialogAccepted()) {
+      logForDebugging('[STARTUP] showSetupScreens: loading TrustDialog')
       const {
         TrustDialog
       } = await import('./components/TrustDialog/TrustDialog.js');
@@ -153,15 +156,20 @@ export async function showSetupScreens(root: Root, permissionMode: PermissionMod
     void getSystemContext();
 
     // If settings are valid, check for any mcp.json servers that need approval
+    logForDebugging('[STARTUP] showSetupScreens: reading settings errors')
     const {
       errors: allErrors
     } = getSettingsWithAllErrors();
     if (allErrors.length === 0) {
+      logForDebugging('[STARTUP] showSetupScreens: handleMcpjsonServerApprovals start')
       await handleMcpjsonServerApprovals(root);
+      logForDebugging('[STARTUP] showSetupScreens: handleMcpjsonServerApprovals end')
     }
 
     // Check for claude.md includes that need approval
+    logForDebugging('[STARTUP] showSetupScreens: checking ClaudeMd external includes warning')
     if (await shouldShowClaudeMdExternalIncludesWarning()) {
+      logForDebugging('[STARTUP] showSetupScreens: loading memory files for external includes')
       const externalIncludes = getExternalClaudeMdIncludes(await getMemoryFiles(true));
       const {
         ClaudeMdExternalIncludesDialog
@@ -172,16 +180,23 @@ export async function showSetupScreens(root: Root, permissionMode: PermissionMod
 
   // 跟踪当前仓库路径，用于远程仓库路径切换（fire-and-forget）
   // This must happen AFTER trust to prevent untrusted directories from poisoning the mapping
+  logForDebugging('[STARTUP] showSetupScreens: updateGithubRepoPathMapping fire-and-forget')
   void updateGithubRepoPathMapping();
   if (feature('LODESTONE')) {
+    logForDebugging('[STARTUP] showSetupScreens: updateDeepLinkTerminalPreference start')
     updateDeepLinkTerminalPreference();
+    logForDebugging('[STARTUP] showSetupScreens: updateDeepLinkTerminalPreference end')
+  } else {
+    logForDebugging('[STARTUP] showSetupScreens: updateDeepLinkTerminalPreference skipped')
   }
 
   // Apply full environment variables after trust dialog is accepted OR in bypass mode
   // In bypass mode (CI/CD, automation), we trust the environment so apply all variables
   // In normal mode, this happens after the trust dialog is accepted
   // This includes potentially dangerous environment variables from untrusted sources
+  logForDebugging('[STARTUP] showSetupScreens: applyConfigEnvironmentVariables start')
   applyConfigEnvironmentVariables();
+  logForDebugging('[STARTUP] showSetupScreens: applyConfigEnvironmentVariables end')
 
   // Initialize telemetry after env vars are applied so OTEL endpoint env vars and
   // otelHeadersHelper (which requires trust to execute) are available.
@@ -189,85 +204,48 @@ export async function showSetupScreens(root: Root, permissionMode: PermissionMod
   // instead of during the pre-render microtask queue.
   setImmediate(() => initializeTelemetryAfterTrust());
 
+  logForDebugging('[STARTUP] showSetupScreens: checking bypass permissions dialog')
   if ((permissionMode === 'bypassPermissions' || allowDangerouslySkipPermissions) && !hasSkipDangerousModePermissionPrompt()) {
+    logForDebugging('[STARTUP] showSetupScreens: bypass permissions dialog start')
     const {
       BypassPermissionsModeDialog
     } = await import('./components/BypassPermissionsModeDialog.js');
     await showSetupDialog(root, done => <BypassPermissionsModeDialog onAccept={done} />);
+    logForDebugging('[STARTUP] showSetupScreens: bypass permissions dialog end')
+  } else {
+    logForDebugging('[STARTUP] showSetupScreens: bypass permissions dialog skipped')
   }
   if (feature('TRANSCRIPT_CLASSIFIER')) {
     // Only show the opt-in dialog if auto mode actually resolved — if the
     // gate denied it (org not allowlisted, settings disabled), showing
     // consent for an unavailable feature is pointless. The
     // verifyAutoModeGateAccess notification will explain why instead.
+    logForDebugging('[STARTUP] showSetupScreens: checking auto mode opt-in dialog')
     if (permissionMode === 'auto' && !hasAutoModeOptIn()) {
+      logForDebugging('[STARTUP] showSetupScreens: auto mode opt-in dialog start')
       const {
         AutoModeOptInDialog
       } = await import('./components/AutoModeOptInDialog.js');
       await showSetupDialog(root, done => <AutoModeOptInDialog onAccept={done} onDecline={() => gracefulShutdownSync(1)} declineExits />);
-    }
-  }
-
-  // --dangerously-load-development-channels confirmation. On accept, append
-  // dev channels to any --channels list already set in main.tsx. Org policy
-  // is NOT bypassed — gateChannelServer() still runs; this flag only exists
-  // to sidestep the --channels approved-server allowlist.
-  if (feature('KAIROS') || feature('KAIROS_CHANNELS')) {
-    // gateChannelServer and ChannelsNotice read tengu_harbor after this
-    // function returns. A cold disk cache (fresh install, or first run after
-    // the flag was added server-side) defaults to false and silently drops
-    // channel notifications for the whole session — gh#37026.
-    // checkGate_CACHED_OR_BLOCKING returns immediately if disk already says
-    // true; only blocks on a cold/stale-false cache (awaits the same memoized
-    // initializeGrowthBook promise fired earlier). Also warms the
-    // isChannelsEnabled() check in the dev-channels dialog below.
-    if (getAllowedChannels().length > 0 || (devChannels?.length ?? 0) > 0) {
-      await checkGate_CACHED_OR_BLOCKING('tengu_harbor');
-    }
-    if (devChannels && devChannels.length > 0) {
-      const [{
-        isChannelsEnabled
-      }, {
-        getClaudeAIOAuthTokens
-      }] = await Promise.all([import('./services/mcp/channelAllowlist.js'), import('./utils/auth.js')]);
-      // Skip the dialog when channels are blocked (tengu_harbor off or no
-      // OAuth) — accepting then immediately seeing "not available" in
-      // ChannelsNotice is worse than no dialog. Append entries anyway so
-      // ChannelsNotice renders the blocked branch with the dev entries
-      // named. dev:true here is for the flag label in ChannelsNotice
-      // (hasNonDev check); the allowlist bypass it also grants is moot
-      // since the gate blocks upstream.
-      if (!isChannelsEnabled()) {
-        setAllowedChannels([...getAllowedChannels(), ...devChannels.map(c => ({
-          ...c,
-          dev: true
-        }))]);
-        setHasDevChannels(true);
-      } else {
-        const {
-          DevChannelsDialog
-        } = await import('./components/DevChannelsDialog.js');
-        await showSetupDialog(root, done => <DevChannelsDialog channels={devChannels} onAccept={() => {
-          // Mark dev entries per-entry so the allowlist bypass doesn't leak
-          // to --channels entries when both flags are passed.
-          setAllowedChannels([...getAllowedChannels(), ...devChannels.map(c => ({
-            ...c,
-            dev: true
-          }))]);
-          setHasDevChannels(true);
-          void done();
-        }} />);
-      }
+      logForDebugging('[STARTUP] showSetupScreens: auto mode opt-in dialog end')
+    } else {
+      logForDebugging('[STARTUP] showSetupScreens: auto mode opt-in dialog skipped')
     }
   }
 
   // Show Chrome onboarding for first-time Claude in Chrome users
+  logForDebugging('[STARTUP] showSetupScreens: checking Claude in Chrome onboarding')
   if (claudeInChrome && !getGlobalConfig().hasCompletedClaudeInChromeOnboarding) {
+    logForDebugging('[STARTUP] showSetupScreens: Claude in Chrome onboarding start')
     const {
       ClaudeInChromeOnboarding
     } = await import('./components/ClaudeInChromeOnboarding.js');
     await showSetupDialog(root, done => <ClaudeInChromeOnboarding onDone={done} />);
+    logForDebugging('[STARTUP] showSetupScreens: Claude in Chrome onboarding end')
+  } else {
+    logForDebugging('[STARTUP] showSetupScreens: Claude in Chrome onboarding skipped')
   }
+  logForDebugging('[STARTUP] showSetupScreens: completed')
   return onboardingShown;
 }
 export function getRenderContext(exitOnCtrlC: boolean): {

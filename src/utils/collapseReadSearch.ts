@@ -32,17 +32,12 @@ import {
   isMemoryDirectory,
   isShellCommandTargetingMemory,
 } from './memoryFileDetection.js'
-
-/* eslint-disable @typescript-eslint/no-require-imports */
-const teamMemOps = feature('TEAMMEM')
-  ? (require('./teamMemoryOps.js') as typeof import('./teamMemoryOps.js'))
-  : null
-const SNIP_TOOL_NAME = feature('HISTORY_SNIP')
-  ? (
-      require('../tools/SnipTool/prompt.js') as typeof import('../tools/SnipTool/prompt.js')
-    ).SNIP_TOOL_NAME
-  : null
-/* eslint-enable @typescript-eslint/no-require-imports */
+import {
+  appendTeamMemorySummaryParts,
+  isTeamMemorySearch,
+  isTeamMemoryWriteOrEdit,
+} from './teamMemoryOps.js'
+import { SNIP_TOOL_NAME } from '../tools/SnipTool/prompt.js'
 
 /**
  * Result of checking if a tool use is a search or read operation.
@@ -792,7 +787,7 @@ export function collapseReadSearchGroups(
         const count = countToolUses(msg)
         if (
           feature('TEAMMEM') &&
-          teamMemOps?.isTeamMemoryWriteOrEdit(toolInfo.name, toolInfo.input)
+          isTeamMemoryWriteOrEdit(toolInfo.name, toolInfo.input)
         ) {
           currentGroup.teamMemoryWriteCount =
             (currentGroup.teamMemoryWriteCount ?? 0) + count
@@ -846,7 +841,7 @@ export function collapseReadSearchGroups(
         // Check if the search targets memory files (via path or glob pattern)
         if (
           feature('TEAMMEM') &&
-          teamMemOps?.isTeamMemorySearch(toolInfo.input)
+          isTeamMemorySearch(toolInfo.input)
         ) {
           currentGroup.teamMemorySearchCount =
             (currentGroup.teamMemorySearchCount ?? 0) + count
@@ -1018,7 +1013,7 @@ export function getSearchReadSummaryText(
     }
     // Team memory operations
     if (feature('TEAMMEM') && teamMemOps) {
-      teamMemOps.appendTeamMemorySummaryParts(memoryCounts, isActive, parts)
+      appendTeamMemorySummaryParts(memoryCounts, isActive, parts)
     }
   }
 

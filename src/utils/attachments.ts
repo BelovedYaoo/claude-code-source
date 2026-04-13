@@ -18,7 +18,7 @@ import {
 import { FileTooLargeError, readFileInRange } from './readFileInRange.js'
 import { expandPath } from './path.js'
 import { countCharInString } from './stringUtils.js'
-import { count, uniq } from './array.js'
+import { uniq } from './array.js'
 import { getFsImplementation } from './fsOperations.js'
 import { readdir, stat } from 'fs/promises'
 import type { IDESelection } from '../hooks/useIdeSelection.js'
@@ -37,9 +37,7 @@ import {
 import { getPlanFilePath, getPlan } from './plans.js'
 import { getConnectedIdeName } from './ide.js'
 import {
-  filterInjectedMemoryFiles,
   getManagedAndUserConditionalRules,
-  getMemoryFiles,
   getMemoryFilesForNestedDirectory,
   getConditionalRulesForCwdLevelDirectory,
   type MemoryFileInfo,
@@ -74,12 +72,6 @@ import type {
 } from '@anthropic-ai/sdk/resources/messages.mjs'
 import { maybeResizeAndDownsampleImageBlock } from './imageResizer.js'
 import type { PastedContent } from './config.js'
-import { getGlobalConfig } from './config.js'
-import {
-  getDefaultSonnetModel,
-  getDefaultHaikuModel,
-  getDefaultOpusModel,
-} from './model/model.js'
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js'
 import { getSkillToolCommands, getMcpSkillCommands } from '../commands.js'
 import type { Command } from '../types/command.js'
@@ -88,24 +80,23 @@ import { getProjectRoot } from '../bootstrap/state.js'
 import { formatCommandsWithinBudget } from '../tools/SkillTool/prompt.js'
 import { getContextWindowForModel } from './context.js'
 import type { DiscoverySignal } from '../services/skillSearch/signals.js'
-// Conditional require for DCE. All skill-search string literals that would
+import * as skillSearchFeatureCheckImport from '../services/skillSearch/featureCheck.js'
+import * as skillSearchPrefetchImport from '../services/skillSearch/prefetch.js'
+import * as autoModeStateModuleImport from './permissions/autoModeState.js'
+// Conditional import for DCE. All skill-search string literals that would
 // otherwise leak into external builds live inside these modules. The only
 // surfaces in THIS file are: the maybe() call (gated via spread below) and
 // the skill_listing suppression check (uses the same skillSearchModules null
 // check). The type-only DiscoverySignal import above is erased at compile time.
-/* eslint-disable @typescript-eslint/no-require-imports */
 const skillSearchModules = feature('EXPERIMENTAL_SKILL_SEARCH')
   ? {
-      featureCheck:
-        require('../services/skillSearch/featureCheck.js') as typeof import('../services/skillSearch/featureCheck.js'),
-      prefetch:
-        require('../services/skillSearch/prefetch.js') as typeof import('../services/skillSearch/prefetch.js'),
+      featureCheck: skillSearchFeatureCheckImport,
+      prefetch: skillSearchPrefetchImport,
     }
   : null
 const autoModeStateModule = feature('TRANSCRIPT_CLASSIFIER')
-  ? (require('./permissions/autoModeState.js') as typeof import('./permissions/autoModeState.js'))
+  ? autoModeStateModuleImport
   : null
-/* eslint-enable @typescript-eslint/no-require-imports */
 import {
   MAX_LINES_TO_READ,
   FILE_READ_TOOL_NAME,
@@ -129,6 +120,10 @@ import {
   shouldInjectAgentListInMessages,
 } from '../tools/AgentTool/prompt.js'
 import { filterDeniedAgents } from './permissions/permissions.js'
+import {
+  isSnipRuntimeEnabled,
+  shouldNudgeForSnips,
+} from '../services/compact/snipCompact.js'
 import { mcpInfoFromString } from '../services/mcp/mcpStringUtils.js'
 import {
   matchingRuleForInput,
@@ -157,7 +152,6 @@ import {
   setNeedsAutoModeExitAttachment,
   getLastEmittedDate,
   setLastEmittedDate,
-  getKairosActive,
 } from '../bootstrap/state.js'
 import type { QuerySource } from '../constants/querySource.js'
 import {
@@ -197,17 +191,6 @@ import {
 import { isHumanTurn } from './messagePredicates.js'
 import { isEnvTruthy, getClaudeConfigHomeDir } from './envUtils.js'
 import { feature } from 'bun:bundle'
-/* eslint-disable @typescript-eslint/no-require-imports */
-const BRIEF_TOOL_NAME: string | null =
-  feature('KAIROS') || feature('KAIROS_BRIEF')
-    ? (
-        require('../tools/BriefTool/prompt.js') as typeof import('../tools/BriefTool/prompt.js')
-      ).BRIEF_TOOL_NAME
-    : null
-const sessionTranscriptModule = feature('KAIROS')
-  ? (require('../services/sessionTranscript/sessionTranscript.js') as typeof import('../services/sessionTranscript/sessionTranscript.js'))
-  : null
-/* eslint-enable @typescript-eslint/no-require-imports */
 import { hasUltrathinkKeyword, isUltrathinkEnabled } from './thinking.js'
 import {
   tokenCountFromLastAPIResponse,
@@ -250,7 +233,6 @@ import {
 import { isInProcessTeammate } from './teammateContext.js'
 import { removeTeammateFromTeamFile } from './swarm/teamHelpers.js'
 import { unassignTeammateTasks } from './tasks.js'
-import { getCompanionIntroAttachment } from '../buddy/prompt.js'
 
 export const TODO_REMINDER_CONFIG = {
   TURNS_SINCE_WRITE: 10,
@@ -706,11 +688,6 @@ export type Attachment =
       removedNames: string[]
     }
   | {
-      type: 'companion_intro'
-      name: string
-      species: string
-    }
-  | {
       type: 'bagel_console'
       errorCount: number
       warningCount: number
@@ -868,13 +845,6 @@ export async function getAttachments(
         ),
       ),
     ),
-    ...(feature('BUDDY')
-      ? [
-          maybe('companion_intro', () =>
-            Promise.resolve(getCompanionIntroAttachment(messages)),
-          ),
-        ]
-      : []),
     maybe('changed_files', () => getChangedFiles(context)),
     maybe('nested_memory', () => getNestedMemoryAttachments(context)),
     // relevant_memories moved to async prefetch (startRelevantMemoryPrefetch)
@@ -1436,16 +1406,6 @@ export function getDateChangeAttachments(
   }
 
   setLastEmittedDate(currentDate)
-
-  // Assistant mode: flush yesterday's transcript to the per-day file so
-  // the /dream skill (1–5am local) finds it even if no compaction fires
-  // today. Fire-and-forget; writeSessionTranscriptSegment buckets by
-  // message timestamp so a multi-day gap flushes each day correctly.
-  if (feature('KAIROS')) {
-    if (getKairosActive() && messages !== undefined) {
-      sessionTranscriptModule?.flushOnDateChange(messages, currentDate)
-    }
-  }
 
   return [{ type: 'date_change', newDate: currentDate }]
 }
@@ -3283,18 +3243,6 @@ async function getTodoReminderAttachments(
     return []
   }
 
-  // When SendUserMessage is in the toolkit, it's the primary communication
-  // channel and the model is always told to use it (#20467). TodoWrite
-  // becomes a side channel — nudging the model about it conflicts with the
-  // brief workflow. The tool itself stays available; this only gates the
-  // "you haven't used it in a while" nag.
-  if (
-    BRIEF_TOOL_NAME &&
-    toolUseContext.options.tools.some(t => toolMatchesName(t, BRIEF_TOOL_NAME))
-  ) {
-    return []
-  }
-
   // Skip if no messages provided
   if (!messages || messages.length === 0) {
     return []
@@ -3389,17 +3337,6 @@ async function getTaskReminderAttachments(
 
   // Skip for ant users
   if (process.env.USER_TYPE === 'ant') {
-    return []
-  }
-
-  // When SendUserMessage is in the toolkit, it's the primary communication
-  // channel and the model is always told to use it (#20467). TaskUpdate
-  // becomes a side channel — nudging the model about it conflicts with the
-  // brief workflow. The tool itself stays available; this only gates the nag.
-  if (
-    BRIEF_TOOL_NAME &&
-    toolUseContext.options.tools.some(t => toolMatchesName(t, BRIEF_TOOL_NAME))
-  ) {
     return []
   }
 
@@ -3974,10 +3911,7 @@ export function getContextEfficiencyAttachment(
     return []
   }
   // Gate must match SnipTool.isEnabled() — don't nudge toward a tool that
-  // isn't in the tool list. Lazy require keeps this file snip-string-free.
-  const { isSnipRuntimeEnabled, shouldNudgeForSnips } =
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    require('../services/compact/snipCompact.js') as typeof import('../services/compact/snipCompact.js')
+  // isn't in the tool list.
   if (!isSnipRuntimeEnabled()) {
     return []
   }

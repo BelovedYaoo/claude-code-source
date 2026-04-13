@@ -62,14 +62,16 @@ export function getClaudeAiBaseUrl(
  * src/bridge/sessionIdCompat.ts for the canonical helper (lazy-required here
  * to keep constants/ leaf-of-DAG at module-load time).
  */
+function toCompatSessionId(sessionId: string): string {
+  return sessionId.startsWith('cse_')
+    ? `session_${sessionId.slice('cse_'.length)}`
+    : sessionId
+}
+
 export function getRemoteSessionUrl(
   sessionId: string,
   ingressUrl?: string,
 ): string {
-  /* eslint-disable @typescript-eslint/no-require-imports */
-  const { toCompatSessionId } =
-    require('../bridge/sessionIdCompat.js') as typeof import('../bridge/sessionIdCompat.js')
-  /* eslint-enable @typescript-eslint/no-require-imports */
   const compatId = toCompatSessionId(sessionId)
   const baseUrl = getClaudeAiBaseUrl(compatId, ingressUrl)
   return `${baseUrl}/code/${compatId}`

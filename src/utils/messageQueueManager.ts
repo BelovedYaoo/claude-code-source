@@ -1,4 +1,3 @@
-import { feature } from 'bun:bundle'
 import type { ContentBlockParam } from '@anthropic-ai/sdk/resources/messages.mjs'
 import type { Permutations } from 'src/types/utils.js'
 import { getSessionId } from '../bootstrap/state.js'
@@ -104,18 +103,6 @@ export function getCommandQueueLength(): number {
 export function hasCommandsInQueue(): boolean {
   return commandQueue.length > 0
 }
-
-/**
- * Trigger a re-check by notifying subscribers.
- * Use after async processing completes to ensure remaining commands
- * are picked up by useSyncExternalStore consumers.
- */
-export function recheckCommandQueue(): void {
-  if (commandQueue.length > 0) {
-    notifySubscribers()
-  }
-}
-
 // ============================================================================
 // Write operations
 // ============================================================================
@@ -191,27 +178,6 @@ export function dequeue(
   logOperation('dequeue')
   return dequeued
 }
-
-/**
- * Remove and return all commands from the queue.
- * Logs a dequeue operation for each command.
- */
-export function dequeueAll(): QueuedCommand[] {
-  if (commandQueue.length === 0) {
-    return []
-  }
-
-  const commands = [...commandQueue]
-  commandQueue.length = 0
-  notifySubscribers()
-
-  for (const _cmd of commands) {
-    logOperation('dequeue')
-  }
-
-  return commands
-}
-
 /**
  * Return the highest-priority command without removing it, or undefined if empty.
  * Accepts an optional `filter` — only commands passing the predicate are considered.
@@ -326,16 +292,6 @@ export function clearCommandQueue(): void {
   commandQueue.length = 0
   notifySubscribers()
 }
-
-/**
- * Clear all commands and reset snapshot.
- * Used for test cleanup.
- */
-export function resetCommandQueue(): void {
-  commandQueue.length = 0
-  snapshot = Object.freeze([])
-}
-
 // ============================================================================
 // Editable mode helpers
 // ============================================================================
@@ -352,25 +308,14 @@ export function isPromptInputModeEditable(
 
 /**
  * Whether this queued command can be pulled into the input buffer via UP/ESC.
- * System-generated commands (proactive ticks, scheduled tasks, plan
- * verification, channel messages) contain raw XML and must not leak into
- * the user's input.
+ * System-generated commands (scheduled tasks, plan verification, channel
+ * messages) contain raw XML and must not leak into the user's input.
  */
 export function isQueuedCommandEditable(cmd: QueuedCommand): boolean {
   return isPromptInputModeEditable(cmd.mode) && !cmd.isMeta
 }
 
-/**
- * Whether this queued command should render in the queue preview under the
- * prompt. Superset of editable — channel messages show (so the keyboard user
- * sees what arrived) but stay non-editable (raw XML).
- */
 export function isQueuedCommandVisible(cmd: QueuedCommand): boolean {
-  if (
-    (feature('KAIROS') || feature('KAIROS_CHANNELS')) &&
-    cmd.origin?.kind === 'channel'
-  )
-    return true
   return isQueuedCommandEditable(cmd)
 }
 
@@ -486,35 +431,6 @@ export function popAllEditable(
 // ============================================================================
 // Backward-compatible aliases (deprecated — prefer new names)
 // ============================================================================
-
-/** @deprecated Use subscribeToCommandQueue */
-export const subscribeToPendingNotifications = subscribeToCommandQueue
-
-/** @deprecated Use getCommandQueueSnapshot */
-export function getPendingNotificationsSnapshot(): readonly QueuedCommand[] {
-  return snapshot
-}
-
-/** @deprecated Use hasCommandsInQueue */
-export const hasPendingNotifications = hasCommandsInQueue
-
-/** @deprecated Use getCommandQueueLength */
-export const getPendingNotificationsCount = getCommandQueueLength
-
-/** @deprecated Use recheckCommandQueue */
-export const recheckPendingNotifications = recheckCommandQueue
-
-/** @deprecated Use dequeue */
-export function dequeuePendingNotification(): QueuedCommand | undefined {
-  return dequeue()
-}
-
-/** @deprecated Use resetCommandQueue */
-export const resetPendingNotifications = resetCommandQueue
-
-/** @deprecated Use clearCommandQueue */
-export const clearPendingNotifications = clearCommandQueue
-
 /**
  * Get commands at or above a given priority level without removing them.
  * Useful for mid-chain draining where only urgent items should be processed.

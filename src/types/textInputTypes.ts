@@ -275,7 +275,7 @@ export type EditablePromptInputMode = Exclude<
 >
 
 /**
- * Queue priority levels. Same semantics in both normal and proactive mode.
+ * Queue priority levels.
  *
  *  - `now`   — Interrupt and send immediately. Aborts any in-flight tool
  *              call (equivalent to Esc + send). Consumers (print.ts,
@@ -288,9 +288,6 @@ export type EditablePromptInputMode = Exclude<
  *              then process as a new query. Wakes an in-progress SleepTool
  *              call (query.ts upgrades the drain threshold after sleep so
  *              the message is attached to the same turn).
- *
- * The SleepTool is only available in proactive mode, so "wakes SleepTool"
- * is a no-op in normal mode.
  */
 export type QueuePriority = 'now' | 'next' | 'later'
 
@@ -308,9 +305,7 @@ export type QueuedCommand = {
   pastedContents?: Record<number, PastedContent>
   /**
    * The input string before [Pasted text #N] placeholders were expanded.
-   * Used for ultraplan keyword detection so pasted content containing the
-   * keyword does not trigger a CCR session. Falls back to `value` when
-   * unset (bridge/UDS/MCP sources have no paste expansion).
+   * Falls back to `value` when unset (bridge/UDS/MCP sources have no paste expansion).
    */
   preExpansionValue?: string
   /**
@@ -320,17 +315,9 @@ export type QueuedCommand = {
    */
   skipSlashCommands?: boolean
   /**
-   * When true, slash commands are dispatched but filtered through
-   * isBridgeSafeCommand() — 'local-jsx' and terminal-only commands return
-   * a helpful error instead of executing. Set by the Remote Control bridge
-   * inbound path so mobile/web clients can run skills and benign commands
-   * without re-exposing the PR #19134 bug (/model popping the local picker).
-   */
-  bridgeOrigin?: boolean
-  /**
    * When true, the resulting UserMessage gets `isMeta: true` — hidden in the
    * transcript UI but visible to the model. Used by system-generated prompts
-   * (proactive ticks, teammate messages, resource updates) that route through
+   * (teammate messages, resource updates, scheduled tasks) that route through
    * the queue instead of calling `onQuery` directly.
    */
   isMeta?: boolean

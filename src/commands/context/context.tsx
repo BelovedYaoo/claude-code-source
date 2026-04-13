@@ -8,6 +8,7 @@ import type { Message } from '../../types/message.js';
 import { analyzeContextUsage } from '../../utils/analyzeContext.js';
 import { getMessagesAfterCompactBoundary } from '../../utils/messages.js';
 import { renderToAnsiString } from '../../utils/staticRender.js';
+import { projectView } from '../../services/contextCollapse/operations.js';
 
 /**
  * Apply the same context transforms query.ts does before the API call, so
@@ -18,11 +19,6 @@ import { renderToAnsiString } from '../../utils/staticRender.js';
 function toApiView(messages: Message[]): Message[] {
   let view = getMessagesAfterCompactBoundary(messages);
   if (feature('CONTEXT_COLLAPSE')) {
-    /* eslint-disable @typescript-eslint/no-require-imports */
-    const {
-      projectView
-    } = require('../../services/contextCollapse/operations.js') as typeof import('../../services/contextCollapse/operations.js');
-    /* eslint-enable @typescript-eslint/no-require-imports */
     view = projectView(view);
   }
   return view;

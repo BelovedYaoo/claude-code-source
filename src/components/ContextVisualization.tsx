@@ -8,6 +8,7 @@ import { getDisplayPath } from '../utils/file.js';
 import { formatTokens } from '../utils/format.js';
 import { getSourceDisplayName, type SettingSource } from '../utils/settings/constants.js';
 import { plural } from '../utils/stringUtils.js';
+import { getStats, isContextCollapseEnabled } from '../services/contextCollapse/index.js';
 import { ContextSuggestions } from './ContextSuggestions.js';
 const RESERVED_CATEGORY_NAME = 'Autocompact buffer';
 
@@ -26,10 +27,6 @@ function CollapseStatus() {
     if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
       t1 = Symbol.for("react.early_return_sentinel");
       bb0: {
-        const {
-          getStats,
-          isContextCollapseEnabled
-        } = require("../services/contextCollapse/index.js") as typeof import('../services/contextCollapse/index.js');
         if (!isContextCollapseEnabled()) {
           t1 = null;
           break bb0;

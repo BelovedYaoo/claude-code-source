@@ -69,15 +69,10 @@ export async function processBashCommand(inputString: string, precedingInputBloc
     // dangerouslyDisableSandbox (checked against areUnsandboxedCommandsAllowed()
     // in shouldUseSandbox.ts). PS sandbox is Linux/macOS/WSL2 only — on Windows
     // native, shouldUseSandbox() returns false regardless (unsupported platform).
-    // Lazy-require PowerShellTool so its ~300KB chunk only loads when the
-    // user has actually selected the powershell default shell.
-    type PSMod = typeof import('src/tools/PowerShellTool/PowerShellTool.js');
-    let PowerShellTool: PSMod['PowerShellTool'] | null = null;
-    if (usePowerShell) {
-      /* eslint-disable @typescript-eslint/no-require-imports */
-      PowerShellTool = (require('src/tools/PowerShellTool/PowerShellTool.js') as PSMod).PowerShellTool;
-      /* eslint-enable @typescript-eslint/no-require-imports */
-    }
+    // 保持按需加载，避免把 PowerShellTool 提前拉进启动链路。
+    const PowerShellTool = usePowerShell
+      ? (await import('src/tools/PowerShellTool/PowerShellTool.js')).PowerShellTool
+      : null
     const shellTool = PowerShellTool ?? BashTool;
     const response = PowerShellTool ? await PowerShellTool.call({
       command: inputString,

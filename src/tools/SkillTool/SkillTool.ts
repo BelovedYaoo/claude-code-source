@@ -104,16 +104,19 @@ import type { SkillToolProgress as Progress } from '../../types/tools.js'
 // side-effecting initializers. All usages are inside
 // feature('EXPERIMENTAL_SKILL_SEARCH') guards, so remoteSkillModules is
 // non-null at every call site.
-/* eslint-disable @typescript-eslint/no-require-imports */
+import * as remoteSkillStateModule from '../../services/skillSearch/remoteSkillState.js'
+import * as remoteSkillLoaderModule from '../../services/skillSearch/remoteSkillLoader.js'
+import * as remoteSkillTelemetryModule from '../../services/skillSearch/telemetry.js'
+import * as remoteSkillFeatureCheckModule from '../../services/skillSearch/featureCheck.js'
+
 const remoteSkillModules = feature('EXPERIMENTAL_SKILL_SEARCH')
   ? {
-      ...(require('../../services/skillSearch/remoteSkillState.js') as typeof import('../../services/skillSearch/remoteSkillState.js')),
-      ...(require('../../services/skillSearch/remoteSkillLoader.js') as typeof import('../../services/skillSearch/remoteSkillLoader.js')),
-      ...(require('../../services/skillSearch/telemetry.js') as typeof import('../../services/skillSearch/telemetry.js')),
-      ...(require('../../services/skillSearch/featureCheck.js') as typeof import('../../services/skillSearch/featureCheck.js')),
+      ...remoteSkillStateModule,
+      ...remoteSkillLoaderModule,
+      ...remoteSkillTelemetryModule,
+      ...remoteSkillFeatureCheckModule,
     }
   : null
-/* eslint-enable @typescript-eslint/no-require-imports */
 
 /**
  * Executes a skill in a forked sub-agent context.
@@ -161,7 +164,7 @@ async function executeForkedSkill(
       'fork' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
     invocation_trigger: (queryDepth > 0
       ? 'nested-skill'
-      : 'claude-proactive') as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+      : 'claude-auto') as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
     query_depth: queryDepth,
     ...(parentAgentId && {
       parent_agent_id:
@@ -684,7 +687,7 @@ export const SkillTool: Tool<InputSchema, Output, Progress> = buildTool({
         'inline' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
       invocation_trigger: (queryDepth > 0
         ? 'nested-skill'
-        : 'claude-proactive') as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+        : 'claude-auto') as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
       query_depth: queryDepth,
       ...(parentAgentId && {
         parent_agent_id:
@@ -1038,7 +1041,7 @@ async function executeRemoteSkill(
       'remote' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
     invocation_trigger: (queryDepth > 0
       ? 'nested-skill'
-      : 'claude-proactive') as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+      : 'claude-auto') as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
     query_depth: queryDepth,
     ...(parentAgentId && {
       parent_agent_id:

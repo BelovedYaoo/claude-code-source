@@ -1,5 +1,4 @@
 import { feature } from 'bun:bundle'
-import { getRemoteControlAtStartup } from '../../utils/config.js'
 import {
   EDITOR_MODES,
   NOTIFICATION_CHANNELS,
@@ -141,39 +140,6 @@ export const SUPPORTED_SETTINGS: Record<string, SettingConfig> = {
         },
       }
     : {}),
-  ...(feature('BRIDGE_MODE')
-    ? {
-        remoteControlAtStartup: {
-          source: 'global' as const,
-          type: 'boolean' as const,
-          description:
-            'Enable Remote Control for all sessions (true | false | default)',
-          formatOnRead: () => getRemoteControlAtStartup(),
-        },
-      }
-    : {}),
-  ...(feature('KAIROS') || feature('KAIROS_PUSH_NOTIFICATION')
-    ? {
-        taskCompleteNotifEnabled: {
-          source: 'global' as const,
-          type: 'boolean' as const,
-          description:
-            'Push to your mobile device when idle after Claude finishes (requires Remote Control)',
-        },
-        inputNeededNotifEnabled: {
-          source: 'global' as const,
-          type: 'boolean' as const,
-          description:
-            'Push to your mobile device when a permission prompt or question is waiting (requires Remote Control)',
-        },
-        agentPushNotifEnabled: {
-          source: 'global' as const,
-          type: 'boolean' as const,
-          description:
-            'Allow Claude to push to your mobile device when it deems it appropriate (requires Remote Control)',
-        },
-      }
-    : {}),
 }
 
 export function isSupported(key: string): boolean {
@@ -183,11 +149,6 @@ export function isSupported(key: string): boolean {
 export function getConfig(key: string): SettingConfig | undefined {
   return SUPPORTED_SETTINGS[key]
 }
-
-export function getAllKeys(): string[] {
-  return Object.keys(SUPPORTED_SETTINGS)
-}
-
 export function getOptionsForSetting(key: string): string[] | undefined {
   const config = SUPPORTED_SETTINGS[key]
   if (!config) return undefined

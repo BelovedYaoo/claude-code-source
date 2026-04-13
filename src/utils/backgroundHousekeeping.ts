@@ -2,16 +2,15 @@ import { feature } from 'bun:bundle'
 import { initAutoDream } from '../services/autoDream/autoDream.js'
 import { initMagicDocs } from '../services/MagicDocs/magicDocs.js'
 import { initSkillImprovement } from './hooks/skillImprovement.js'
+import * as extractMemoriesModuleImpl from '../services/extractMemories/extractMemories.js'
+import * as registerProtocolModuleImpl from './deepLink/registerProtocol.js'
 
-/* eslint-disable @typescript-eslint/no-require-imports */
 const extractMemoriesModule = feature('EXTRACT_MEMORIES')
-  ? (require('../services/extractMemories/extractMemories.js') as typeof import('../services/extractMemories/extractMemories.js'))
+  ? extractMemoriesModuleImpl
   : null
 const registerProtocolModule = feature('LODESTONE')
-  ? (require('./deepLink/registerProtocol.js') as typeof import('./deepLink/registerProtocol.js'))
+  ? registerProtocolModuleImpl
   : null
-
-/* eslint-enable @typescript-eslint/no-require-imports */
 
 import { getIsInteractive, getLastInteractionTime } from '../bootstrap/state.js'
 import {

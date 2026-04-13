@@ -7,6 +7,11 @@ import { getFeatureValue_CACHED_MAY_BE_STALE } from '../services/analytics/growt
 import { calculateTokenWarningState, getEffectiveContextWindowSize, isAutoCompactEnabled } from '../services/compact/autoCompact.js';
 import { useCompactWarningSuppression } from '../services/compact/compactWarningHook.js';
 import { getUpgradeMessage } from '../utils/model/contextWindowUpgradeCheck.js';
+import {
+  getStats,
+  isContextCollapseEnabled,
+  subscribe,
+} from '../services/contextCollapse/index.js';
 type Props = {
   tokenUsage: number;
   model: string;
@@ -23,21 +28,18 @@ function CollapseLabel(t0) {
   const {
     upgradeMessage
   } = t0;
-  let t1;
-  if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-    t1 = require("../services/contextCollapse/index.js");
-    $[0] = t1;
-  } else {
-    t1 = $[0];
-  }
-  const {
+  const t1 = {
     getStats,
     subscribe
-  } = t1 as typeof import('../services/contextCollapse/index.js');
+  };
+  const {
+    getStats: getStatsFromStore,
+    subscribe: subscribeToStore
+  } = t1;
   let t2;
   if ($[1] === Symbol.for("react.memo_cache_sentinel")) {
     t2 = () => {
-      const s = getStats();
+      const s = getStatsFromStore();
       const idleWarn = s.health.emptySpawnWarningEmitted ? 1 : 0;
       return `${s.collapsedSpans}|${s.stagedSpans}|${s.health.totalErrors}|${s.health.totalEmptySpawns}|${idleWarn}`;
     };
@@ -45,7 +47,7 @@ function CollapseLabel(t0) {
   } else {
     t2 = $[1];
   }
-  const snapshot = useSyncExternalStore(subscribe, t2);
+  const snapshot = useSyncExternalStore(subscribeToStore, t2);
   let t3;
   if ($[2] !== snapshot) {
     t3 = (snapshot as string).split("|").map(Number);
@@ -133,9 +135,6 @@ export function TokenWarning(t0: Props) {
     }
   }
   if (feature("CONTEXT_COLLAPSE")) {
-    const {
-      isContextCollapseEnabled
-    } = require("../services/contextCollapse/index.js") as typeof import('../services/contextCollapse/index.js');
     if (isContextCollapseEnabled()) {
       collapseMode = true;
     }

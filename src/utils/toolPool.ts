@@ -4,6 +4,7 @@ import uniqBy from 'lodash-es/uniqBy.js'
 import { COORDINATOR_MODE_ALLOWED_TOOLS } from '../constants/tools.js'
 import { isMcpTool } from '../services/mcp/utils.js'
 import type { Tool, ToolPermissionContext, Tools } from '../Tool.js'
+import * as coordinatorModeModuleImport from '../coordinator/coordinatorMode.js'
 
 // MCP tool name suffixes for PR activity subscription. These are lightweight
 // orchestration actions the coordinator calls directly rather than delegating
@@ -17,12 +18,9 @@ export function isPrActivitySubscriptionTool(name: string): boolean {
   return PR_ACTIVITY_TOOL_SUFFIXES.some(suffix => name.endsWith(suffix))
 }
 
-// Dead code elimination: conditional imports for feature-gated modules
-/* eslint-disable @typescript-eslint/no-require-imports */
 const coordinatorModeModule = feature('COORDINATOR_MODE')
-  ? (require('../coordinator/coordinatorMode.js') as typeof import('../coordinator/coordinatorMode.js'))
+  ? coordinatorModeModuleImport
   : null
-/* eslint-enable @typescript-eslint/no-require-imports */
 
 /**
  * Filters a tool array to the set allowed in coordinator mode.

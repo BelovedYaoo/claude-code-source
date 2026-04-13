@@ -600,6 +600,12 @@ const testRipgrepOnFirstUse = memoize(async (): Promise<void> => {
     logForDebugging(
       `Ripgrep first use test: ${working ? 'PASSED' : 'FAILED'} (mode=${config.mode}, path=${config.command})`,
     )
+    if (!working) {
+      logForDebugging(
+        `Ripgrep first use caller stack:\n${new Error('ripgrep-first-use').stack ?? 'no stack'}`,
+        { level: 'warn' },
+      )
+    }
 
     // Log telemetry for actual ripgrep availability
     logEvent('tengu_ripgrep_availability', {

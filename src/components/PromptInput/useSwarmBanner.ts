@@ -32,14 +32,13 @@ type SwarmBannerInfo = {
 } | null
 
 /**
- * Hook that returns banner information for swarm, standalone agent, or --agent CLI context.
- * - Leader (not in tmux): Returns "tmux -L ... attach" command with cyan background
- * - Leader (in tmux / in-process): Falls through to standalone-agent check — shows
- *   /rename name + /color background if set, else null
- * - Teammate: Returns "teammate@team" format with their assigned color background
- * - Viewing a background agent (CoordinatorTaskPanel): Returns agent name with its color
- * - Standalone agent: Returns agent name with their color background (no @team)
- * - --agent CLI flag: Returns "@agentName" with cyan background
+ * 返回 swarm、独立 agent 或 --agent CLI 场景下的横幅信息。
+ * - Leader（非 tmux）：返回 "tmux -L ... attach" 提示，背景色为青色
+ * - Leader（tmux / 进程内）：继续走独立 agent 检查，显示已设置的名称/颜色
+ * - Teammate：返回 "teammate@team" 格式，使用其分配的背景色
+ * - 查看后台 agent（CoordinatorTaskPanel）：返回 agent 名称及其颜色
+ * - 独立 agent：返回其名称及颜色（无 @team）
+ * - --agent CLI 参数：返回 "@agentName"，背景色为青色
  */
 export function useSwarmBanner(): SwarmBannerInfo {
   const teamContext = useAppState(s => s.teamContext)
@@ -98,8 +97,8 @@ export function useSwarmBanner(): SwarmBannerInfo {
         bgColor: viewedColor,
       }
     }
-    // insideTmux === null: still loading — fall through.
-    // Not viewing a teammate: fall through so /rename and /color are honored.
+    // insideTmux === null：仍在加载，继续向后判断。
+    // 未查看 teammate 时，继续沿用当前独立 agent 的名称/颜色。
   }
 
   // Viewing a background agent (CoordinatorTaskPanel): local_agent tasks aren't
@@ -121,7 +120,7 @@ export function useSwarmBanner(): SwarmBannerInfo {
     }
   }
 
-  // Standalone agent (/rename, /color): name and/or custom color, no @team.
+  // 独立 agent：显示名称和/或自定义颜色，不带 @team。
   const standaloneName = getStandaloneAgentName(state)
   const standaloneColor = standaloneAgentContext?.color
   if (standaloneName || standaloneColor) {

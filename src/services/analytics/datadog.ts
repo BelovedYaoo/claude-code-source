@@ -69,7 +69,6 @@ const TAG_FIELDS = [
   'errorType',
   'http_status_range',
   'http_status',
-  'kairosActive',
   'model',
   'platform',
   'provider',

@@ -37,6 +37,9 @@ import {
   getBashPromptAllowDescriptions,
   getBashPromptDenyDescriptions,
 } from './bashClassifier.js'
+import autoModeSystemPrompt from './yolo-classifier-prompts/auto_mode_system_prompt.txt'
+import externalPermissionsTemplate from './yolo-classifier-prompts/permissions_external.txt'
+import anthropicPermissionsTemplate from './yolo-classifier-prompts/permissions_anthropic.txt'
 import {
   extractToolUseBlock,
   parseClassifierResponse,
@@ -44,29 +47,24 @@ import {
 import { getClaudeTempDir } from './filesystem.js'
 
 // Dead code elimination: conditional imports for auto mode classifier prompts.
-// At build time, the bundler inlines .txt files as string literals. At test
-// time, require() returns {default: string} — txtRequire normalizes both.
-/* eslint-disable custom-rules/no-process-env-top-level, @typescript-eslint/no-require-imports */
-function txtRequire(mod: string | { default: string }): string {
-  return typeof mod === 'string' ? mod : mod.default
-}
-
+// Bun 会在构建期把 .txt 内联成字符串，测试环境也会按文本模块解析。
+/* eslint-disable custom-rules/no-process-env-top-level */
 const BASE_PROMPT: string = feature('TRANSCRIPT_CLASSIFIER')
-  ? txtRequire(require('./yolo-classifier-prompts/auto_mode_system_prompt.txt'))
+  ? autoModeSystemPrompt
   : ''
 
 // External template is loaded separately so it's available for
 // `claude auto-mode defaults` even in ant builds. Ant builds use
 // permissions_anthropic.txt at runtime but should dump external defaults.
 const EXTERNAL_PERMISSIONS_TEMPLATE: string = feature('TRANSCRIPT_CLASSIFIER')
-  ? txtRequire(require('./yolo-classifier-prompts/permissions_external.txt'))
+  ? externalPermissionsTemplate
   : ''
 
 const ANTHROPIC_PERMISSIONS_TEMPLATE: string =
   feature('TRANSCRIPT_CLASSIFIER') && process.env.USER_TYPE === 'ant'
-    ? txtRequire(require('./yolo-classifier-prompts/permissions_anthropic.txt'))
+    ? anthropicPermissionsTemplate
     : ''
-/* eslint-enable custom-rules/no-process-env-top-level, @typescript-eslint/no-require-imports */
+/* eslint-enable custom-rules/no-process-env-top-level */
 
 function isUsingExternalPermissions(): boolean {
   if (process.env.USER_TYPE !== 'ant') return true

@@ -52,7 +52,7 @@ export async function checkGithubAppInstalled(
 }
 
 /**
- * Checks if the user has synced their GitHub credentials via /web-setup
+ * Checks if the user has synced their GitHub credentials via the web auth flow
  * @returns true if GitHub token is synced, false otherwise
  */
 export async function checkGithubTokenSynced(): Promise<boolean> {
@@ -64,7 +64,7 @@ type RepoAccessMethod = 'github-app' | 'token-sync' | 'none'
 /**
  * Tiered check for whether a GitHub repo is accessible for remote operations.
  * 1. GitHub App installed on the repo
- * 2. GitHub token synced via /web-setup
+ * 2. GitHub token synced via the web auth flow
  * 3. Neither — caller should prompt user to set up access
  */
 export async function checkRepoForRemoteAccess(

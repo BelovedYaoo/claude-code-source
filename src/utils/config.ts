@@ -31,16 +31,11 @@ import { normalizePathForConfigKey } from './path.js'
 import { getEssentialTrafficOnlyReason } from './privacyLevel.js'
 import { getManagedFilePath } from './settings/managedPath.js'
 import type { ThemeSetting } from './theme.js'
+import * as teamMemPathsModule from '../memdir/teamMemPaths.js'
 
-/* eslint-disable @typescript-eslint/no-require-imports */
 const teamMemPaths = feature('TEAMMEM')
-  ? (require('../memdir/teamMemPaths.js') as typeof import('../memdir/teamMemPaths.js'))
+  ? teamMemPathsModule
   : null
-const ccrAutoConnect = feature('CCR_AUTO_CONNECT')
-  ? (require('../bridge/bridgeEnabled.js') as typeof import('../bridge/bridgeEnabled.js'))
-  : null
-
-/* eslint-enable @typescript-eslint/no-require-imports */
 import type { ImageDimensions } from './imageResizer.js'
 import type { ModelOption } from './model/modelOptions.js'
 import { jsonParse, jsonStringify } from './slowOperations.js'
@@ -61,11 +56,6 @@ export type PastedContent = {
   sourcePath?: string // Original file path for images dragged onto the terminal
 }
 
-export interface SerializedStructuredHistoryEntry {
-  display: string
-  pastedContents?: Record<number, PastedContent>
-  pastedText?: string
-}
 export interface HistoryEntry {
   display: string
   pastedContents: Record<number, PastedContent>
@@ -224,7 +214,6 @@ export type GlobalConfig = {
   primaryApiKey?: string // Primary API key for the user when no environment variable is set, set via oauth (TODO: rename)
   hasAcknowledgedCostThreshold?: boolean
   hasSeenUndercoverAutoNotice?: boolean // ant-only: whether the one-time auto-undercover explainer has been shown
-  hasSeenUltraplanTerms?: boolean // ant-only: whether the one-time CCR terms notice has been shown in the ultraplan launch dialog
   hasResetAutoModeOptInForDefaultOffer?: boolean // ant-only: one-shot migration guard, re-prompts churned auto-mode users
   oauthAccount?: AccountInfo
   iterm2KeyBindingInstalled?: boolean // Legacy - keeping for backward compatibility
@@ -265,10 +254,6 @@ export type GlobalConfig = {
   tipsHistory: {
     [tipId: string]: number // Key is tipId, value is the numStartups when tip was last shown
   }
-
-  // /buddy companion soul — bones regenerated from userId on read. See src/buddy/.
-  companion?: import('../buddy/types.js').StoredCompanion
-  companionMuted?: boolean
 
   // Feedback survey tracking
   feedbackSurveyState?: {
@@ -381,11 +366,6 @@ export type GlobalConfig = {
   // dot + status text to the tab sidebar and drops the spinner prefix
   // from the title (the dot makes it redundant).
   showStatusInTerminalTab?: boolean
-
-  // Push-notification toggles (set via /config). Default off — explicit opt-in required.
-  taskCompleteNotifEnabled?: boolean
-  inputNeededNotifEnabled?: boolean
-  agentPushNotifEnabled?: boolean
 
   // Claude Code usage tracking
   claudeCodeFirstTokenDate?: string // ISO timestamp of the user's first Claude Code OAuth token
@@ -536,10 +516,6 @@ export type GlobalConfig = {
   // Used with tengu_cicada_nap_ms to throttle API calls
   startupPrefetchedAt?: number
 
-  // Run Remote Control at startup (requires BRIDGE_MODE)
-  // undefined = use default (see getRemoteControlAtStartup() for precedence)
-  remoteControlAtStartup?: boolean
-
   // Cached extra usage disabled reason from the last API response
   // undefined = no cache, null = extra usage enabled, string = disabled reason.
   cachedExtraUsageDisabledReason?: string | null
@@ -618,61 +594,6 @@ function createDefaultGlobalConfig(): GlobalConfig {
 
 export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = createDefaultGlobalConfig()
 
-export const GLOBAL_CONFIG_KEYS = [
-  'apiKeyHelper',
-  'installMethod',
-  'autoUpdates',
-  'autoUpdatesProtectedForNative',
-  'theme',
-  'verbose',
-  'preferredNotifChannel',
-  'shiftEnterKeyBindingInstalled',
-  'editorMode',
-  'hasUsedBackslashReturn',
-  'autoCompactEnabled',
-  'showTurnDuration',
-  'diffTool',
-  'env',
-  'tipsHistory',
-  'todoFeatureEnabled',
-  'showExpandedTodos',
-  'messageIdleNotifThresholdMs',
-  'autoConnectIde',
-  'autoInstallIdeExtension',
-  'fileCheckpointingEnabled',
-  'terminalProgressBarEnabled',
-  'showStatusInTerminalTab',
-  'taskCompleteNotifEnabled',
-  'inputNeededNotifEnabled',
-  'agentPushNotifEnabled',
-  'respectGitignore',
-  'claudeInChromeDefaultEnabled',
-  'hasCompletedClaudeInChromeOnboarding',
-  'lspRecommendationDisabled',
-  'lspRecommendationNeverPlugins',
-  'lspRecommendationIgnoredCount',
-  'copyFullResponse',
-  'copyOnSelect',
-  'permissionExplainerEnabled',
-  'prStatusFooterEnabled',
-  'remoteControlAtStartup',
-  'remoteDialogSeen',
-] as const
-
-export type GlobalConfigKey = (typeof GLOBAL_CONFIG_KEYS)[number]
-
-export function isGlobalConfigKey(key: string): key is GlobalConfigKey {
-  return GLOBAL_CONFIG_KEYS.includes(key as GlobalConfigKey)
-}
-
-export const PROJECT_CONFIG_KEYS = [
-  'allowedTools',
-  'hasTrustDialogAccepted',
-  'hasCompletedProjectOnboarding',
-] as const
-
-export type ProjectConfigKey = (typeof PROJECT_CONFIG_KEYS)[number]
-
 /**
  * Check if the user has already accepted the trust dialog for the cwd.
  *
@@ -683,10 +604,6 @@ export type ProjectConfigKey = (typeof PROJECT_CONFIG_KEYS)[number]
  * @returns Whether the trust dialog has been accepted (i.e. "should not be shown")
  */
 let _trustAccepted = false
-
-export function resetTrustDialogAcceptedCacheForTesting(): void {
-  _trustAccepted = false
-}
 
 export function checkHasTrustDialogAccepted(): boolean {
   // Trust only transitions false→true during a session (never the reverse),
@@ -736,24 +653,6 @@ function computeTrustDialogAccepted(): boolean {
   return false
 }
 
-/**
- * Check trust for an arbitrary directory (not the session cwd).
- * Walks up from `dir`, returning true if any ancestor has trust persisted.
- * Unlike checkHasTrustDialogAccepted, this does NOT consult session trust or
- * the memoized project path — use when the target dir differs from cwd (e.g.
- * /assistant installing into a user-typed path).
- */
-export function isPathTrusted(dir: string): boolean {
-  const config = getGlobalConfig()
-  let currentPath = normalizePathForConfigKey(resolve(dir))
-  while (true) {
-    if (config.projects?.[currentPath]?.hasTrustDialogAccepted) return true
-    const parentPath = normalizePathForConfigKey(resolve(currentPath, '..'))
-    if (parentPath === currentPath) return false
-    currentPath = parentPath
-  }
-}
-
 // We have to put this test code here because Jest doesn't support mocking ES modules :O
 const TEST_GLOBAL_CONFIG_FOR_TESTING: GlobalConfig = {
   ...DEFAULT_GLOBAL_CONFIG,
@@ -761,10 +660,6 @@ const TEST_GLOBAL_CONFIG_FOR_TESTING: GlobalConfig = {
 }
 const TEST_PROJECT_CONFIG_FOR_TESTING: ProjectConfig = {
   ...DEFAULT_PROJECT_CONFIG,
-}
-
-export function isProjectConfigKey(key: string): key is ProjectConfigKey {
-  return PROJECT_CONFIG_KEYS.includes(key as ProjectConfigKey)
 }
 
 /**
@@ -877,8 +772,6 @@ let globalConfigWriteCount = 0
 export function getGlobalConfigWriteCount(): number {
   return globalConfigWriteCount
 }
-
-export const CONFIG_WRITE_DISPLAY_THRESHOLD = 20
 
 function reportConfigCacheStats(): void {
   const total = configCacheHits + configCacheMisses
@@ -1077,34 +970,6 @@ export function getGlobalConfig(): GlobalConfig {
       getConfig(getGlobalClaudeFile(), createDefaultGlobalConfig),
     )
   }
-}
-
-/**
- * Returns the effective value of remoteControlAtStartup. Precedence:
- *   1. User's explicit config value (always wins — honors opt-out)
- *   2. CCR auto-connect default (ant-only build, GrowthBook-gated)
- *   3. false (Remote Control must be explicitly opted into)
- */
-export function getRemoteControlAtStartup(): boolean {
-  const explicit = getGlobalConfig().remoteControlAtStartup
-  if (explicit !== undefined) return explicit
-  if (feature('CCR_AUTO_CONNECT')) {
-    if (ccrAutoConnect?.getCcrAutoConnectDefault()) return true
-  }
-  return false
-}
-
-export function getCustomApiKeyStatus(
-  truncatedApiKey: string,
-): 'approved' | 'rejected' | 'new' {
-  const config = getGlobalConfig()
-  if (config.customApiKeyResponses?.approved?.includes(truncatedApiKey)) {
-    return 'approved'
-  }
-  if (config.customApiKeyResponses?.rejected?.includes(truncatedApiKey)) {
-    return 'rejected'
-  }
-  return 'new'
 }
 
 function saveConfig<A extends object>(
@@ -1798,14 +1663,4 @@ export function getManagedClaudeRulesDir(): string {
 
 export function getUserClaudeRulesDir(): string {
   return join(getClaudeConfigHomeDir(), 'rules')
-}
-
-// Exported for testing only
-export const _getConfigForTesting = getConfig
-export const _wouldLoseAuthStateForTesting = wouldLoseAuthState
-export function _setGlobalConfigCacheForTesting(
-  config: GlobalConfig | null,
-): void {
-  globalConfigCache.config = config
-  globalConfigCache.mtime = config ? Date.now() : 0
 }

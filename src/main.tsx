@@ -25,8 +25,6 @@ import { readFileSync } from 'fs';
 import mapValues from 'lodash-es/mapValues.js';
 import pickBy from 'lodash-es/pickBy.js';
 import uniqBy from 'lodash-es/uniqBy.js';
-import React from 'react';
-import { getRemoteSessionUrl } from './constants/product.js';
 import { getSystemContext, getUserContext } from './context.js';
 import { init, initializeTelemetryAfterTrust } from './entrypoints/init.js';
 import { addToHistory } from './history.js';
@@ -47,13 +45,18 @@ import { isAgentSwarmsEnabled } from './utils/agentSwarmsEnabled.js';
 import { count, uniq } from './utils/array.js';
 import { installAsciicastRecorder } from './utils/asciicast.js';
 import { prefetchAwsCredentialsAndBedRockInfoIfSafe, prefetchGcpCredentialsIfSafe } from './utils/auth.js';
-import { checkHasTrustDialogAccepted, getGlobalConfig, getRemoteControlAtStartup, isAutoUpdaterDisabled, saveGlobalConfig } from './utils/config.js';
+import { checkHasTrustDialogAccepted, getGlobalConfig, isAutoUpdaterDisabled, saveGlobalConfig } from './utils/config.js';
 import { seedEarlyInput, stopCapturingEarlyInput } from './utils/earlyInput.js';
 import { getInitialEffortSetting, parseEffortValue } from './utils/effort.js';
 import { getInitialFastModeSetting, isFastModeEnabled, prefetchFastModeStatus, resolveFastModeStatusFromCache } from './utils/fastMode.js';
 import { applyConfigEnvironmentVariables } from './utils/managedEnv.js';
 import { createSystemMessage, createUserMessage } from './utils/messages.js';
 import { getPlatform } from './utils/platform.js';
+import * as importedCoordinatorModeModule from './coordinator/coordinatorMode.js';
+import * as importedAutoModeStateModule from './utils/permissions/autoModeState.js';
+import * as teammateUtils from './utils/teammate.js';
+import * as teammatePromptAddendumModule from './utils/swarm/teammatePromptAddendum.js';
+import * as teammateModeSnapshotModule from './utils/swarm/backends/teammateModeSnapshot.js';
 import { getBaseRenderOptions } from './utils/renderOptions.js';
 import { getSessionIngressAuthToken } from './utils/sessionIngressAuth.js';
 import { settingsChangeDetector } from './utils/settings/changeDetector.js';
@@ -63,35 +66,27 @@ import { computeInitialTeamContext } from './utils/swarm/reconnection.js';
 import { initializeWarningHandler } from './utils/warningHandler.js';
 import { isWorktreeModeEnabled } from './utils/worktreeModeEnabled.js';
 
-// Lazy require to avoid circular dependency: teammate.ts -> AppState.tsx -> ... -> main.tsx
-/* eslint-disable @typescript-eslint/no-require-imports */
-const getTeammateUtils = () => require('./utils/teammate.js') as typeof import('./utils/teammate.js');
-const getTeammatePromptAddendum = () => require('./utils/swarm/teammatePromptAddendum.js') as typeof import('./utils/swarm/teammatePromptAddendum.js');
-const getTeammateModeSnapshot = () => require('./utils/swarm/backends/teammateModeSnapshot.js') as typeof import('./utils/swarm/backends/teammateModeSnapshot.js');
-/* eslint-enable @typescript-eslint/no-require-imports */
-// Dead code elimination: conditional import for COORDINATOR_MODE
-/* eslint-disable @typescript-eslint/no-require-imports */
-const coordinatorModeModule = feature('COORDINATOR_MODE') ? require('./coordinator/coordinatorMode.js') as typeof import('./coordinator/coordinatorMode.js') : null;
-/* eslint-enable @typescript-eslint/no-require-imports */
-// Dead code elimination: conditional import for KAIROS (assistant mode)
-/* eslint-disable @typescript-eslint/no-require-imports */
-const assistantModule = feature('KAIROS') ? require('./assistant/index.js') as typeof import('./assistant/index.js') : null;
-const kairosGate = feature('KAIROS') ? require('./assistant/gate.js') as typeof import('./assistant/gate.js') : null;
+const coordinatorModeModule = feature('COORDINATOR_MODE')
+  ? importedCoordinatorModeModule
+  : null;
+const autoModeStateModule = feature('TRANSCRIPT_CLASSIFIER')
+  ? importedAutoModeStateModule
+  : null;
 import { relative, resolve } from 'path';
 import { isAnalyticsDisabled } from 'src/services/analytics/config.js';
 import { getFeatureValue_CACHED_MAY_BE_STALE } from 'src/services/analytics/growthbook.js';
 import { type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS, logEvent } from 'src/services/analytics/index.js';
 import { initializeAnalyticsGates } from 'src/services/analytics/sink.js';
-import { getOriginalCwd, setAdditionalDirectoriesForClaudeMd, setIsRemoteMode, setMainLoopModelOverride, setMainThreadAgentType } from './bootstrap/state.js';
-import { filterCommandsForRemoteMode, getCommands } from './commands.js';
+import { getOriginalCwd, setAdditionalDirectoriesForClaudeMd, setMainLoopModelOverride, setMainThreadAgentType } from './bootstrap/state.js';
+import { getCommands } from './commands.js';
 import type { StatsStore } from './context/stats.js';
-import { launchAssistantInstallWizard, launchAssistantSessionChooser, launchInvalidSettingsDialog, launchResumeChooser, launchSnapshotUpdateDialog } from './dialogLaunchers.js';
+import { launchInvalidSettingsDialog, launchResumeChooser, launchSnapshotUpdateDialog } from './dialogLaunchers.js';
 import { SHOW_CURSOR } from './ink/termio/dec.js';
-import { exitWithError, exitWithMessage, getRenderContext, renderAndRun, showSetupScreens } from './interactiveHelpers.js';
+import { exitWithError, getRenderContext, renderAndRun, showSetupScreens } from './interactiveHelpers.js';
 import { initBuiltinPlugins } from './plugins/bundled/index.js';
 /* eslint-enable @typescript-eslint/no-require-imports */
 import { checkQuotaStatus } from './services/claudeAiLimits.js';
-import { getMcpToolsCommandsAndResources, prefetchAllMcpResources } from './services/mcp/client.js';
+import { getMcpToolsCommandsAndResources } from './services/mcp/client.js';
 import { VALID_INSTALLABLE_SCOPES, VALID_UPDATE_SCOPES } from './services/plugins/pluginCliCommands.js';
 import { initBundledSkills } from './skills/bundled/index.js';
 import type { AgentColorName } from './tools/AgentTool/agentColorManager.js';
@@ -100,7 +95,7 @@ import type { LogOption } from './types/logs.js';
 import type { Message as MessageType } from './types/message.js';
 import { assertMinVersion } from './utils/autoUpdater.js';
 import { CLAUDE_IN_CHROME_SKILL_HINT, CLAUDE_IN_CHROME_SKILL_HINT_WITH_WEBBROWSER } from './utils/claudeInChrome/prompt.js';
-import { setupClaudeInChrome, shouldAutoEnableClaudeInChrome, shouldEnableClaudeInChrome } from './utils/claudeInChrome/setup.js';
+import { setupClaudeInChrome, shouldAutoEnableClaudeInChrome } from './utils/claudeInChrome/setup.js';
 import { getContextWindowForModel } from './utils/context.js';
 import { loadConversationForResume } from './utils/conversationRecovery.js';
 import { buildDeepLinkBanner } from './utils/deepLink/banner.js';
@@ -108,7 +103,7 @@ import { hasNodeOption, isBareMode, isEnvTruthy, isInProtectedNamespace } from '
 import { refreshExampleCommands } from './utils/exampleCommands.js';
 import type { FpsMetrics } from './utils/fpsTracker.js';
 import { getWorktreePaths } from './utils/getWorktreePaths.js';
-import { findGitRoot, getBranch, getIsGit, getWorktreeCount } from './utils/git.js';
+import { findGitRoot, getIsGit, getWorktreeCount } from './utils/git.js';
 import { getGhAuthStatus } from './utils/github/ghAuthStatus.js';
 import { safeParseJSON } from './utils/json.js';
 import { logError } from './utils/log.js';
@@ -116,7 +111,7 @@ import { getModelDeprecationWarning } from './utils/model/deprecation.js';
 import { getDefaultMainLoopModel, getUserSpecifiedModelSetting, normalizeModelStringForAPI, parseUserSpecifiedModel } from './utils/model/model.js';
 import { ensureModelStringsInitialized } from './utils/model/modelStrings.js';
 import { PERMISSION_MODES } from './utils/permissions/PermissionMode.js';
-import { checkAndDisableBypassPermissions, getAutoModeEnabledStateIfCached, initializeToolPermissionContext, initialPermissionModeFromCLI, isDefaultPermissionModeAuto, parseToolListFromCLI, removeDangerousPermissions, stripDangerousPermissionsForAutoMode, verifyAutoModeGateAccess } from './utils/permissions/permissionSetup.js';
+import { checkAndDisableBypassPermissions, getAutoModeEnabledStateIfCached, initializeToolPermissionContext, initialPermissionModeFromCLI, isDefaultPermissionModeAuto, removeDangerousPermissions, stripDangerousPermissionsForAutoMode, verifyAutoModeGateAccess } from './utils/permissions/permissionSetup.js';
 import { cleanupOrphanedPluginVersionsInBackground } from './utils/plugins/cacheUtils.js';
 import { initializeVersionedPlugins } from './utils/plugins/installedPluginsManager.js';
 import { getManagedPluginNames } from './utils/plugins/managedPlugins.js';
@@ -152,20 +147,16 @@ import { createEmptyAttributionState } from 'src/utils/commitAttribution.js';
 import { countConcurrentSessions, registerSession, updateSessionName } from 'src/utils/concurrentSessions.js';
 import { getCwd } from 'src/utils/cwd.js';
 import { logForDebugging, setHasFormattedOutput } from 'src/utils/debug.js';
-import { errorMessage, getErrnoCode, isENOENT, toError } from 'src/utils/errors.js';
+import { errorMessage, getErrnoCode, isENOENT } from 'src/utils/errors.js';
 import { getFsImplementation, safeResolvePath } from 'src/utils/fsOperations.js';
 import { gracefulShutdown, gracefulShutdownSync } from 'src/utils/gracefulShutdown.js';
 import { setAllHookEventsEnabled } from 'src/utils/hooks/hookEvents.js';
 import { refreshModelCapabilities } from 'src/utils/model/modelCapabilities.js';
 import { peekForStdinData, writeToStderr } from 'src/utils/process.js';
-import { setCwd } from 'src/utils/Shell.js';
 import { type ProcessedResume, processResumedConversation } from 'src/utils/sessionRestore.js';
 import { parseSettingSourcesFlag } from 'src/utils/settings/constants.js';
 import { plural } from 'src/utils/stringUtils.js';
-import { type ChannelEntry, getInitialMainLoopModel, getIsNonInteractiveSession, getSdkBetas, getSessionId, getUserMsgOptIn, setAllowedChannels, setAllowedSettingSources, setChromeFlagOverride, setClientType, setCwdState, setDirectConnectServerUrl, setFlagSettingsPath, setInitialMainLoopModel, setInlinePlugins, setIsInteractive, setKairosActive, setOriginalCwd, setQuestionPreviewFormat, setSdkBetas, setSessionBypassPermissionsMode, setSessionPersistenceDisabled, setSessionSource, setUserMsgOptIn, switchSession } from './bootstrap/state.js';
-
-/* eslint-disable @typescript-eslint/no-require-imports */
-const autoModeStateModule = feature('TRANSCRIPT_CLASSIFIER') ? require('./utils/permissions/autoModeState.js') as typeof import('./utils/permissions/autoModeState.js') : null;
+import { getInitialMainLoopModel, getIsNonInteractiveSession, getSdkBetas, getSessionId, setAllowedSettingSources, setChromeFlagOverride, setClientType, setCwdState, setDirectConnectServerUrl, setFlagSettingsPath, setInitialMainLoopModel, setInlinePlugins, setIsInteractive, setOriginalCwd, setQuestionPreviewFormat, setSdkBetas, setSessionBypassPermissionsMode, setSessionPersistenceDisabled } from './bootstrap/state.js';
 
 import { migrateAutoUpdatesToSettings } from './migrations/migrateAutoUpdatesToSettings.js';
 import { migrateBypassPermissionsAcceptedToSettings } from './migrations/migrateBypassPermissionsAcceptedToSettings.js';
@@ -173,12 +164,10 @@ import { migrateEnableAllProjectMcpServersToSettings } from './migrations/migrat
 import { migrateFennecToOpus } from './migrations/migrateFennecToOpus.js';
 import { migrateLegacyOpusToCurrent } from './migrations/migrateLegacyOpusToCurrent.js';
 import { migrateOpusToOpus1m } from './migrations/migrateOpusToOpus1m.js';
-import { migrateReplBridgeEnabledToRemoteControlAtStartup } from './migrations/migrateReplBridgeEnabledToRemoteControlAtStartup.js';
 import { migrateSonnet1mToSonnet45 } from './migrations/migrateSonnet1mToSonnet45.js';
 import { migrateSonnet45ToSonnet46 } from './migrations/migrateSonnet45ToSonnet46.js';
 import { resetAutoModeOptInForDefaultOffer } from './migrations/resetAutoModeOptInForDefaultOffer.js';
 import { resetProToOpusDefault } from './migrations/resetProToOpusDefault.js';
-import { createRemoteSessionConfig } from './remote/RemoteSessionManager.js';
 /* eslint-enable @typescript-eslint/no-require-imports */
 import { createDirectConnectSession, DirectConnectError } from './server/createDirectConnectSession.js';
 import { initializeLspServerManager } from './services/lsp/manager.js';
@@ -186,7 +175,6 @@ import { shouldEnablePromptSuggestion } from './services/PromptSuggestion/prompt
 import { type AppState, getDefaultAppState, IDLE_SPECULATION_STATE } from './state/AppStateStore.js';
 import { onChangeAppState } from './state/onChangeAppState.js';
 import { createStore } from './state/store.js';
-import { asSessionId } from './types/ids.js';
 import { filterAllowedSdkBetas } from './utils/betas.js';
 import { isInBundledMode, isRunningWithBun } from './utils/bundledMode.js';
 import { logForDiagnosticsNoPII } from './utils/diagLogs.js';
@@ -325,7 +313,6 @@ function runMigrations(): void {
     migrateLegacyOpusToCurrent();
     migrateSonnet45ToSonnet46();
     migrateOpusToOpus1m();
-    migrateReplBridgeEnabledToRemoteControlAtStartup();
     if (feature('TRANSCRIPT_CLASSIFIER')) {
       resetAutoModeOptInForDefaultOffer();
     }
@@ -543,16 +530,6 @@ const _pendingConnect: PendingConnect | undefined = feature('DIRECT_CONNECT') ? 
   dangerouslySkipPermissions: false
 } : undefined;
 
-// Set by early argv processing when `claude assistant [sessionId]` is detected
-type PendingAssistantChat = {
-  sessionId?: string;
-  discover: boolean;
-};
-const _pendingAssistantChat: PendingAssistantChat | undefined = feature('KAIROS') ? {
-  sessionId: undefined,
-  discover: false
-} : undefined;
-
 // `claude ssh <host> [dir]` — parsed from argv early (same pattern as
 // DIRECT_CONNECT above) so the main command path can pick it up and hand
 // the REPL an SSH-backed session instead of a local one.
@@ -665,29 +642,6 @@ export async function main() {
       } = await import('./utils/deepLink/protocolHandler.js');
       const urlSchemeResult = await handleUrlSchemeLaunch();
       process.exit(urlSchemeResult ?? 1);
-    }
-  }
-
-  // `claude assistant [sessionId]` — stash and strip so the main
-  // command handles it, giving the full interactive TUI. Position-0 only
-  // (matching the ssh pattern below) — indexOf would false-positive on
-  // `claude -p "explain assistant"`. Root-flag-before-subcommand
-  // (e.g. `--debug assistant`) falls through to the stub, which
-  // prints usage.
-  if (feature('KAIROS') && _pendingAssistantChat) {
-    const rawArgs = process.argv.slice(2);
-    if (rawArgs[0] === 'assistant') {
-      const nextArg = rawArgs[1];
-      if (nextArg && !nextArg.startsWith('-')) {
-        _pendingAssistantChat.sessionId = nextArg;
-        rawArgs.splice(0, 2); // drop 'assistant' and sessionId
-        process.argv = [process.argv[0]!, process.argv[1]!, ...rawArgs];
-      } else if (!nextArg) {
-        _pendingAssistantChat.discover = true;
-        rawArgs.splice(0, 1); // drop 'assistant'
-        process.argv = [process.argv[0]!, process.argv[1]!, ...rawArgs];
-      }
-      // else: `claude assistant --help` → fall through to stub
     }
   }
 
@@ -842,10 +796,6 @@ export async function main() {
     setQuestionPreviewFormat('markdown');
   }
 
-  // Tag sessions created via `claude remote-control` so the backend can identify them
-  if (process.env.CLAUDE_CODE_ENVIRONMENT_KIND === 'bridge') {
-    setSessionSource('remote-control');
-  }
   profileCheckpoint('main_client_type_determined');
 
   // Parse and load settings flags early, before init()
@@ -855,7 +805,7 @@ export async function main() {
   profileCheckpoint('main_after_run');
 }
 async function getInputPrompt(prompt: string, inputFormat: 'text' | 'stream-json'): Promise<string | AsyncIterable<string>> {
-  if (!process.stdin.isTTY &&
+  if (getIsNonInteractiveSession() && !process.stdin.isTTY &&
   // Input hijacking breaks MCP.
   !process.argv.includes('mcp')) {
     if (inputFormat === 'stream-json') {
@@ -1030,31 +980,8 @@ async function run(): Promise<CommanderCommand> {
       });
     }
 
-    // Assistant mode: when .claude/settings.json has assistant: true AND
-    // the tengu_kairos GrowthBook gate is on, force brief on. Permission
-    // mode is left to the user — settings defaultMode or --permission-mode
-    // apply as normal. REPL-typed messages already default to 'next'
-    // priority (messageQueueManager.enqueue) so they drain mid-turn between
-    // tool calls. SendUserMessage (BriefTool) is enabled via the brief env
-    // var. SleepTool stays disabled (its isEnabled() gates on proactive).
-    // kairosEnabled is computed once here and reused at the
-    // getAssistantSystemPromptAddendum() call site further down.
-    //
-    // Trust gate: .claude/settings.json is attacker-controllable in an
-    // untrusted clone. We run ~1000 lines before showSetupScreens() shows
-    // the trust dialog, and by then we've already appended
-    // .claude/agents/assistant.md to the system prompt. Refuse to activate
-    // until the directory has been explicitly trusted.
-    let kairosEnabled = false;
-    let assistantTeamContext: Awaited<ReturnType<NonNullable<typeof assistantModule>['initializeAssistantTeam']>> | undefined;
-    if (feature('KAIROS') && (options as {
-      assistant?: boolean;
-    }).assistant && assistantModule) {
-      // --assistant (Agent SDK daemon mode): force the latch before
-      // isAssistantMode() runs below. The daemon has already checked
-      // entitlement — don't make the child re-check tengu_kairos.
-      assistantModule.markAssistantForced();
-    }
+    // Assistant mode settings are read here before permission and startup
+    // configuration are finalized.
     const {
       debug = false,
       debugToStderr = false,
@@ -1168,7 +1095,7 @@ async function run(): Promise<CommanderCommand> {
 
       // If teammate identity is provided via CLI, set up dynamicTeamContext
       if (teammateOpts.agentId && teammateOpts.agentName && teammateOpts.teamName) {
-        getTeammateUtils().setDynamicTeamContext?.({
+        teammateUtils.setDynamicTeamContext?.({
           agentId: teammateOpts.agentId,
           agentName: teammateOpts.agentName,
           teamName: teammateOpts.teamName,
@@ -1181,7 +1108,7 @@ async function run(): Promise<CommanderCommand> {
       // Set teammate mode CLI override if provided
       // This must be done before setup() captures the snapshot
       if (teammateOpts.teammateMode) {
-        getTeammateModeSnapshot().setCliTeammateModeOverride?.(teammateOpts.teammateMode);
+        teammateModeSnapshotModule.setCliTeammateModeOverride?.(teammateOpts.teammateMode);
       }
     }
 
@@ -1193,10 +1120,9 @@ async function run(): Promise<CommanderCommand> {
     // Allow env var to enable partial messages (used by sandbox gateway for baku)
     const effectiveIncludePartialMessages = includePartialMessages || isEnvTruthy(process.env.CLAUDE_CODE_INCLUDE_PARTIAL_MESSAGES);
 
-    // Enable all hook event types when explicitly requested via SDK option
-    // or when running in CLAUDE_CODE_REMOTE mode (CCR needs them).
+    // Enable all hook event types when explicitly requested via SDK option.
     // Without this, only SessionStart and Setup events are emitted.
-    if (includeHookEvents || isEnvTruthy(process.env.CLAUDE_CODE_REMOTE)) {
+    if (includeHookEvents) {
       setAllHookEventsEnabled(true);
     }
 
@@ -1218,23 +1144,6 @@ async function run(): Promise<CommanderCommand> {
         print = true;
       }
     }
-
-    // Extract remote option (can be true if no description provided, or a string)
-    const remoteOption = (options as {
-      remote?: string | true;
-    }).remote;
-    const remote = remoteOption === true ? '' : remoteOption ?? null;
-
-    // Extract --remote-control / --rc flag (enable bridge in interactive session)
-    const remoteControlOption = (options as {
-      remoteControl?: string | true;
-    }).remoteControl ?? (options as {
-      rc?: string | true;
-    }).rc;
-    // Actual bridge check is deferred to after showSetupScreens() so that
-    // trust is established and GrowthBook has auth headers.
-    let remoteControl = false;
-    const remoteControlName = typeof remoteControlOption === 'string' && remoteControlOption.length > 0 ? remoteControlOption : undefined;
 
     // Validate session ID if provided
     if (sessionId) {
@@ -1349,7 +1258,7 @@ async function run(): Promise<CommanderCommand> {
 
     // Add teammate-specific system prompt addendum for tmux teammates
     if (isAgentSwarmsEnabled() && storedTeammateOpts?.agentId && storedTeammateOpts?.agentName && storedTeammateOpts?.teamName) {
-      const addendum = getTeammatePromptAddendum().TEAMMATE_SYSTEM_PROMPT_ADDENDUM;
+      const addendum = teammatePromptAddendumModule.TEAMMATE_SYSTEM_PROMPT_ADDENDUM;
       appendSystemPrompt = appendSystemPrompt ? `${appendSystemPrompt}\n\n${addendum}` : addendum;
     }
     const {
@@ -1596,114 +1505,6 @@ async function run(): Promise<CommanderCommand> {
     // Store additional directories for CLAUDE.md loading (controlled by env var)
     setAdditionalDirectoriesForClaudeMd(addDir);
 
-    // Channel server allowlist from --channels flag — servers whose
-    // inbound push notifications should register this session. The option
-    // is added inside a feature() block so TS doesn't know about it
-    // on the options type — same pattern as --assistant at main.tsx:1824.
-    // devChannels is deferred: showSetupScreens shows a confirmation dialog
-    // and only appends to allowedChannels on accept.
-    let devChannels: ChannelEntry[] | undefined;
-    if (feature('KAIROS') || feature('KAIROS_CHANNELS')) {
-      // Parse plugin:name@marketplace / server:Y tags into typed entries.
-      // Tag decides trust model downstream: plugin-kind hits marketplace
-      // verification + GrowthBook allowlist, server-kind always fails
-      // allowlist (schema is plugin-only) unless dev flag is set.
-      // Untagged or marketplace-less plugin entries are hard errors —
-      // silently not-matching in the gate would look like channels are
-      // "on" but nothing ever fires.
-      const parseChannelEntries = (raw: string[], flag: string): ChannelEntry[] => {
-        const entries: ChannelEntry[] = [];
-        const bad: string[] = [];
-        for (const c of raw) {
-          if (c.startsWith('plugin:')) {
-            const rest = c.slice(7);
-            const at = rest.indexOf('@');
-            if (at <= 0 || at === rest.length - 1) {
-              bad.push(c);
-            } else {
-              entries.push({
-                kind: 'plugin',
-                name: rest.slice(0, at),
-                marketplace: rest.slice(at + 1)
-              });
-            }
-          } else if (c.startsWith('server:') && c.length > 7) {
-            entries.push({
-              kind: 'server',
-              name: c.slice(7)
-            });
-          } else {
-            bad.push(c);
-          }
-        }
-        if (bad.length > 0) {
-          process.stderr.write(chalk.red(`${flag} entries must be tagged: ${bad.join(', ')}\n` + `  plugin:<name>@<marketplace>  — plugin-provided channel (allowlist enforced)\n` + `  server:<name>                — manually configured MCP server\n`));
-          process.exit(1);
-        }
-        return entries;
-      };
-      const channelOpts = options as {
-        channels?: string[];
-        dangerouslyLoadDevelopmentChannels?: string[];
-      };
-      const rawChannels = channelOpts.channels;
-      const rawDev = channelOpts.dangerouslyLoadDevelopmentChannels;
-      // Always parse + set. ChannelsNotice reads getAllowedChannels() and
-      // renders the appropriate branch (disabled/noAuth/policyBlocked/
-      // listening) in the startup screen. gateChannelServer() enforces.
-      // --channels works in both interactive and print/SDK modes; dev-channels
-      // stays interactive-only (requires a confirmation dialog).
-      let channelEntries: ChannelEntry[] = [];
-      if (rawChannels && rawChannels.length > 0) {
-        channelEntries = parseChannelEntries(rawChannels, '--channels');
-        setAllowedChannels(channelEntries);
-      }
-      if (!isNonInteractiveSession) {
-        if (rawDev && rawDev.length > 0) {
-          devChannels = parseChannelEntries(rawDev, '--dangerously-load-development-channels');
-        }
-      }
-      // Flag-usage telemetry. Plugin identifiers are logged (same tier as
-      // tengu_plugin_installed — public-registry-style names); server-kind
-      // names are not (MCP-server-name tier, opt-in-only elsewhere).
-      // Per-server gate outcomes land in tengu_mcp_channel_gate once
-      // servers connect. Dev entries go through a confirmation dialog after
-      // this — dev_plugins captures what was typed, not what was accepted.
-      if (channelEntries.length > 0 || (devChannels?.length ?? 0) > 0) {
-        const joinPluginIds = (entries: ChannelEntry[]) => {
-          const ids = entries.flatMap(e => e.kind === 'plugin' ? [`${e.name}@${e.marketplace}`] : []);
-          return ids.length > 0 ? ids.sort().join(',') as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS : undefined;
-        };
-        logEvent('tengu_mcp_channel_flags', {
-          channels_count: channelEntries.length,
-          dev_count: devChannels?.length ?? 0,
-          plugins: joinPluginIds(channelEntries),
-          dev_plugins: joinPluginIds(devChannels ?? [])
-        });
-      }
-    }
-
-    // SDK opt-in for SendUserMessage via --tools. All sessions require
-    // explicit opt-in; listing it in --tools signals intent. Runs BEFORE
-    // initializeToolPermissionContext so getToolsForDefaultPreset() sees
-    // the tool as enabled when computing the base-tools disallow filter.
-    // Conditional require avoids leaking the tool-name string into
-    // external builds.
-    if ((feature('KAIROS') || feature('KAIROS_BRIEF')) && baseTools.length > 0) {
-      /* eslint-disable @typescript-eslint/no-require-imports */
-      const {
-        BRIEF_TOOL_NAME,
-        LEGACY_BRIEF_TOOL_NAME
-      } = require('./tools/BriefTool/prompt.js') as typeof import('./tools/BriefTool/prompt.js');
-      const {
-        isBriefEntitled
-      } = require('./tools/BriefTool/BriefTool.js') as typeof import('./tools/BriefTool/BriefTool.js');
-      /* eslint-enable @typescript-eslint/no-require-imports */
-      const parsed = parseToolListFromCLI(baseTools);
-      if ((parsed.includes(BRIEF_TOOL_NAME) || parsed.includes(LEGACY_BRIEF_TOOL_NAME)) && isBriefEntitled()) {
-        setUserMsgOptIn(true);
-      }
-    }
 
     // This await replaces blocking existsSync/statSync calls that were already in
     // the startup path. Wall-clock time is unchanged; we just yield to the event
@@ -1812,10 +1613,6 @@ async function run(): Promise<CommanderCommand> {
     let inputPrompt = await getInputPrompt(effectivePrompt, (inputFormat ?? 'text') as 'text' | 'stream-json');
     profileCheckpoint('action_after_input_prompt');
 
-    // Activate proactive mode BEFORE getTools() so SleepTool.isEnabled()
-    // (which returns isProactiveActive()) passes and Sleep is included.
-    // The later REPL-path maybeActivateProactive() calls are idempotent.
-    maybeActivateProactive(options);
     let tools = getTools(toolPermissionContext);
 
     // Apply coordinator mode tool filtering for headless path
@@ -2122,43 +1919,6 @@ async function run(): Promise<CommanderCommand> {
         logForDebugging(`[teammate] Custom agent ${storedTeammateOpts.agentType} not found in available agents`);
       }
     }
-    maybeActivateBrief(options);
-    // defaultView: 'chat' is a persisted opt-in — check entitlement and set
-    // userMsgOptIn so the tool + prompt section activate. Interactive-only:
-    // defaultView is a display preference; SDK sessions have no display, and
-    // the assistant installer writes defaultView:'chat' to settings.local.json
-    // which would otherwise leak into --print sessions in the same directory.
-    // Runs right after maybeActivateBrief() so all startup opt-in paths fire
-    // BEFORE any isBriefEnabled() read below (proactive prompt's
-    // briefVisibility). A persisted 'chat' after a GB kill-switch falls
-    // through (entitlement fails).
-    if ((feature('KAIROS') || feature('KAIROS_BRIEF')) && !getIsNonInteractiveSession() && !getUserMsgOptIn() && getInitialSettings().defaultView === 'chat') {
-      /* eslint-disable @typescript-eslint/no-require-imports */
-      const {
-        isBriefEntitled
-      } = require('./tools/BriefTool/BriefTool.js') as typeof import('./tools/BriefTool/BriefTool.js');
-      /* eslint-enable @typescript-eslint/no-require-imports */
-      if (isBriefEntitled()) {
-        setUserMsgOptIn(true);
-      }
-    }
-    // Coordinator mode has its own system prompt and filters out Sleep, so
-    // the generic proactive prompt would tell it to call a tool it can't
-    // access and conflict with delegation instructions.
-    if ((feature('PROACTIVE') || feature('KAIROS')) && ((options as {
-      proactive?: boolean;
-    }).proactive || isEnvTruthy(process.env.CLAUDE_CODE_PROACTIVE)) && !coordinatorModeModule?.isCoordinatorMode()) {
-      /* eslint-disable @typescript-eslint/no-require-imports */
-      const briefVisibility = feature('KAIROS') || feature('KAIROS_BRIEF') ? (require('./tools/BriefTool/BriefTool.js') as typeof import('./tools/BriefTool/BriefTool.js')).isBriefEnabled() ? 'Call SendUserMessage at checkpoints to mark where things stand.' : 'The user will see any text you output.' : 'The user will see any text you output.';
-      /* eslint-enable @typescript-eslint/no-require-imports */
-      const proactivePrompt = `\n# Proactive Mode\n\nYou are in proactive mode. Take initiative — explore, act, and make progress without waiting for instructions.\n\nStart by briefly greeting the user.\n\nYou will receive periodic <tick> prompts. These are check-ins. Do whatever seems most useful, or call Sleep if there's nothing to do. ${briefVisibility}`;
-      appendSystemPrompt = appendSystemPrompt ? `${appendSystemPrompt}\n\n${proactivePrompt}` : proactivePrompt;
-    }
-    if (feature('KAIROS') && kairosEnabled && assistantModule) {
-      const assistantAddendum = assistantModule.getAssistantSystemPromptAddendum();
-      appendSystemPrompt = appendSystemPrompt ? `${appendSystemPrompt}\n\n${assistantAddendum}` : assistantAddendum;
-    }
-
     // Ink root is only needed for interactive sessions — patchConsole in the
     // Ink constructor would swallow console output in headless mode.
     let root!: Root;
@@ -2189,21 +1949,9 @@ async function run(): Promise<CommanderCommand> {
       });
       logForDebugging('[STARTUP] Running showSetupScreens()...');
       const setupScreensStart = Date.now();
-      const onboardingShown = await showSetupScreens(root, permissionMode, allowDangerouslySkipPermissions, commands, enableClaudeInChrome, devChannels);
+      const onboardingShown = await showSetupScreens(root, permissionMode, allowDangerouslySkipPermissions, commands, enableClaudeInChrome);
       logForDebugging(`[STARTUP] showSetupScreens() completed in ${Date.now() - setupScreensStart}ms`);
 
-      // Now that trust is established and GrowthBook has auth headers,
-      // resolve the --remote-control / --rc entitlement gate.
-      if (feature('BRIDGE_MODE') && remoteControlOption !== undefined) {
-        const {
-          getBridgeDisabledReason
-        } = await import('./bridge/bridgeEnabled.js');
-        const disabledReason = await getBridgeDisabledReason();
-        remoteControl = disabledReason === null;
-        if (disabledReason) {
-          process.stderr.write(chalk.yellow(`${disabledReason}\n--rc flag ignored.\n`));
-        }
-      }
 
       // Check for pending agent memory snapshot updates (only for --agent mode, ant-only)
       if (feature('AGENT_MEMORY_SNAPSHOT') && mainThreadAgentDefinition && isCustomAgent(mainThreadAgentDefinition) && mainThreadAgentDefinition.memory && mainThreadAgentDefinition.pendingSnapshotUpdate) {
@@ -2426,7 +2174,7 @@ async function run(): Promise<CommanderCommand> {
       systemPromptFlag: systemPrompt ? options.systemPromptFile ? 'file' : 'flag' : undefined,
       appendSystemPromptFlag: appendSystemPrompt ? options.appendSystemPromptFile ? 'file' : 'flag' : undefined,
       thinkingConfig,
-      assistantActivationPath: feature('KAIROS') && kairosEnabled ? assistantModule?.getAssistantActivationPath() : undefined
+      assistantActivationPath: undefined
     });
 
     // Log context metrics once at initialization
@@ -2541,16 +2289,6 @@ async function run(): Promise<CommanderCommand> {
         ...(isAdvisorEnabled() && advisorModel && {
           advisorModel
         }),
-        // kairosEnabled gates the async fire-and-forget path in
-        // executeForkedSlashCommand (processSlashCommand.tsx:132) and
-        // AgentTool's shouldRunAsync. The REPL initialState sets this at
-        // ~3459; headless was defaulting to false, so the daemon child's
-        // scheduled tasks and Agent-tool calls ran synchronously — N
-        // overdue cron tasks on spawn = N serial subagent turns blocking
-        // user input. Computed at :1620, well before this branch.
-        ...(feature('KAIROS') ? {
-          kairosEnabled
-        } : {})
       };
 
       // Init app state
@@ -2810,21 +2548,8 @@ async function run(): Promise<CommanderCommand> {
     }
     const effectiveToolPermissionContext = {
       ...toolPermissionContext,
-      mode: isAgentSwarmsEnabled() && getTeammateUtils().isPlanModeRequired() ? 'plan' as const : toolPermissionContext.mode
+      mode: isAgentSwarmsEnabled() && teammateUtils.isPlanModeRequired() ? 'plan' as const : toolPermissionContext.mode
     };
-    // All startup opt-in paths (--tools, --brief, defaultView) have fired
-    // above; initialIsBriefOnly just reads the resulting state.
-    const initialIsBriefOnly = feature('KAIROS') || feature('KAIROS_BRIEF') ? getUserMsgOptIn() : false;
-    const fullRemoteControl = remoteControl || getRemoteControlAtStartup() || kairosEnabled;
-    let ccrMirrorEnabled = false;
-    if (feature('CCR_MIRROR') && !fullRemoteControl) {
-      /* eslint-disable @typescript-eslint/no-require-imports */
-      const {
-        isCcrMirrorEnabled
-      } = require('./bridge/bridgeEnabled.js') as typeof import('./bridge/bridgeEnabled.js');
-      /* eslint-enable @typescript-eslint/no-require-imports */
-      ccrMirrorEnabled = isCcrMirrorEnabled();
-    }
     const initialState: AppState = {
       settings: getInitialSettings(),
       tasks: {},
@@ -2832,7 +2557,6 @@ async function run(): Promise<CommanderCommand> {
       verbose: verbose ?? getGlobalConfig().verbose ?? false,
       mainLoopModel: initialMainLoopModel,
       mainLoopModelForSession: null,
-      isBriefOnly: initialIsBriefOnly,
       expandedView: getGlobalConfig().showSpinnerTree ? 'teammates' : getGlobalConfig().showExpandedTodos ? 'tasks' : 'none',
       showTeammateMessagePreview: isAgentSwarmsEnabled() ? false : undefined,
       selectedIPAgentIndex: -1,
@@ -2861,23 +2585,6 @@ async function run(): Promise<CommanderCommand> {
         needsRefresh: false
       },
       statusLineText: undefined,
-      kairosEnabled,
-      remoteSessionUrl: undefined,
-      remoteConnectionStatus: 'connecting',
-      remoteBackgroundTaskCount: 0,
-      replBridgeEnabled: fullRemoteControl || ccrMirrorEnabled,
-      replBridgeExplicit: remoteControl,
-      replBridgeOutboundOnly: ccrMirrorEnabled,
-      replBridgeConnected: false,
-      replBridgeSessionActive: false,
-      replBridgeReconnecting: false,
-      replBridgeConnectUrl: undefined,
-      replBridgeSessionUrl: undefined,
-      replBridgeEnvironmentId: undefined,
-      replBridgeSessionId: undefined,
-      replBridgeError: undefined,
-      replBridgeInitialName: remoteControlName,
-      showRemoteCallout: false,
       notifications: {
         current: null,
         queue: initialNotifications
@@ -2929,11 +2636,7 @@ async function run(): Promise<CommanderCommand> {
         advisorModel
       }),
       // Compute teamContext synchronously to avoid useEffect setState during render.
-      // KAIROS: assistantTeamContext takes precedence — set earlier in the
-      // KAIROS block so Agent(name: "foo") can spawn in-process teammates
-      // without TeamCreate. computeInitialTeamContext() is for tmux-spawned
-      // teammates reading their own identity, not the assistant-mode leader.
-      teamContext: feature('KAIROS') ? assistantTeamContext ?? computeInitialTeamContext?.() : computeInitialTeamContext?.()
+      teamContext: computeInitialTeamContext?.()
     };
 
     // Add CLI initial prompt to history
@@ -3025,8 +2728,6 @@ async function run(): Promise<CommanderCommand> {
         if (loaded.restoredAgentDef) {
           mainThreadAgentDefinition = loaded.restoredAgentDef;
         }
-        maybeActivateProactive(options);
-        maybeActivateBrief(options);
         logEvent('tengu_continue', {
           success: true,
           resume_duration_ms: Math.round(performance.now() - resumeStart)
@@ -3157,58 +2858,7 @@ async function run(): Promise<CommanderCommand> {
         thinkingConfig
       }, renderAndRun);
       return;
-    } else if (feature('KAIROS') && _pendingAssistantChat && (_pendingAssistantChat.sessionId || _pendingAssistantChat.discover)) {
-      // `claude assistant [sessionId]` — REPL as a pure viewer client
-      // of a remote assistant session. The agentic loop runs remotely; this
-      // process streams live events and POSTs messages. History is lazy-
-      // loaded by useAssistantHistory on scroll-up (no blocking fetch here).
-      const {
-        discoverAssistantSessions
-      } = await import('./assistant/sessionDiscovery.js');
-      let targetSessionId = _pendingAssistantChat.sessionId;
-
-      // Discovery flow — list bridge environments, filter sessions
-      if (!targetSessionId) {
-        let sessions;
-        try {
-          sessions = await discoverAssistantSessions();
-        } catch (e) {
-          return await exitWithError(root, `Failed to discover sessions: ${e instanceof Error ? e.message : e}`, () => gracefulShutdown(1));
-        }
-        if (sessions.length === 0) {
-          let installedDir: string | null;
-          try {
-            installedDir = await launchAssistantInstallWizard(root);
-          } catch (e) {
-            return await exitWithError(root, `Assistant installation failed: ${e instanceof Error ? e.message : e}`, () => gracefulShutdown(1));
-          }
-          if (installedDir === null) {
-            await gracefulShutdown(0);
-            process.exit(0);
-          }
-          // The daemon needs a few seconds to spin up its worker and
-          // establish a bridge session before discovery will find it.
-          return await exitWithMessage(root, `Assistant installed in ${installedDir}. The daemon is starting up — run \`claude assistant\` again in a few seconds to connect.`, {
-            exitCode: 0,
-            beforeExit: () => gracefulShutdown(0)
-          });
-        }
-        if (sessions.length === 1) {
-          targetSessionId = sessions[0]!.id;
-        } else {
-          const picked = await launchAssistantSessionChooser(root, {
-            sessions
-          });
-          if (!picked) {
-            await gracefulShutdown(0);
-            process.exit(0);
-          }
-          targetSessionId = picked;
-        }
-      }
-
-      return await exitWithError(root, 'Error: Remote assistant sessions are unavailable in API-only mode.', () => gracefulShutdown(1));
-    } else if (options.resume || options.fromPr || remote !== null) {
+    } else if (options.resume || options.fromPr) {
       // Handle resume flow - from file (ant-only), session ID, or interactive selector
 
       // Clear stale caches before resuming to ensure fresh file/skill discovery
@@ -3254,9 +2904,6 @@ async function run(): Promise<CommanderCommand> {
         }
       }
 
-      if (remote !== null) {
-        return await exitWithError(root, 'Error: Remote sessions are unavailable in API-only mode.', () => gracefulShutdown(1));
-      }
       if (("external" as string) === 'ant') {
         if (options.resume && typeof options.resume === 'string' && !maybeSessionId) {
           // Check for ccshare URL (e.g. https://go/ccshare/boris-20260311-211036)
@@ -3407,8 +3054,6 @@ async function run(): Promise<CommanderCommand> {
         contentReplacements: undefined
       } : undefined);
       if (resumeData) {
-        maybeActivateProactive(options);
-        maybeActivateBrief(options);
         await launchRepl(root, {
           getFpsMetrics,
           stats,
@@ -3443,8 +3088,6 @@ async function run(): Promise<CommanderCommand> {
       // the first API call so the model always sees hook context.
       const pendingHookMessages = hooksPromise && hookMessages.length === 0 ? hooksPromise : undefined;
       profileCheckpoint('action_after_hooks');
-      maybeActivateProactive(options);
-      maybeActivateBrief(options);
       // Persist the current mode for fresh sessions so future resumes know what mode was used
       if (feature('COORDINATOR_MODE')) {
         saveMode(coordinatorModeModule?.isCoordinatorMode() ? 'coordinator' : 'normal');
@@ -3509,21 +3152,8 @@ async function run(): Promise<CommanderCommand> {
   if (feature('TRANSCRIPT_CLASSIFIER')) {
     program.addOption(new Option('--enable-auto-mode', 'Opt in to auto mode').hideHelp());
   }
-  if (feature('PROACTIVE') || feature('KAIROS')) {
-    program.addOption(new Option('--proactive', 'Start in proactive autonomous mode'));
-  }
   if (feature('UDS_INBOX')) {
     program.addOption(new Option('--messaging-socket-path <path>', 'Unix domain socket path for the UDS messaging server (defaults to a tmp path)'));
-  }
-  if (feature('KAIROS') || feature('KAIROS_BRIEF')) {
-    program.addOption(new Option('--brief', 'Enable SendUserMessage tool for agent-to-user communication'));
-  }
-  if (feature('KAIROS')) {
-    program.addOption(new Option('--assistant', 'Force assistant mode (Agent SDK daemon use)').hideHelp());
-  }
-  if (feature('KAIROS') || feature('KAIROS_CHANNELS')) {
-    program.addOption(new Option('--channels <servers...>', 'MCP servers whose channel notifications (inbound push) should register this session. Space-separated server names.').hideHelp());
-    program.addOption(new Option('--dangerously-load-development-channels <servers...>', 'Load channel servers not on the approved allowlist. For local channel development only. Shows a confirmation dialog at startup.').hideHelp());
   }
 
   // Teammate identity options (set by leader when spawning tmux teammates)
@@ -3540,12 +3170,6 @@ async function run(): Promise<CommanderCommand> {
   // Enable SDK URL for all builds but hide from help
   program.addOption(new Option('--sdk-url <url>', 'Use remote WebSocket endpoint for SDK I/O streaming (only with -p and stream-json format)').hideHelp());
 
-  // Enable remote flags for all builds but keep them undocumented until GA
-  program.addOption(new Option('--remote [description]', 'Create a remote session with the given description').hideHelp());
-  if (feature('BRIDGE_MODE')) {
-    program.addOption(new Option('--remote-control [name]', 'Start an interactive session with Remote Control enabled (optionally named)').argParser(value => value || true).hideHelp());
-    program.addOption(new Option('--rc [name]', 'Alias for --remote-control').argParser(value => value || true).hideHelp());
-  }
   if (feature('HARD_FAIL')) {
     program.addOption(new Option('--hard-fail', 'Crash on logError calls instead of silently logging').hideHelp());
   }
@@ -3968,28 +3592,6 @@ async function run(): Promise<CommanderCommand> {
   // before returning false, so the command stays hidden here.
   // (25ms settings Zod parse + 40ms sync `security` keychain subprocess).
   // The dynamic visibility never worked; the command was always hidden.
-  if (feature('BRIDGE_MODE')) {
-    program.command('remote-control', {
-      hidden: true
-    }).alias('rc').description('Connect your local environment for remote-control sessions via claude.ai/code').action(async () => {
-      // Unreachable — cli.tsx fast-path handles this command before main.tsx loads.
-      // If somehow reached, delegate to bridgeMain.
-      const {
-        bridgeMain
-      } = await import('./bridge/bridgeMain.js');
-      await bridgeMain(process.argv.slice(3));
-    });
-  }
-  if (feature('KAIROS')) {
-    program.command('assistant [sessionId]').description('Attach the REPL as a client to a running bridge session. Discovers sessions via API if no sessionId given.').action(() => {
-      // Argv rewriting above should have consumed `assistant [id]`
-      // before commander runs. Reaching here means a root flag came first
-      // (e.g. `--debug assistant`) and the position-0 predicate
-      // didn't match. Print usage like the ssh stub does.
-      process.stderr.write('Usage: claude assistant [sessionId]\n\n' + 'Attach the REPL as a viewer client to a running bridge session.\n' + 'Omit sessionId to discover and pick from available sessions.\n');
-      process.exit(1);
-    });
-  }
 
   // Doctor command - check installation health
   program.command('doctor').description('Check the health of your Claude Code auto-updater. Note: The workspace trust dialog is skipped and stdio servers from .mcp.json are spawned for health checks. Only use this command in directories you trust.').action(async () => {
@@ -4256,48 +3858,6 @@ async function logTenguInit({
   } catch (error) {
     logError(error);
   }
-}
-function maybeActivateProactive(options: unknown): void {
-  if ((feature('PROACTIVE') || feature('KAIROS')) && ((options as {
-    proactive?: boolean;
-  }).proactive || isEnvTruthy(process.env.CLAUDE_CODE_PROACTIVE))) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const proactiveModule = require('./proactive/index.js');
-    if (!proactiveModule.isProactiveActive()) {
-      proactiveModule.activateProactive('command');
-    }
-  }
-}
-function maybeActivateBrief(options: unknown): void {
-  if (!(feature('KAIROS') || feature('KAIROS_BRIEF'))) return;
-  const briefFlag = (options as {
-    brief?: boolean;
-  }).brief;
-  const briefEnv = isEnvTruthy(process.env.CLAUDE_CODE_BRIEF);
-  if (!briefFlag && !briefEnv) return;
-  // --brief / CLAUDE_CODE_BRIEF are explicit opt-ins: check entitlement,
-  // then set userMsgOptIn to activate the tool + prompt section. The env
-  // var also grants entitlement (isBriefEntitled() reads it), so setting
-  // CLAUDE_CODE_BRIEF=1 alone force-enables for dev/testing — no GB gate
-  // needed. initialIsBriefOnly reads getUserMsgOptIn() directly.
-  // Conditional require: static import would leak the tool name string
-  // into external builds via BriefTool.ts → prompt.ts.
-  /* eslint-disable @typescript-eslint/no-require-imports */
-  const {
-    isBriefEntitled
-  } = require('./tools/BriefTool/BriefTool.js') as typeof import('./tools/BriefTool/BriefTool.js');
-  /* eslint-enable @typescript-eslint/no-require-imports */
-  const entitled = isBriefEntitled();
-  if (entitled) {
-    setUserMsgOptIn(true);
-  }
-  // Fire unconditionally once intent is seen: enabled=false captures the
-  // "user tried but was gated" failure mode in Datadog.
-  logEvent('tengu_brief_mode_enabled', {
-    enabled: entitled,
-    gated: !entitled,
-    source: (briefEnv ? 'env' : 'flag') as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
-  });
 }
 function resetCursor() {
   const terminal = process.stderr.isTTY ? process.stderr : process.stdout.isTTY ? process.stdout : undefined;

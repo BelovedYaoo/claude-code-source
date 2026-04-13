@@ -8,6 +8,7 @@ import { resetGetMemoryFilesCache } from '../../utils/claudemd.js'
 import { clearSessionMessagesCache } from '../../utils/sessionStorage.js'
 import { clearBetaTracingState } from '../../utils/telemetry/betaSessionTracing.js'
 import { resetMicrocompactState } from './microCompact.js'
+import { resetContextCollapse } from '../contextCollapse/index.js'
 
 /**
  * Run cleanup of caches and tracking state after compaction.
@@ -41,11 +42,7 @@ export function runPostCompactCleanup(querySource?: QuerySource): void {
   resetMicrocompactState()
   if (feature('CONTEXT_COLLAPSE')) {
     if (isMainThreadCompact) {
-      /* eslint-disable @typescript-eslint/no-require-imports */
-      ;(
-        require('../contextCollapse/index.js') as typeof import('../contextCollapse/index.js')
-      ).resetContextCollapse()
-      /* eslint-enable @typescript-eslint/no-require-imports */
+      resetContextCollapse()
     }
   }
   if (isMainThreadCompact) {

@@ -3,7 +3,6 @@ import type {
   SDKPartialAssistantMessage,
   StdoutMessage,
 } from 'src/entrypoints/sdk/controlTypes.js'
-import { decodeJwtExpiry } from '../../bridge/jwtUtils.js'
 import { logForDebugging } from '../../utils/debug.js'
 import { logForDiagnosticsNoPII } from '../../utils/diagLogs.js'
 import { errorMessage, getErrnoCode } from '../../utils/errors.js'
@@ -595,8 +594,8 @@ export class CCRClient {
         // ever succeed. Check the token's own exp before burning
         // wall-clock on the threshold loop.
         const tok = getSessionIngressAuthToken()
-        const exp = tok ? decodeJwtExpiry(tok) : null
-        if (exp !== null && exp * 1000 < Date.now()) {
+        const exp = null
+        if (tok && exp !== null && exp * 1000 < Date.now()) {
           logForDebugging(
             `CCRClient: session_token expired (exp=${new Date(exp * 1000).toISOString()}) — no refresh was delivered, exiting`,
             { level: 'error' },

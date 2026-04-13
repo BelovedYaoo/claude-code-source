@@ -36,6 +36,7 @@ import {
 } from '../../utils/settings/types.js'
 import type { ValidationError } from '../../utils/settings/validation.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
+import { COMPUTER_USE_MCP_SERVER_NAME } from '../../utils/computerUse/common.js'
 import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   logEvent,
@@ -1508,13 +1509,9 @@ export function areMcpConfigsAllowedWithEnterpriseMcpConfig(
  * (opt-out via disabledMcpServers), this requires explicit opt-in via
  * enabledMcpServers. Shows up in /mcp as disabled until the user enables it.
  */
-/* eslint-disable @typescript-eslint/no-require-imports */
 const DEFAULT_DISABLED_BUILTIN = feature('CHICAGO_MCP')
-  ? (
-      require('../../utils/computerUse/common.js') as typeof import('../../utils/computerUse/common.js')
-    ).COMPUTER_USE_MCP_SERVER_NAME
+  ? COMPUTER_USE_MCP_SERVER_NAME
   : null
-/* eslint-enable @typescript-eslint/no-require-imports */
 
 function isDefaultDisabledBuiltin(name: string): boolean {
   return DEFAULT_DISABLED_BUILTIN !== null && name === DEFAULT_DISABLED_BUILTIN

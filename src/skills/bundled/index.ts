@@ -1,9 +1,11 @@
 import { feature } from 'bun:bundle'
 import { shouldAutoEnableClaudeInChrome } from 'src/utils/claudeInChrome/setup.js'
 import { registerBatchSkill } from './batch.js'
+import { registerClaudeApiSkill } from './claudeApi.js'
 import { registerClaudeInChromeSkill } from './claudeInChrome.js'
 import { registerDebugSkill } from './debug.js'
 import { registerKeybindingsSkill } from './keybindings.js'
+import { registerLoopSkill } from './loop.js'
 import { registerLoremIpsumSkill } from './loremIpsum.js'
 import { registerRememberSkill } from './remember.js'
 import { registerSimplifySkill } from './simplify.js'
@@ -32,40 +34,14 @@ export function initBundledSkills(): void {
   registerSimplifySkill()
   registerBatchSkill()
   registerStuckSkill()
-  if (feature('KAIROS') || feature('KAIROS_DREAM')) {
-    /* eslint-disable @typescript-eslint/no-require-imports */
-    const { registerDreamSkill } = require('./dream.js')
-    /* eslint-enable @typescript-eslint/no-require-imports */
-    registerDreamSkill()
-  }
-  if (feature('REVIEW_ARTIFACT')) {
-    /* eslint-disable @typescript-eslint/no-require-imports */
-    const { registerHunterSkill } = require('./hunter.js')
-    /* eslint-enable @typescript-eslint/no-require-imports */
-    registerHunterSkill()
-  }
   if (feature('AGENT_TRIGGERS')) {
-    /* eslint-disable @typescript-eslint/no-require-imports */
-    const { registerLoopSkill } = require('./loop.js')
-    /* eslint-enable @typescript-eslint/no-require-imports */
-    // /loop's isEnabled delegates to isKairosCronEnabled() — same lazy
-    // per-invocation pattern as the cron tools. Registered unconditionally;
-    // the skill's own isEnabled callback decides visibility.
+    // /loop 的启用性仍由 isCronSchedulingEnabled() 在运行时决定。
     registerLoopSkill()
   }
   if (feature('BUILDING_CLAUDE_APPS')) {
-    /* eslint-disable @typescript-eslint/no-require-imports */
-    const { registerClaudeApiSkill } = require('./claudeApi.js')
-    /* eslint-enable @typescript-eslint/no-require-imports */
     registerClaudeApiSkill()
   }
   if (shouldAutoEnableClaudeInChrome()) {
     registerClaudeInChromeSkill()
-  }
-  if (feature('RUN_SKILL_GENERATOR')) {
-    /* eslint-disable @typescript-eslint/no-require-imports */
-    const { registerRunSkillGeneratorSkill } = require('./runSkillGenerator.js')
-    /* eslint-enable @typescript-eslint/no-require-imports */
-    registerRunSkillGeneratorSkill()
   }
 }

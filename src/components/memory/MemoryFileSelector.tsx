@@ -24,10 +24,9 @@ import { projectIsInGitRepo } from '../../utils/memory/versions.js';
 import { updateSettingsForSource } from '../../utils/settings/settings.js';
 import { Select } from '../CustomSelect/index.js';
 import { ListItem } from '../design-system/ListItem.js';
+import * as teamMemPathsModule from '../../memdir/teamMemPaths.js';
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-const teamMemPaths = feature('TEAMMEM') ? require('../../memdir/teamMemPaths.js') as typeof import('../../memdir/teamMemPaths.js') : null;
-/* eslint-enable @typescript-eslint/no-require-imports */
+const teamMemPaths = feature('TEAMMEM') ? teamMemPathsModule : null;
 
 interface ExtendedMemoryFileInfo extends MemoryFileInfo {
   isNested?: boolean;

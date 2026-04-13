@@ -11,7 +11,7 @@ import { getDesktopUpsellConfig } from '../../components/DesktopUpsell/DesktopUp
 import { color } from '../../components/design-system/color.js'
 import { shouldShowOverageCreditUpsell } from '../../components/LogoV2/OverageCreditUpsell.js'
 import { getShortcutDisplay } from '../../keybindings/shortcutFormat.js'
-import { isKairosCronEnabled } from '../../tools/ScheduleCronTool/prompt.js'
+import { isCronSchedulingEnabled } from '../../tools/ScheduleCronTool/prompt.js'
 import { is1PApiCustomer } from '../../utils/auth.js'
 import { countConcurrentSessions } from '../../utils/concurrentSessions.js'
 import { getGlobalConfig } from '../../utils/config.js'
@@ -41,7 +41,7 @@ import { loadKnownMarketplacesConfigSafe } from '../../utils/plugins/marketplace
 import { OFFICIAL_MARKETPLACE_NAME } from '../../utils/plugins/officialMarketplace.js'
 import {
   getCurrentSessionAgentColor,
-  isCustomTitleEnabled,
+
 } from '../../utils/sessionStorage.js'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../analytics/growthbook.js'
 import {
@@ -153,7 +153,7 @@ const externalTips: Tip[] = [
   {
     id: 'color-when-multi-clauding',
     content: async () =>
-      'Running multiple Claude sessions? Use /color and /rename to tell them apart at a glance.',
+      'Running multiple Claude sessions? Use /color to tell them apart at a glance.',
     cooldownSessions: 10,
     isRelevant: async () => {
       if (getCurrentSessionAgentColor()) return false
@@ -376,14 +376,6 @@ const externalTips: Tip[] = [
     isRelevant: async () => true,
   },
   {
-    id: 'rename-conversation',
-    content: async () =>
-      'Name your conversations with /rename to find them easily in /resume later',
-    cooldownSessions: 15,
-    isRelevant: async () =>
-      isCustomTitleEnabled() && getGlobalConfig().numStartups > 10,
-  },
-  {
     id: 'custom-commands',
     content: async () =>
       'Create skills by adding .md files to .claude/skills/ in your project or ~/.claude/skills/ for skills that work in any project',
@@ -573,7 +565,7 @@ const externalTips: Tip[] = [
     cooldownSessions: 3,
     isRelevant: async () => {
       if (!is1PApiCustomer()) return false
-      if (!isKairosCronEnabled()) return false
+      if (!isCronSchedulingEnabled()) return false
       return (
         getFeatureValue_CACHED_MAY_BE_STALE<'off' | 'copy_a' | 'copy_b'>(
           'tengu_timber_lark',

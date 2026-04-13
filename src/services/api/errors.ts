@@ -203,14 +203,6 @@ export function getOauthOrgNotAllowedErrorMessage(): string {
 }
 
 /**
- * Check if we're in CCR (Claude Code Remote) mode.
- * In CCR mode, auth is handled via JWTs provided by the infrastructure.
- * Transient auth errors should suggest retrying instead of changing local credentials.
- */
-function isCCRMode(): boolean {
-  return isEnvTruthy(process.env.CLAUDE_CODE_REMOTE)
-}
-
 // Temp helper to log tool_use/tool_result mismatch errors
 function logToolUseToolResultMismatch(
   toolUseId: string,

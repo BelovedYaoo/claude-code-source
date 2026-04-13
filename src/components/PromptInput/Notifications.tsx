@@ -1,7 +1,6 @@
 import { c as _c } from "react/compiler-runtime";
-import { feature } from 'bun:bundle';
 import * as React from 'react';
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { type Notification, useNotifications } from 'src/context/notifications.js';
 import { logEvent } from 'src/services/analytics/index.js';
 import { useAppState } from 'src/state/AppState.js';
@@ -249,10 +248,6 @@ function NotificationContent({
     return () => clearInterval(interval);
   }, []);
 
-  const isBriefOnly = feature('KAIROS') || feature('KAIROS_BRIEF') ?
-  // biome-ignore lint/correctness/useHookAtTopLevel: feature() is a compile-time constant
-  useAppState(s_1 => s_1.isBriefOnly) : false;
-
   return <>
       <IdeStatusIndicator ideSelection={ideSelection} mcpClients={mcpClients} />
       {notifications.current && ('jsx' in notifications.current ? <Text wrap="truncate" key={notifications.current.key}>
@@ -275,7 +270,7 @@ function NotificationContent({
         </Box>}
       {(apiKeyStatus === 'invalid' || apiKeyStatus === 'missing') && <Box>
           <Text color="error" wrap="truncate">
-            {isEnvTruthy(process.env.CLAUDE_CODE_REMOTE) ? 'Authentication error · Try again' : 'Authentication required · Set ANTHROPIC_API_KEY or configure apiKeyHelper'}
+            {'Authentication required · Set ANTHROPIC_API_KEY or configure apiKeyHelper'}
           </Text>
         </Box>}
       {debug && <Box>
@@ -288,7 +283,7 @@ function NotificationContent({
             {tokenUsage} tokens
           </Text>
         </Box>}
-      {!isBriefOnly && <TokenWarning tokenUsage={tokenUsage} model={mainLoopModel} />}
+      <TokenWarning tokenUsage={tokenUsage} model={mainLoopModel} />
       {shouldShowAutoUpdater && <AutoUpdaterWrapper verbose={verbose} onAutoUpdaterResult={onAutoUpdaterResult} autoUpdaterResult={autoUpdaterResult} isUpdating={isAutoUpdating} onChangeIsUpdating={onChangeIsUpdating} showSuccessMessage={!isShowingCompactMessage} />}
       <MemoryUsageIndicator />
       <SandboxPromptFooterHint />

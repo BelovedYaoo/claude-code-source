@@ -3,9 +3,31 @@ import type { Message } from '../../types/message.js'
 import { logForDebugging } from '../../utils/debug.js'
 import { errorMessage } from '../../utils/errors.js'
 import { safeParseJSON } from '../../utils/json.js'
-import { extractTextContent } from '../../utils/messages.js'
-import { extractConversationText } from '../../utils/sessionTitle.js'
+import { extractTextContent, getContentText } from '../../utils/messages.js'
 import { asSystemPrompt } from '../../utils/systemPromptType.js'
+
+function extractConversationText(messages: Message[]): string {
+  return messages
+    .flatMap(message => {
+      if ('isMeta' in message && message.isMeta) {
+        return []
+      }
+
+      if (message.type === 'user') {
+        const text = getContentText(message.message.content)
+        return text ? [text] : []
+      }
+
+      if (message.type === 'assistant') {
+        const text = extractTextContent(message.message.content, '\n').trim()
+        return text ? [text] : []
+      }
+
+      return []
+    })
+    .join('\n\n')
+    .trim()
+}
 
 export async function generateSessionName(
   messages: Message[],
@@ -44,21 +66,19 @@ export async function generateSessionName(
     })
 
     const content = extractTextContent(result.message.content)
-
     const response = safeParseJSON(content)
+
     if (
       response &&
       typeof response === 'object' &&
       'name' in response &&
-      typeof (response as { name: unknown }).name === 'string'
+      typeof response.name === 'string'
     ) {
-      return (response as { name: string }).name
+      return response.name
     }
+
     return null
   } catch (error) {
-    // Haiku timeout/rate-limit/network are expected operational failures —
-    // logForDebugging, not logError. Called automatically on every 3rd bridge
-    // message (initReplBridge.ts), so errors here would flood the error file.
     logForDebugging(`generateSessionName failed: ${errorMessage(error)}`, {
       level: 'error',
     })

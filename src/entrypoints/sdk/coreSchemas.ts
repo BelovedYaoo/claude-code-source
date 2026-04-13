@@ -1830,7 +1830,7 @@ export const SDKSessionInfoSchema = lazySchema(() =>
       customTitle: z
         .string()
         .optional()
-        .describe('User-set session title via /rename.'),
+        .describe('User-set session title.'),
       firstPrompt: z
         .string()
         .optional()

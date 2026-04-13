@@ -15,6 +15,7 @@ import { getAnthropicApiKeyWithSource } from '../auth.js'
 import { getCwd } from '../cwd.js'
 import { getFastModeState } from '../fastMode.js'
 import { getSettings_DEPRECATED } from '../settings/settings.js'
+import { getUdsMessagingSocketPath } from '../utils/udsMessaging.js'
 
 // TODO(next-minor): remove this translation once SDK consumers have migrated
 // to the 'Agent' tool name. The wire name was renamed Task → Agent in #19647,
@@ -86,10 +87,8 @@ export function buildSystemInitMessage(inputs: SystemInitInputs): SDKMessage {
   }
   // Hidden from public SDK types — ant-only UDS messaging socket path
   if (feature('UDS_INBOX')) {
-    /* eslint-disable @typescript-eslint/no-require-imports */
     ;(initMessage as Record<string, unknown>).messaging_socket_path =
-      require('../udsMessaging.js').getUdsMessagingSocketPath()
-    /* eslint-enable @typescript-eslint/no-require-imports */
+      getUdsMessagingSocketPath()
   }
   initMessage.fast_mode_state = getFastModeState(inputs.model, inputs.fastMode)
   return initMessage

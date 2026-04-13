@@ -5,7 +5,7 @@ import { setPromptId } from 'src/bootstrap/state.js';
 import { builtInCommandNames, type Command, type CommandBase, findCommand, getCommand, getCommandName, hasCommand, type PromptCommand } from 'src/commands.js';
 import { NO_CONTENT_MESSAGE } from 'src/constants/messages.js';
 import type { SetToolJSXFn, ToolUseContext } from 'src/Tool.js';
-import type { AssistantMessage, AttachmentMessage, Message, NormalizedUserMessage, ProgressMessage, UserMessage } from 'src/types/message.js';
+import type { AttachmentMessage, Message, ProgressMessage, UserMessage } from 'src/types/message.js';
 import { addInvokedSkill, getSessionId } from '../../bootstrap/state.js';
 import { COMMAND_MESSAGE_TAG, COMMAND_NAME_TAG } from '../../constants/xml.js';
 import type { CanUseToolFn } from '../../hooks/useCanUseTool.js';
@@ -93,13 +93,8 @@ async function executeForkedSlashCommand(command: CommandBase & PromptCommand, a
   // agent turn) cycles blocking user input. With this, N subagents run in
   // parallel and results trickle into the queue as they finish.
   //
-  // Gated on kairosEnabled (not CLAUDE_CODE_BRIEF) because the closed loop
-  // depends on assistant-mode invariants: scheduled_tasks.json exists,
-  // the main agent knows to pipe results through SendUserMessage, and
-  // isMeta prompts are hidden. Outside assistant mode, context:fork commands
-  // are user-invoked skills (/commit etc.) that should run synchronously
-  // with the progress UI.
-  if (feature('KAIROS') && (await context.getAppState()).kairosEnabled) {
+  // 该异步回灌路径已移除；context:fork 命令保持同步执行并展示进度 UI。
+  if (false) {
     // Standalone abortController — background subagents survive main-thread
     // ESC (same policy as AgentTool's async path). They're cron-driven; if
     // killed mid-run they just re-fire on the next schedule.
@@ -117,12 +112,10 @@ async function executeForkedSlashCommand(command: CommandBase & PromptCommand, a
     // own QueuedCommand.workload tag to preserve attribution.
     const spawnTimeWorkload = getWorkload();
 
-    // Re-enter the queue as a hidden prompt. isMeta: hides from queue
-    // preview + placeholder + transcript. skipSlashCommands: prevents
-    // re-parsing if the result text happens to start with '/'. When
-    // drained, this triggers a main-agent turn that sees the result and
-    // decides whether to SendUserMessage. Propagate workload so that
-    // second turn is also tagged.
+    // Re-enter the queue as a hidden prompt. isMeta hides it from queue
+    // preview, placeholder, and transcript. skipSlashCommands prevents
+    // re-parsing if the result text happens to start with '/'. Propagate
+    // workload so the second turn is also tagged.
     const enqueueResult = (value: string): void => enqueuePendingNotification({
       value,
       mode: 'prompt',
@@ -585,8 +578,8 @@ async function getMessagesForSlashCommand(commandName: string, args: string, set
               // to the model), so skipping them doesn't affect model context.
               // Outside fullscreen keep them so scrollback shows what ran.
               // Only skip "<Name> dismissed" modal-close notifications —
-              // commands that early-exit before showing a modal (/ultraplan
-              // usage, /rename, /proactive) use display:system for actual
+              // commands that early-exit before showing a modal
+              // usage、会话相关命令、/proactive 使用 display:system 输出实际内容
               // output that must reach the transcript.
               const skipTranscript = isFullscreenEnvEnabled() && typeof result === 'string' && result.endsWith(' dismissed');
               void resolve({

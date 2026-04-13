@@ -5,7 +5,7 @@ import {
   findTeammateTaskByAgentId,
   injectUserMessageToTeammate,
 } from '../tasks/InProcessTeammateTask/InProcessTeammateTask.js'
-import { isKairosCronEnabled } from '../tools/ScheduleCronTool/prompt.js'
+import { isCronSchedulingEnabled } from '../tools/ScheduleCronTool/prompt.js'
 import type { Message } from '../types/message.js'
 import { getCronJitterConfig } from '../utils/cronJitterConfig.js'
 import { createCronScheduler } from '../utils/cronScheduler.js'
@@ -20,10 +20,9 @@ type Props = {
   /**
    * When true, bypasses the isLoading gate so tasks can enqueue while a
    * query is streaming rather than deferring to the next 1s check tick
-   * after the turn ends. Assistant mode no longer forces --proactive
-   * (#20425) so isLoading drops between turns like a normal REPL — this
-   * bypass is now a latency nicety, not a starvation fix. The prompt is
-   * enqueued at 'later' priority either way and drains between turns.
+   * after the turn ends. isLoading drops between turns like a normal REPL,
+   * so this bypass is now a latency nicety rather than a starvation fix.
+   * The prompt is enqueued at 'later' priority either way and drains between turns.
    */
   assistantMode?: boolean
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>
@@ -58,16 +57,13 @@ export function useScheduledTasks({
     // effect won't re-run on value flip (assistantMode is the only dep),
     // so this guard alone is launch-grain. The mid-session killswitch is
     // the isKilled option below — check() polls it every tick.
-    if (!isKairosCronEnabled()) return
+    if (!isCronSchedulingEnabled()) return
 
     // System-generated — hidden from queue preview and transcript UI.
-    // In brief mode, executeForkedSlashCommand runs as a background
-    // subagent and returns no visible messages. In normal mode,
-    // isMeta is only propagated for plain-text prompts (via
-    // processTextPrompt); slash commands like /context:fork do not
-    // forward isMeta, so their messages remain visible in the
-    // transcript. This is acceptable since normal mode is not the
-    // primary use case for scheduled tasks.
+    // executeForkedSlashCommand runs as a background subagent and returns
+    // no visible messages. For plain-text prompts, isMeta propagates via
+    // processTextPrompt. Slash commands like /context:fork do not forward
+    // isMeta, so their messages remain visible in the transcript.
     const enqueueForLead = (prompt: string) =>
       enqueuePendingNotification({
         value: prompt,
@@ -116,7 +112,7 @@ export function useScheduledTasks({
       isLoading: () => isLoadingRef.current,
       assistantMode,
       getJitterConfig: getCronJitterConfig,
-      isKilled: () => !isKairosCronEnabled(),
+      isKilled: () => !isCronSchedulingEnabled(),
     })
     scheduler.start()
     return () => scheduler.stop()

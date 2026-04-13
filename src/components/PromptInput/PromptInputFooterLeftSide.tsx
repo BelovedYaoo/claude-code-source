@@ -1,14 +1,11 @@
 import { c as _c } from "react/compiler-runtime";
 // biome-ignore-all assist/source/organizeImports: ANT-ONLY import markers must not be reordered
 import { feature } from 'bun:bundle';
-// Dead code elimination: conditional import for COORDINATOR_MODE
-/* eslint-disable @typescript-eslint/no-require-imports */
-const coordinatorModule = feature('COORDINATOR_MODE') ? require('../../coordinator/coordinatorMode.js') as typeof import('../../coordinator/coordinatorMode.js') : undefined;
-/* eslint-enable @typescript-eslint/no-require-imports */
+import { isCoordinatorMode } from '../../coordinator/coordinatorMode.js';
 import { Box, Text, Link } from '../../ink.js';
 import * as React from 'react';
 import figures from 'figures';
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useMemo } from 'react';
 import type { VimMode, PromptInputMode } from '../../types/textInputTypes.js';
 import type { ToolPermissionContext } from '../../Tool.js';
 import { isVimModeEnabled } from './utils.js';
@@ -24,7 +21,6 @@ import { isAgentSwarmsEnabled } from '../../utils/agentSwarmsEnabled.js';
 import { TeamStatus } from '../teams/TeamStatus.js';
 import { isInProcessEnabled } from '../../utils/swarm/backends/registry.js';
 import { useAppState, useAppStateStore } from 'src/state/AppState.js';
-import { getIsRemoteMode } from '../../bootstrap/state.js';
 import HistorySearchInput from './HistorySearchInput.js';
 import { usePrStatus } from '../../hooks/usePrStatus.js';
 import { KeyboardShortcutHint } from '../design-system/KeyboardShortcutHint.js';
@@ -35,19 +31,12 @@ import { formatDuration } from '../../utils/format.js';
 import { isFullscreenEnvEnabled } from '../../utils/fullscreen.js';
 import { isXtermJs } from '../../ink/terminal.js';
 import { useHasSelection, useSelection } from '../../ink/hooks/use-selection.js';
-import { getGlobalConfig, saveGlobalConfig } from '../../utils/config.js';
+import { getGlobalConfig } from '../../utils/config.js';
 import { getPlatform } from '../../utils/platform.js';
 import { PrBadge } from '../PrBadge.js';
 
-// Dead code elimination: conditional import for proactive mode
-/* eslint-disable @typescript-eslint/no-require-imports */
-const proactiveModule = feature('PROACTIVE') || feature('KAIROS') ? require('../../proactive/index.js') : null;
-/* eslint-enable @typescript-eslint/no-require-imports */
 // Stub for ant-only component (dead-code-eliminated but still type-checked)
 declare const TungstenPill: any
-const NO_OP_SUBSCRIBE = (_cb: () => void) => () => {};
-const NULL = () => null;
-const MAX_VOICE_HINT_SHOWS = 3;
 type Props = {
   exitMessage: {
     show: boolean;
@@ -70,59 +59,6 @@ type Props = {
   historyFailedMatch: boolean;
   onOpenTasksDialog?: (taskId?: string) => void;
 };
-function ProactiveCountdown() {
-  const $ = _c(7);
-  const nextTickAt = useSyncExternalStore(proactiveModule?.subscribeToProactiveChanges ?? NO_OP_SUBSCRIBE, proactiveModule?.getNextTickAt ?? NULL, NULL);
-  const [remainingSeconds, setRemainingSeconds] = useState(null);
-  let t0;
-  let t1;
-  if ($[0] !== nextTickAt) {
-    t0 = () => {
-      if (nextTickAt === null) {
-        setRemainingSeconds(null);
-        return;
-      }
-      const update = function update() {
-        const remaining = Math.max(0, Math.ceil((nextTickAt - Date.now()) / 1000));
-        setRemainingSeconds(remaining);
-      };
-      update();
-      const interval = setInterval(update, 1000);
-      return () => clearInterval(interval);
-    };
-    t1 = [nextTickAt];
-    $[0] = nextTickAt;
-    $[1] = t0;
-    $[2] = t1;
-  } else {
-    t0 = $[1];
-    t1 = $[2];
-  }
-  useEffect(t0, t1);
-  if (remainingSeconds === null) {
-    return null;
-  }
-  const t2 = remainingSeconds * 1000;
-  let t3;
-  if ($[3] !== t2) {
-    t3 = formatDuration(t2, {
-      mostSignificantOnly: true
-    });
-    $[3] = t2;
-    $[4] = t3;
-  } else {
-    t3 = $[4];
-  }
-  let t4;
-  if ($[5] !== t3) {
-    t4 = <Text dimColor={true}>waiting{" "}{t3}</Text>;
-    $[5] = t3;
-    $[6] = t4;
-  } else {
-    t4 = $[6];
-  }
-  return t4;
-}
 export function PromptInputFooterLeftSide(t0: Props) {
   const $ = _c(27);
   const {
@@ -250,21 +186,15 @@ function ModeIndicator({
   const modeCycleShortcut = useShortcutDisplay('chat:cycleMode', 'Chat', 'shift+tab');
   const tasks = useAppState(s => s.tasks);
   const teamContext = useAppState(s_0 => s_0.teamContext);
-  // Set once in initialState (main.tsx --remote mode) and never mutated — lazy
-  // init captures the immutable value without a subscription.
-  const store = useAppStateStore();
-  const [remoteSessionUrl] = useState(() => store.getState().remoteSessionUrl);
   const viewSelectionMode = useAppState(s_1 => s_1.viewSelectionMode);
   const viewingAgentTaskId = useAppState(s_2 => s_2.viewingAgentTaskId);
   const expandedView = useAppState(s_3 => s_3.expandedView);
   const showSpinnerTree = expandedView === 'teammates';
   const prStatus = usePrStatus(isLoading, isPrStatusEnabled());
   const hasTmuxSession = useAppState(s_4 => "external" === 'ant' && s_4.tungstenActiveSession !== undefined);
-  const nextTickAt = useSyncExternalStore(proactiveModule?.subscribeToProactiveChanges ?? NO_OP_SUBSCRIBE, proactiveModule?.getNextTickAt ?? NULL, NULL);
   const hasSelection = useHasSelection();
   const selGetState = useSelection().getState;
-  const hasNextTick = nextTickAt !== null;
-  const isCoordinator = feature('COORDINATOR_MODE') ? coordinatorModule?.isCoordinatorMode() === true : false;
+  const isCoordinator = feature('COORDINATOR_MODE') ? isCoordinatorMode() : false;
   const runningTaskCount = useMemo(() => count(Object.values(tasks), t => isBackgroundTask(t) && !("external" === 'ant' && isPanelAgentTask(t))), [tasks]);
   const tasksV2 = useTasksV2();
   const hasTaskItems = tasksV2 !== undefined && tasksV2.length > 0;
@@ -304,11 +234,7 @@ function ModeIndicator({
   const hasInProcessTeammates = !showSpinnerTree && hasBackgroundTasks && Object.values(tasks).some(t_1 => t_1.type === 'in_process_teammate');
   const hasTeammatePills = hasInProcessTeammates || !showSpinnerTree && isViewingTeammate;
 
-  // 在远程模式（如 `claude assistant`）下，agent 运行在别处；
-  // the local permission mode shown here doesn't reflect the agent's state.
-  // Rendered before the tasks pill so a long pill label (e.g. ultraplan URL)
-  // doesn't push the mode indicator off-screen.
-  const modePart = currentMode && hasActiveMode && !getIsRemoteMode() ? <Text color={getModeColor(currentMode)} key="mode">
+  const modePart = currentMode && hasActiveMode ? <Text color={getModeColor(currentMode)} key="mode">
         {permissionModeSymbol(currentMode)}{' '}
         {permissionModeTitle(currentMode).toLowerCase()} on
         {shouldShowModeHint && <Text dimColor>
@@ -320,10 +246,6 @@ function ModeIndicator({
   // Build parts array - exclude BackgroundTaskStatus when we have teammate pills
   // (teammate pills get their own row)
   const parts = [
-  // Remote session indicator
-  ...(remoteSessionUrl ? [<Link url={remoteSessionUrl} key="remote">
-            <Text color="ide">{figures.circleDouble} remote</Text>
-          </Link>] : []),
   // BackgroundTaskStatus is NOT in parts — it renders as a Box sibling so
   // its click-target Box isn't nested inside the <Text wrap="truncate">
   // wrapper (reconciler throws on Box-in-Text).
@@ -340,8 +262,6 @@ function ModeIndicator({
     parts.push(<Text dimColor key="esc-return">
         <KeyboardShortcutHint shortcut={escShortcut} action="return to team lead" />
       </Text>);
-  } else if ((feature('PROACTIVE') || feature('KAIROS')) && hasNextTick) {
-    parts.push(<ProactiveCountdown key="proactive" />);
   } else if (!hasTeammatePills && showHint) {
     parts.push(...hintParts);
   }

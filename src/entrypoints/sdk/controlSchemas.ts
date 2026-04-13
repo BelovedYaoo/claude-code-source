@@ -126,10 +126,6 @@ export const SDKControlSetPermissionModeRequestSchema = lazySchema(() =>
     .object({
       subtype: z.literal('set_permission_mode'),
       mode: PermissionModeSchema(),
-      ultraplan: z
-        .boolean()
-        .optional()
-        .describe('@internal CCR ultraplan session marker.'),
     })
     .describe('Sets the permission mode for tool execution handling.'),
 )
@@ -162,16 +158,6 @@ export const SDKControlMcpStatusRequestSchema = lazySchema(() =>
     .describe('Requests the current status of all MCP server connections.'),
 )
 
-export const SDKControlMcpStatusResponseSchema = lazySchema(() =>
-  z
-    .object({
-      mcpServers: z.array(McpServerStatusSchema()),
-    })
-    .describe(
-      'Response containing the current status of all MCP server connections.',
-    ),
-)
-
 export const SDKControlGetContextUsageRequestSchema = lazySchema(() =>
   z
     .object({
@@ -179,129 +165,6 @@ export const SDKControlGetContextUsageRequestSchema = lazySchema(() =>
     })
     .describe(
       'Requests a breakdown of current context window usage by category.',
-    ),
-)
-
-const ContextCategorySchema = lazySchema(() =>
-  z.object({
-    name: z.string(),
-    tokens: z.number(),
-    color: z.string(),
-    isDeferred: z.boolean().optional(),
-  }),
-)
-
-const ContextGridSquareSchema = lazySchema(() =>
-  z.object({
-    color: z.string(),
-    isFilled: z.boolean(),
-    categoryName: z.string(),
-    tokens: z.number(),
-    percentage: z.number(),
-    squareFullness: z.number(),
-  }),
-)
-
-export const SDKControlGetContextUsageResponseSchema = lazySchema(() =>
-  z
-    .object({
-      categories: z.array(ContextCategorySchema()),
-      totalTokens: z.number(),
-      maxTokens: z.number(),
-      rawMaxTokens: z.number(),
-      percentage: z.number(),
-      gridRows: z.array(z.array(ContextGridSquareSchema())),
-      model: z.string(),
-      memoryFiles: z.array(
-        z.object({
-          path: z.string(),
-          type: z.string(),
-          tokens: z.number(),
-        }),
-      ),
-      mcpTools: z.array(
-        z.object({
-          name: z.string(),
-          serverName: z.string(),
-          tokens: z.number(),
-          isLoaded: z.boolean().optional(),
-        }),
-      ),
-      deferredBuiltinTools: z
-        .array(
-          z.object({
-            name: z.string(),
-            tokens: z.number(),
-            isLoaded: z.boolean(),
-          }),
-        )
-        .optional(),
-      systemTools: z
-        .array(z.object({ name: z.string(), tokens: z.number() }))
-        .optional(),
-      systemPromptSections: z
-        .array(z.object({ name: z.string(), tokens: z.number() }))
-        .optional(),
-      agents: z.array(
-        z.object({
-          agentType: z.string(),
-          source: z.string(),
-          tokens: z.number(),
-        }),
-      ),
-      slashCommands: z
-        .object({
-          totalCommands: z.number(),
-          includedCommands: z.number(),
-          tokens: z.number(),
-        })
-        .optional(),
-      skills: z
-        .object({
-          totalSkills: z.number(),
-          includedSkills: z.number(),
-          tokens: z.number(),
-          skillFrontmatter: z.array(
-            z.object({
-              name: z.string(),
-              source: z.string(),
-              tokens: z.number(),
-            }),
-          ),
-        })
-        .optional(),
-      autoCompactThreshold: z.number().optional(),
-      isAutoCompactEnabled: z.boolean(),
-      messageBreakdown: z
-        .object({
-          toolCallTokens: z.number(),
-          toolResultTokens: z.number(),
-          attachmentTokens: z.number(),
-          assistantMessageTokens: z.number(),
-          userMessageTokens: z.number(),
-          toolCallsByType: z.array(
-            z.object({
-              name: z.string(),
-              callTokens: z.number(),
-              resultTokens: z.number(),
-            }),
-          ),
-          attachmentsByType: z.array(
-            z.object({ name: z.string(), tokens: z.number() }),
-          ),
-        })
-        .optional(),
-      apiUsage: z
-        .object({
-          input_tokens: z.number(),
-          output_tokens: z.number(),
-          cache_creation_input_tokens: z.number(),
-          cache_read_input_tokens: z.number(),
-        })
-        .nullable(),
-    })
-    .describe(
-      'Breakdown of current context window usage by category (system prompt, tools, messages, etc.).',
     ),
 )
 
@@ -315,18 +178,6 @@ export const SDKControlRewindFilesRequestSchema = lazySchema(() =>
     .describe('Rewinds file changes made since a specific user message.'),
 )
 
-export const SDKControlRewindFilesResponseSchema = lazySchema(() =>
-  z
-    .object({
-      canRewind: z.boolean(),
-      error: z.string().optional(),
-      filesChanged: z.array(z.string()).optional(),
-      insertions: z.number().optional(),
-      deletions: z.number().optional(),
-    })
-    .describe('Result of a rewindFiles operation.'),
-)
-
 export const SDKControlCancelAsyncMessageRequestSchema = lazySchema(() =>
   z
     .object({
@@ -335,16 +186,6 @@ export const SDKControlCancelAsyncMessageRequestSchema = lazySchema(() =>
     })
     .describe(
       'Drops a pending async user message from the command queue by uuid. No-op if already dequeued for execution.',
-    ),
-)
-
-export const SDKControlCancelAsyncMessageResponseSchema = lazySchema(() =>
-  z
-    .object({
-      cancelled: z.boolean(),
-    })
-    .describe(
-      'Result of a cancel_async_message operation. cancelled=false means the message was not in the queue (already dequeued or never enqueued).',
     ),
 )
 
@@ -482,43 +323,6 @@ export const SDKControlGetSettingsRequestSchema = lazySchema(() =>
     ),
 )
 
-export const SDKControlGetSettingsResponseSchema = lazySchema(() =>
-  z
-    .object({
-      effective: z.record(z.string(), z.unknown()),
-      sources: z
-        .array(
-          z.object({
-            source: z.enum([
-              'userSettings',
-              'projectSettings',
-              'localSettings',
-              'flagSettings',
-              'policySettings',
-            ]),
-            settings: z.record(z.string(), z.unknown()),
-          }),
-        )
-        .describe(
-          'Ordered low-to-high priority — later entries override earlier ones.',
-        ),
-      applied: z
-        .object({
-          model: z.string(),
-          // String levels only — numeric effort is ant-only and the
-          // Zod→proto generator can't emit enum∪number unions.
-          effort: z.enum(['low', 'medium', 'high', 'max']).nullable(),
-        })
-        .optional()
-        .describe(
-          'Runtime-resolved values after env overrides, session state, and model-specific defaults are applied. Unlike `effective` (disk merge), these reflect what will actually be sent to the API.',
-        ),
-    })
-    .describe(
-      'Effective merged settings plus raw per-source settings in merge order.',
-    ),
-)
-
 export const SDKControlElicitationRequestSchema = lazySchema(() =>
   z
     .object({
@@ -554,14 +358,6 @@ export const SDKControlEndSessionRequestSchema = lazySchema(() =>
     subtype: z.literal('end_session'),
     reason: z.string().optional(),
   }).describe('Ends the current session.'),
-)
-
-export const SDKControlChannelEnableRequestSchema = lazySchema(() =>
-  z.object({
-    subtype: z.literal('channel_enable'),
-    serverName: z.string(),
-    enabled: z.boolean(),
-  }).describe('Enables or disables a channel.'),
 )
 
 export const SDKControlMcpAuthenticateRequestSchema = lazySchema(() =>
@@ -657,7 +453,6 @@ export const SDKControlRequestInnerSchema = lazySchema(() =>
     SDKControlGetSettingsRequestSchema(),
     SDKControlElicitationRequestSchema(),
     SDKControlEndSessionRequestSchema(),
-    SDKControlChannelEnableRequestSchema(),
     SDKControlMcpAuthenticateRequestSchema(),
     SDKControlMcpOauthCallbackUrlRequestSchema(),
     SDKControlClaudeAuthenticateRequestSchema(),

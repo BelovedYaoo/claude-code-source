@@ -81,12 +81,15 @@ import {
   shouldEnableThinkingByDefault,
   type ThinkingConfig,
 } from './utils/thinking.js'
+import * as messageSelectorModule from 'src/components/MessageSelector.js'
+import { getCoordinatorUserContext as getCoordinatorUserContextImpl } from './coordinator/coordinatorMode.js'
+import * as snipCompactModule from './services/compact/snipCompact.js'
+import * as snipProjectionModule from './services/compact/snipProjection.js'
 
 // Lazy: MessageSelector.tsx pulls React/ink; only needed for message filtering at query time
-/* eslint-disable @typescript-eslint/no-require-imports */
 const messageSelector =
   (): typeof import('src/components/MessageSelector.js') =>
-    require('src/components/MessageSelector.js')
+    messageSelectorModule
 
 import {
   localCommandOutputToSDKAssistantMessage,
@@ -108,24 +111,20 @@ import {
 } from './utils/queryHelpers.js'
 
 // Dead code elimination: conditional import for coordinator mode
-/* eslint-disable @typescript-eslint/no-require-imports */
 const getCoordinatorUserContext: (
   mcpClients: ReadonlyArray<{ name: string }>,
   scratchpadDir?: string,
 ) => { [k: string]: string } = feature('COORDINATOR_MODE')
-  ? require('./coordinator/coordinatorMode.js').getCoordinatorUserContext
+  ? getCoordinatorUserContextImpl
   : () => ({})
-/* eslint-enable @typescript-eslint/no-require-imports */
 
 // Dead code elimination: conditional import for snip compaction
-/* eslint-disable @typescript-eslint/no-require-imports */
 const snipModule = feature('HISTORY_SNIP')
-  ? (require('./services/compact/snipCompact.js') as typeof import('./services/compact/snipCompact.js'))
+  ? snipCompactModule
   : null
 const snipProjection = feature('HISTORY_SNIP')
-  ? (require('./services/compact/snipProjection.js') as typeof import('./services/compact/snipProjection.js'))
+  ? snipProjectionModule
   : null
-/* eslint-enable @typescript-eslint/no-require-imports */
 
 export type QueryEngineConfig = {
   cwd: string

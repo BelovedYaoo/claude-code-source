@@ -4,7 +4,6 @@ import { useNotifications } from 'src/context/notifications.js';
 import { Text } from 'src/ink.js';
 import { getRateLimitWarning, getUsingOverageText } from 'src/services/claudeAiLimits.js';
 import { useClaudeAiLimits } from 'src/services/claudeAiLimitsHook.js';
-import { getIsRemoteMode } from '../../bootstrap/state.js';
 
 export function useRateLimitWarningNotification(model: string): void {
   const { addNotification } = useNotifications();
@@ -22,7 +21,6 @@ export function useRateLimitWarningNotification(model: string): void {
     useState(false);
 
   useEffect(() => {
-    if (getIsRemoteMode()) return;
     if (claudeAiLimits.isUsingOverage && !hasShownOverageNotification) {
       addNotification({
         key: 'limit-reached',
@@ -41,7 +39,6 @@ export function useRateLimitWarningNotification(model: string): void {
   ]);
 
   useEffect(() => {
-    if (getIsRemoteMode()) return;
     if (rateLimitWarning && rateLimitWarning !== shownWarningRef.current) {
       shownWarningRef.current = rateLimitWarning;
       addNotification({

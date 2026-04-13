@@ -9,8 +9,8 @@ import {
   buildCronListPrompt,
   CRON_LIST_DESCRIPTION,
   CRON_LIST_TOOL_NAME,
+  isCronSchedulingEnabled,
   isDurableCronEnabled,
-  isKairosCronEnabled,
 } from './prompt.js'
 import { renderListResultMessage, renderListToolUseMessage } from './UI.js'
 
@@ -33,8 +33,7 @@ const outputSchema = lazySchema(() =>
 )
 type OutputSchema = ReturnType<typeof outputSchema>
 export type ListOutput = z.infer<OutputSchema>
-
-export const CronListTool = buildTool({
+buildTool({
   name: CRON_LIST_TOOL_NAME,
   searchHint: 'list active cron jobs',
   maxResultSizeChars: 100_000,
@@ -46,7 +45,7 @@ export const CronListTool = buildTool({
     return outputSchema()
   },
   isEnabled() {
-    return isKairosCronEnabled()
+    return isCronSchedulingEnabled()
   },
   isConcurrencySafe() {
     return true
@@ -84,14 +83,14 @@ export const CronListTool = buildTool({
       content:
         output.jobs.length > 0
           ? output.jobs
-              .map(
-                j =>
-                  `${j.id} — ${j.humanSchedule}${j.recurring ? ' (recurring)' : ' (one-shot)'}${j.durable === false ? ' [session-only]' : ''}: ${truncate(j.prompt, 80, true)}`,
-              )
-              .join('\n')
+            .map(
+              j =>
+                `${j.id} — ${j.humanSchedule}${j.recurring ? ' (recurring)' : ' (one-shot)'}${j.durable === false ? ' [session-only]' : ''}: ${truncate(j.prompt, 80, true)}`,
+            )
+            .join('\n')
           : 'No scheduled jobs.',
     }
   },
   renderToolUseMessage: renderListToolUseMessage,
   renderToolResultMessage: renderListResultMessage,
-} satisfies ToolDef<InputSchema, ListOutput>)
+} satisfies ToolDef<InputSchema, ListOutput>);

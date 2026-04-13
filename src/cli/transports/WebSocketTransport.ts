@@ -767,11 +767,6 @@ export class WebSocketTransport implements Transport {
   private startKeepaliveInterval(): void {
     this.stopKeepaliveInterval()
 
-    // In CCR sessions, session activity heartbeats handle keep-alives
-    if (isEnvTruthy(process.env.CLAUDE_CODE_REMOTE)) {
-      return
-    }
-
     this.keepAliveInterval = setInterval(() => {
       if (this.state === 'connected' && this.ws) {
         try {

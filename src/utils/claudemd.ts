@@ -77,12 +77,11 @@ import { expandPath } from './path.js'
 import { pathInWorkingPath } from './permissions/filesystem.js'
 import { isSettingSourceEnabled } from './settings/constants.js'
 import { getInitialSettings } from './settings/settings.js'
+import * as teamMemPathsModule from '../memdir/teamMemPaths.js'
 
-/* eslint-disable @typescript-eslint/no-require-imports */
 const teamMemPaths = feature('TEAMMEM')
-  ? (require('../memdir/teamMemPaths.js') as typeof import('../memdir/teamMemPaths.js'))
+  ? teamMemPathsModule
   : null
-/* eslint-enable @typescript-eslint/no-require-imports */
 
 let hasLoggedInitialLoad = false
 

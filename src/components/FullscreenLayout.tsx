@@ -1,6 +1,6 @@
 import { c as _c } from "react/compiler-runtime";
 import figures from 'figures';
-import React, { createContext, type ReactNode, type RefObject, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import React, { createContext, type ReactNode, type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { fileURLToPath } from 'url';
 import { ModalContext } from '../context/modalContext.js';
 import { PromptOverlayProvider, usePromptOverlay, usePromptOverlayDialog } from '../context/promptOverlayContext.js';
@@ -13,7 +13,7 @@ import { openBrowser, openPath } from '../utils/browser.js';
 import { isFullscreenEnvEnabled } from '../utils/fullscreen.js';
 import { plural } from '../utils/stringUtils.js';
 import { isNullRenderingAttachment } from './messages/nullRenderingAttachments.js';
-import PromptInputFooterSuggestions from './PromptInput/PromptInputFooterSuggestions.js';
+import PromptInputFooterSuggestions, { PromptInputFooterSuggestions } from './PromptInput/PromptInputFooterSuggestions.js';
 import type { StickyPrompt } from './VirtualMessageList.js';
 
 /** Rows of transcript context kept visible above the modal pane's ▔ divider. */
@@ -39,7 +39,7 @@ type Props = {
   /** Absolute-positioned content anchored at the bottom-right of the
    *  ScrollBox area, floating over scrollback. Rendered inside the flexGrow
    *  region (not the bottom slot) so the overflowY:hidden cap doesn't clip
-   *  it. Fullscreen only — used for the companion speech bubble. */
+   *  it. Fullscreen only. */
   bottomFloat?: ReactNode;
   /** Slash-command dialog content. Rendered in an absolute-positioned
    *  bottom-anchored pane (▔ divider, paddingX=2) that paints over the

@@ -3,11 +3,6 @@ import { feature } from 'bun:bundle'
 type UUID = string
 import uniqBy from 'lodash-es/uniqBy.js'
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-const sessionTranscriptModule = feature('KAIROS')
-  ? (require('../sessionTranscript/sessionTranscript.js') as typeof import('../sessionTranscript/sessionTranscript.js'))
-  : null
-
 import { APIUserAbortError } from '@anthropic-ai/sdk'
 import { markPostCompaction } from 'src/bootstrap/state.js'
 import { getInvokedSkillsForAgent } from '../../bootstrap/state.js'
@@ -713,11 +708,6 @@ export async function compactConversation(
     // instead of the user-set session name.
     reAppendSessionMetadata()
 
-    // Write a reduced transcript segment for the pre-compaction messages
-    // (assistant mode only). Fire-and-forget — errors are logged internally.
-    if (feature('KAIROS')) {
-      void sessionTranscriptModule?.writeSessionTranscriptSegment(messages)
-    }
 
     context.onCompactProgress?.({
       type: 'hooks_start',
@@ -1060,11 +1050,6 @@ export async function partialCompactConversation(
     // the 16KB tail window that readLiteMetadata reads for --resume display.
     reAppendSessionMetadata()
 
-    if (feature('KAIROS')) {
-      void sessionTranscriptModule?.writeSessionTranscriptSegment(
-        messagesToSummarize,
-      )
-    }
 
     context.onCompactProgress?.({
       type: 'hooks_start',

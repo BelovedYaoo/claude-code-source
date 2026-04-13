@@ -1,6 +1,7 @@
 import memoize from 'lodash-es/memoize.js'
 import { homedir } from 'os'
 import { join } from 'path'
+import { checkProtectedNamespace } from './protectedNamespace.js'
 
 // Memoized: 150+ callers, many on hot paths. Keyed off CLAUDE_CONFIG_DIR so
 // tests that change the env var get a fresh value without explicit cache.clear.
@@ -135,13 +136,9 @@ export function isRunningOnHomespace(): boolean {
  */
 export function isInProtectedNamespace(): boolean {
   // USER_TYPE is build-time --define'd; in external builds this block is
-  // DCE'd so the require() and namespace allowlist never appear in the bundle.
+  // DCE'd so受保护命名空间检查不会进入 bundle。
   if (process.env.USER_TYPE === 'ant') {
-    /* eslint-disable @typescript-eslint/no-require-imports */
-    return (
-      require('./protectedNamespace.js') as typeof import('./protectedNamespace.js')
-    ).checkProtectedNamespace()
-    /* eslint-enable @typescript-eslint/no-require-imports */
+    return checkProtectedNamespace()
   }
   return false
 }

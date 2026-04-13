@@ -1,4 +1,3 @@
-import { c as _c } from "react/compiler-runtime";
 import React, { useState } from 'react';
 import type { CommandResultDisplay, LocalJSXCommandContext } from '../../commands.js';
 import { type OptionWithDescription, Select } from '../../components/CustomSelect/select.js';
@@ -9,10 +8,8 @@ import type { ToolUseContext } from '../../Tool.js';
 import type { LocalJSXCommandOnDone } from '../../types/command.js';
 import { call as extraUsageCall } from '../extra-usage/extra-usage.js';
 import { extraUsage } from '../extra-usage/index.js';
-import upgrade from '../upgrade/index.js';
-import { call as upgradeCall } from '../upgrade/upgrade.js';
 
-type RateLimitOptionsMenuOptionType = 'upgrade' | 'extra-usage' | 'cancel';
+type RateLimitOptionsMenuOptionType = 'extra-usage' | 'cancel';
 
 type RateLimitOptionsMenuProps = {
   onDone: (
@@ -41,12 +38,6 @@ function RateLimitOptionsMenu({
       value: 'extra-usage',
     });
   }
-  if (upgrade.isEnabled()) {
-    actionOptions.push({
-      label: 'View upgrade info',
-      value: 'upgrade',
-    });
-  }
 
   const cancelOption: OptionWithDescription<RateLimitOptionsMenuOptionType> = {
     label: 'Stop and wait for limit to reset',
@@ -63,14 +54,7 @@ function RateLimitOptionsMenu({
   }
 
   function handleSelect(value: RateLimitOptionsMenuOptionType): void {
-    if (value === 'upgrade') {
-      logEvent('tengu_rate_limit_options_menu_select_upgrade', {});
-      void upgradeCall(onDone, context).then(jsx => {
-        if (jsx) {
-          setSubCommandJSX(jsx);
-        }
-      });
-    } else if (value === 'extra-usage') {
+    if (value === 'extra-usage') {
       logEvent('tengu_rate_limit_options_menu_select_extra_usage', {});
       void extraUsageCall(onDone, context).then(jsx => {
         if (jsx) {

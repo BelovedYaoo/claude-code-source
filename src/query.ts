@@ -11,14 +11,12 @@ import {
   type AutoCompactTrackingState,
 } from './services/compact/autoCompact.js'
 import { buildPostCompactMessages } from './services/compact/compact.js'
-/* eslint-disable @typescript-eslint/no-require-imports */
 const reactiveCompact = feature('REACTIVE_COMPACT')
-  ? (require('./services/compact/reactiveCompact.js') as typeof import('./services/compact/reactiveCompact.js'))
+  ? reactiveCompactModule
   : null
 const contextCollapse = feature('CONTEXT_COLLAPSE')
-  ? (require('./services/contextCollapse/index.js') as typeof import('./services/contextCollapse/index.js'))
+  ? contextCollapseModule
   : null
-/* eslint-enable @typescript-eslint/no-require-imports */
 import {
   logEvent,
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
@@ -62,14 +60,12 @@ import {
   getAttachmentMessages,
   startRelevantMemoryPrefetch,
 } from './utils/attachments.js'
-/* eslint-disable @typescript-eslint/no-require-imports */
 const skillPrefetch = feature('EXPERIMENTAL_SKILL_SEARCH')
-  ? (require('./services/skillSearch/prefetch.js') as typeof import('./services/skillSearch/prefetch.js'))
+  ? skillPrefetchModule
   : null
 const jobClassifier = feature('TEMPLATES')
-  ? (require('./jobs/classifier.js') as typeof import('./jobs/classifier.js'))
+  ? jobClassifierModule
   : null
-/* eslint-enable @typescript-eslint/no-require-imports */
 import {
   remove as removeFromQueue,
   getCommandsByMaxPriority,
@@ -103,6 +99,12 @@ import { buildQueryConfig } from './query/config.js'
 import { productionDeps, type QueryDeps } from './query/deps.js'
 import type { Terminal, Continue } from './query/transitions.js'
 import { feature } from 'bun:bundle'
+import * as reactiveCompactModule from './services/compact/reactiveCompact.js'
+import * as contextCollapseModule from './services/contextCollapse/index.js'
+import * as skillPrefetchModule from './services/skillSearch/prefetch.js'
+import * as jobClassifierModule from './jobs/classifier.js'
+import * as snipCompactModule from './services/compact/snipCompact.js'
+import * as taskSummaryModuleImpl from './utils/taskSummary.js'
 import {
   getCurrentTurnTokenBudget,
   getTurnOutputTokens,
@@ -111,14 +113,12 @@ import {
 import { createBudgetTracker, checkTokenBudget } from './query/tokenBudget.js'
 import { count } from './utils/array.js'
 
-/* eslint-disable @typescript-eslint/no-require-imports */
 const snipModule = feature('HISTORY_SNIP')
-  ? (require('./services/compact/snipCompact.js') as typeof import('./services/compact/snipCompact.js'))
+  ? snipCompactModule
   : null
 const taskSummaryModule = feature('BG_SESSIONS')
-  ? (require('./utils/taskSummary.js') as typeof import('./utils/taskSummary.js'))
+  ? taskSummaryModuleImpl
   : null
-/* eslint-enable @typescript-eslint/no-require-imports */
 
 function* yieldMissingToolResultBlocks(
   assistantMessages: AssistantMessage[],

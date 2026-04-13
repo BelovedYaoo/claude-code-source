@@ -82,9 +82,6 @@ export async function initUpstreamProxy(opts?: {
   caBundlePath?: string
   ccrBaseUrl?: string
 }): Promise<UpstreamProxyState> {
-  if (!isEnvTruthy(process.env.CLAUDE_CODE_REMOTE)) {
-    return state
-  }
   // CCR evaluates ccr_upstream_proxy_enabled server-side (where GrowthBook is
   // warm) and injects this env var via StartupContext.EnvironmentVariables.
   // Every CCR session is a fresh container with no GB cache, so a client-side

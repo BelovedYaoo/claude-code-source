@@ -1,7 +1,6 @@
 import { c as _c } from "react/compiler-runtime";
-import { feature } from 'bun:bundle';
 import * as React from 'react';
-import { getAllowedChannels, getQuestionPreviewFormat } from 'src/bootstrap/state.js';
+import { getQuestionPreviewFormat } from 'src/bootstrap/state.js';
 import { MessageResponse } from 'src/components/MessageResponse.js';
 import { BLACK_CIRCLE } from 'src/constants/figures.js';
 import { getModeColor } from 'src/utils/permissions/PermissionMode.js';
@@ -75,8 +74,6 @@ type OutputSchema = ReturnType<typeof outputSchema>;
 
 // SDK schemas are identical to internal schemas now that `preview` and
 // `annotations` are public (configurable via `toolConfig.askUserQuestion`).
-export const _sdkInputSchema = inputSchema;
-export const _sdkOutputSchema = outputSchema;
 export type Question = z.infer<ReturnType<typeof questionSchema>>;
 export type QuestionOption = z.infer<ReturnType<typeof questionOptionSchema>>;
 export type Output = z.infer<OutputSchema>;
@@ -133,14 +130,6 @@ export const AskUserQuestionTool: Tool<InputSchema, Output> = buildTool({
     return '';
   },
   isEnabled() {
-    // When --channels is active the user is likely on Telegram/Discord, not
-    // watching the TUI. The multiple-choice dialog would hang with nobody at
-    // the keyboard. Channel permission relay already skips
-    // requiresUserInteraction() tools (interactiveHandler.ts) so there's
-    // no alternate approval path.
-    if ((feature('KAIROS') || feature('KAIROS_CHANNELS')) && getAllowedChannels().length > 0) {
-      return false;
-    }
     return true;
   },
   isConcurrencySafe() {

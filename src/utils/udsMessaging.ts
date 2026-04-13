@@ -7,3 +7,7 @@ export async function startUdsMessaging(
 export function getDefaultUdsSocketPath(): string {
   return ''
 }
+
+export function getUdsMessagingSocketPath(): string {
+  return ''
+}

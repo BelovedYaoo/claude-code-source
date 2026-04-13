@@ -1,5 +1,5 @@
-// Extracted from dream.ts so auto-dream ships independently of KAIROS
-// feature flags (dream.ts is behind a feature()-gated require).
+// Extracted from dream.ts so auto-dream ships independently of optional
+// feature gates (dream.ts is behind a feature()-gated require).
 
 import {
   DIR_EXISTS_GUIDANCE,

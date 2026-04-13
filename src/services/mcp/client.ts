@@ -43,6 +43,7 @@ import pMap from 'p-map'
 import { getOriginalCwd, getSessionId } from '../../bootstrap/state.js'
 import type { Command } from '../../commands.js'
 import { PRODUCT_URL } from '../../constants/product.js'
+import { fetchMcpSkillsForClient } from '../../skills/mcpSkills.js'
 import type { AppState } from '../../state/AppState.js'
 import {
   type Tool,
@@ -87,7 +88,9 @@ import {
   getWebSocketProxyAgent,
   getWebSocketProxyUrl,
 } from '../../utils/proxy.js'
+import { getPlatform } from '../../utils/platform.js'
 import { recursivelySanitizeUnicode } from '../../utils/sanitization.js'
+import { whichSync } from '../../utils/which.js'
 import { getSessionIngressAuthToken } from '../../utils/sessionIngressAuth.js'
 import { subprocessEnv } from '../../utils/subprocessEnv.js'
 import {
@@ -107,16 +110,8 @@ import { buildMcpToolName } from './mcpStringUtils.js'
 import { normalizeNameForMCP } from './normalization.js'
 import { getLoggingSafeMcpBaseUrl } from './utils.js'
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-const fetchMcpSkillsForClient = feature('MCP_SKILLS')
-  ? (
-      require('../../skills/mcpSkills.js') as typeof import('../../skills/mcpSkills.js')
-    ).fetchMcpSkillsForClient
-  : null
-
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import type { AssistantMessage } from 'src/types/message.js'
-/* eslint-enable @typescript-eslint/no-require-imports */
 import { classifyMcpToolForCollapse } from '../../tools/MCPTool/classifyForCollapse.js'
 import { clearKeychainCache } from '../../utils/secureStorage/macOsKeychainHelpers.js'
 import { sleep } from '../../utils/sleep.js'
@@ -223,29 +218,14 @@ function getMcpToolTimeoutMs(): number {
 }
 
 import { isClaudeInChromeMCPServer } from '../../utils/claudeInChrome/common.js'
-
-// Lazy: toolRendering.tsx pulls React/ink; only needed when Claude-in-Chrome MCP server is connected
-/* eslint-disable @typescript-eslint/no-require-imports */
-const claudeInChromeToolRendering =
-  (): typeof import('../../utils/claudeInChrome/toolRendering.js') =>
-    require('../../utils/claudeInChrome/toolRendering.js')
-// Lazy: wrapper.tsx → hostAdapter.ts → executor.ts pulls both native modules
-// (@ant/computer-use-input + @ant/computer-use-swift). Runtime-gated by
-// GrowthBook tengu_malort_pedway (see gates.ts).
-const computerUseWrapper = feature('CHICAGO_MCP')
-  ? (): typeof import('../../utils/computerUse/wrapper.js') =>
-      require('../../utils/computerUse/wrapper.js')
-  : undefined
-const isComputerUseMCPServer = feature('CHICAGO_MCP')
-  ? (
-      require('../../utils/computerUse/common.js') as typeof import('../../utils/computerUse/common.js')
-    ).isComputerUseMCPServer
-  : undefined
-
+import { getClaudeInChromeMCPToolOverrides } from '../../utils/claudeInChrome/toolRendering.js'
+import {
+  isComputerUseMCPServer,
+} from '../../utils/computerUse/common.js'
+import { getComputerUseMCPToolOverrides } from '../../utils/computerUse/wrapper.js'
 import { mkdir, readFile, unlink, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { getClaudeConfigHomeDir } from '../../utils/envUtils.js'
-/* eslint-enable @typescript-eslint/no-require-imports */
 import { jsonParse, jsonStringify } from '../../utils/slowOperations.js'
 
 const MCP_AUTH_CACHE_TTL_MS = 15 * 60 * 1000 // 15 min
@@ -510,6 +490,23 @@ function getRemoteMcpServerConnectionBatchSize(): number {
 
 function isLocalMcpServer(config: ScopedMcpServerConfig): boolean {
   return !config.type || config.type === 'stdio' || config.type === 'sdk'
+}
+
+function resolveWindowsStdioCommand(command: string): string {
+  if (getPlatform() !== 'windows') {
+    return command
+  }
+  if (
+    command.includes('/') ||
+    command.includes('\\') ||
+    command.includes(' ')
+  ) {
+    return command
+  }
+  if (/\.(cmd|exe|bat|com)$/i.test(command)) {
+    return command
+  }
+  return whichSync(command) ?? command
 }
 
 // For the IDE MCP servers, we only include specific tools
@@ -838,7 +835,7 @@ export const connectToServer = memoize(
       } else if (
         feature('CHICAGO_MCP') &&
         ((serverRef as any).type === 'stdio' || !(serverRef as any).type) &&
-        isComputerUseMCPServer!(name)
+        isComputerUseMCPServer(name)
       ) {
         // Run the Computer Use MCP server in-process — same rationale as
         // Chrome above. The package's CallTool handler is a stub; real
@@ -857,11 +854,18 @@ export const connectToServer = memoize(
       } else if ((serverRef as any).type === 'stdio' || !(serverRef as any).type) {
         const finalCommand =
           process.env.CLAUDE_CODE_SHELL_PREFIX || serverRef.command
+        const resolvedCommand = resolveWindowsStdioCommand(finalCommand)
         const finalArgs = process.env.CLAUDE_CODE_SHELL_PREFIX
           ? [[serverRef.command, ...serverRef.args].join(' ')]
           : serverRef.args
+        if (resolvedCommand !== finalCommand) {
+          logMCPDebug(
+            name,
+            `Resolved Windows MCP command "${finalCommand}" to "${resolvedCommand}"`,
+          )
+        }
         transport = new StdioClientTransport({
-          command: finalCommand,
+          command: resolvedCommand,
           args: finalArgs,
           env: {
             ...subprocessEnv(),
@@ -1281,7 +1285,7 @@ export const connectToServer = memoize(
         fetchResourcesForClient.cache.delete(name)
         fetchCommandsForClient.cache.delete(name)
         if (feature('MCP_SKILLS')) {
-          fetchMcpSkillsForClient!.cache.delete(name)
+          fetchMcpSkillsForClient.cache.delete(name)
         }
 
         connectToServer.cache.delete(key)
@@ -1559,7 +1563,7 @@ export async function clearServerCache(
   fetchResourcesForClient.cache.delete(name)
   fetchCommandsForClient.cache.delete(name)
   if (feature('MCP_SKILLS')) {
-    fetchMcpSkillsForClient!.cache.delete(name)
+    fetchMcpSkillsForClient.cache.delete(name)
   }
 }
 
@@ -1867,14 +1871,14 @@ export const fetchToolsForClient = memoizeWithLRU(
             },
             ...(isClaudeInChromeMCPServer(client.name) &&
             (client.config.type === 'stdio' || !client.config.type)
-              ? claudeInChromeToolRendering().getClaudeInChromeMCPToolOverrides(
+              ? getClaudeInChromeMCPToolOverrides(
                   tool.name,
                 )
               : {}),
             ...(feature('CHICAGO_MCP') &&
             (client.config.type === 'stdio' || !client.config.type) &&
-            isComputerUseMCPServer!(client.name)
-              ? computerUseWrapper!().getComputerUseMCPToolOverrides(tool.name)
+            isComputerUseMCPServer(client.name)
+              ? getComputerUseMCPToolOverrides(tool.name)
               : {}),
           }
         })
@@ -2060,7 +2064,7 @@ export async function reconnectMcpServerImpl(
       fetchToolsForClient(client),
       fetchCommandsForClient(client),
       feature('MCP_SKILLS') && supportsResources
-        ? fetchMcpSkillsForClient!(client)
+        ? fetchMcpSkillsForClient(client)
         : Promise.resolve([]),
       supportsResources ? fetchResourcesForClient(client) : Promise.resolve([]),
     ])
@@ -2228,7 +2232,7 @@ export async function getMcpToolsCommandsAndResources(
         fetchCommandsForClient(client),
         // Discover skills from skill:// resources
         feature('MCP_SKILLS') && supportsResources
-          ? fetchMcpSkillsForClient!(client)
+          ? fetchMcpSkillsForClient(client)
           : Promise.resolve([]),
         // Fetch resources if supported
         supportsResources

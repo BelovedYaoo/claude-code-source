@@ -46,7 +46,6 @@ import { isLocalAgentTask, queuePendingMessage, appendMessageToLocalAgent, type 
 import { registerLeaderToolUseConfirmQueue, unregisterLeaderToolUseConfirmQueue, registerLeaderSetToolPermissionContext, unregisterLeaderSetToolPermissionContext } from '../utils/swarm/leaderPermissionBridge.js';
 import { endInteractionSpan } from '../utils/telemetry/sessionTracing.js';
 import { useLogMessages } from '../hooks/useLogMessages.js';
-import { useReplBridge } from '../hooks/useReplBridge.js';
 import { type Command, type CommandResultDisplay, type ResumeEntrypoint, getCommandName, isCommandEnabled } from '../commands.js';
 import type { PromptInputMode, QueuedCommand, VimMode } from '../types/textInputTypes.js';
 import { MessageSelector, selectableUserMessagesFilter, messagesAfterAreOnlySynthetic } from '../components/MessageSelector.js';
@@ -57,16 +56,14 @@ import { PromptDialog } from '../components/hooks/PromptDialog.js';
 import type { PromptRequest, PromptResponse } from '../types/hooks.js';
 import PromptInput from '../components/PromptInput/PromptInput.js';
 import { PromptInputQueuedCommands } from '../components/PromptInput/PromptInputQueuedCommands.js';
-import { useRemoteSession } from '../hooks/useRemoteSession.js';
 import { useDirectConnect } from '../hooks/useDirectConnect.js';
 import type { DirectConnectConfig } from '../server/directConnectManager.js';
 import { useSSHSession } from '../hooks/useSSHSession.js';
-import { useAssistantHistory } from '../hooks/useAssistantHistory.js';
 import type { SSHSession } from '../ssh/createSSHSession.js';
 import { SkillImprovementSurvey } from '../components/SkillImprovementSurvey.js';
 import { useSkillImprovementSurvey } from '../hooks/useSkillImprovementSurvey.js';
 import { useMoreRight } from '../moreright/useMoreRight.js';
-import { SpinnerWithVerb, BriefIdleStatus, type SpinnerMode } from '../components/Spinner.js';
+import { SpinnerWithVerb, type SpinnerMode } from '../components/Spinner.js';
 import { getSystemPrompt } from '../constants/prompts.js';
 import { buildEffectiveSystemPrompt } from '../utils/systemPrompt.js';
 import { getSystemContext, getUserContext } from '../context.js';
@@ -92,26 +89,20 @@ import { useSwarmInitialization } from '../hooks/useSwarmInitialization.js';
 import { useTeammateViewAutoExit } from '../hooks/useTeammateViewAutoExit.js';
 import { errorMessage } from '../utils/errors.js';
 import { isHumanTurn } from '../utils/messagePredicates.js';
-import { logError } from '../utils/log.js';
+import { useFrustrationDetection as useFrustrationDetectionImport } from '../components/FeedbackSurvey/useFrustrationDetection.js';
+import { useAntOrgWarningNotification as useAntOrgWarningNotificationImport } from '../hooks/notifs/useAntOrgWarningNotification.js';
+import { getCoordinatorUserContext as getCoordinatorUserContextImport } from '../coordinator/coordinatorMode.js';
 // Dead code elimination: conditional imports
-/* eslint-disable custom-rules/no-process-env-top-level, @typescript-eslint/no-require-imports */
-// Frustration detection is ant-only (dogfooding). Conditional require so external
-// builds eliminate the module entirely (including its two O(n) useMemos that run
-// on every messages change, plus the GrowthBook fetch).
-const useFrustrationDetection: typeof import('../components/FeedbackSurvey/useFrustrationDetection.js').useFrustrationDetection = ("external" as string) === 'ant' ? require('../components/FeedbackSurvey/useFrustrationDetection.js').useFrustrationDetection : () => ({
+const useFrustrationDetection: typeof import('../components/FeedbackSurvey/useFrustrationDetection.js').useFrustrationDetection = ("external" as string) === 'ant' ? useFrustrationDetectionImport : () => ({
   state: 'closed',
   handleTranscriptSelect: () => {}
 });
-// Ant-only org warning. Conditional require so the org UUID list is
-// eliminated from external builds (one UUID is on excluded-strings).
-const useAntOrgWarningNotification: typeof import('../hooks/notifs/useAntOrgWarningNotification.js').useAntOrgWarningNotification = ("external" as string) === 'ant' ? require('../hooks/notifs/useAntOrgWarningNotification.js').useAntOrgWarningNotification : () => {};
-// Dead code elimination: conditional import for coordinator mode
+const useAntOrgWarningNotification: typeof import('../hooks/notifs/useAntOrgWarningNotification.js').useAntOrgWarningNotification = ("external" as string) === 'ant' ? useAntOrgWarningNotificationImport : () => {};
 const getCoordinatorUserContext: (mcpClients: ReadonlyArray<{
   name: string;
 }>, scratchpadDir?: string) => {
   [k: string]: string;
-} = feature('COORDINATOR_MODE') ? require('../coordinator/coordinatorMode.js').getCoordinatorUserContext : () => ({});
-/* eslint-enable custom-rules/no-process-env-top-level, @typescript-eslint/no-require-imports */
+} = feature('COORDINATOR_MODE') ? getCoordinatorUserContextImport : () => ({});
 import useCanUseTool from '../hooks/useCanUseTool.js';
 import type { ToolPermissionContext, Tool } from '../Tool.js';
 import { applyPermissionUpdate, applyPermissionUpdates, persistPermissionUpdate } from '../utils/permissions/PermissionUpdate.js';
@@ -173,6 +164,7 @@ import { deserializeMessages } from '../utils/conversationRecovery.js';
 import { extractReadFilesFromMessages, extractBashToolsFromMessages } from '../utils/queryHelpers.js';
 import { resetMicrocompactState } from '../services/compact/microCompact.js';
 import { runPostCompactCleanup } from '../services/compact/postCompactCleanup.js';
+import { resetContextCollapse } from '../services/contextCollapse/index.js';
 import { provisionContentReplacementState, reconstructContentReplacementState, type ContentReplacementRecord } from '../utils/toolResultStorage.js';
 import { partialCompactConversation } from '../services/compact/compact.js';
 import type { LogOption } from '../types/logs.js';
@@ -184,13 +176,9 @@ import { computeStandaloneAgentContext, restoreAgentFromSession, restoreSessionS
 import { isBgSession, updateSessionName, updateSessionActivity } from '../utils/concurrentSessions.js';
 import { isInProcessTeammateTask, type InProcessTeammateTaskState } from '../tasks/InProcessTeammateTask/types.js';
 import { useInboxPoller } from '../hooks/useInboxPoller.js';
-// Dead code elimination: conditional import for loop mode
+// Dead code elimination: conditional import for scheduled tasks
 /* eslint-disable @typescript-eslint/no-require-imports */
-const proactiveModule = feature('PROACTIVE') || feature('KAIROS') ? require('../proactive/index.js') : null;
-const PROACTIVE_NO_OP_SUBSCRIBE = (_cb: () => void) => () => {};
-const PROACTIVE_FALSE = () => false;
 const SUGGEST_BG_PR_NOOP = (_p: string, _n: string): boolean => false;
-const useProactive = feature('PROACTIVE') || feature('KAIROS') ? require('../proactive/useProactive.js').useProactive : null;
 const useScheduledTasks = feature('AGENT_TRIGGERS') ? require('../hooks/useScheduledTasks.js').useScheduledTasks : null;
 /* eslint-enable @typescript-eslint/no-require-imports */
 import { isAgentSwarmsEnabled } from '../utils/agentSwarmsEnabled.js';
@@ -211,12 +199,9 @@ import { handleSpeculationAccept, type ActiveSpeculationState } from '../service
 import { IdeOnboardingDialog } from '../components/IdeOnboardingDialog.js';
 import { EffortCallout, shouldShowEffortCallout } from '../components/EffortCallout.js';
 import type { EffortValue } from '../utils/effort.js';
-import { RemoteCallout } from '../components/RemoteCallout.js';
-/* eslint-disable custom-rules/no-process-env-top-level, @typescript-eslint/no-require-imports */
-const AntModelSwitchCallout = ("external" as string) === 'ant' ? require('../components/AntModelSwitchCallout.js').AntModelSwitchCallout : null;
-const shouldShowAntModelSwitch = ("external" as string) === 'ant' ? require('../components/AntModelSwitchCallout.js').shouldShowModelSwitchCallout : (): boolean => false;
-const UndercoverAutoCallout = ("external" as string) === 'ant' ? require('../components/UndercoverAutoCallout.js').UndercoverAutoCallout : null;
-/* eslint-enable custom-rules/no-process-env-top-level, @typescript-eslint/no-require-imports */
+const AntModelSwitchCallout = null;
+const shouldShowAntModelSwitch = (): boolean => false;
+const UndercoverAutoCallout = null;
 import { activityManager } from '../utils/activityManager.js';
 import { createAbortController } from '../utils/abortController.js';
 import { MCPConnectionManager } from 'src/services/mcp/MCPConnectionManager.js';
@@ -233,7 +218,6 @@ import { getTipToShowOnSpinner, recordShownTip } from 'src/services/tips/tipSche
 import type { Theme } from 'src/utils/theme.js';
 import { checkAndDisableBypassPermissionsIfNeeded, checkAndDisableAutoModeIfNeeded, useKickOffCheckAndDisableBypassPermissionsIfNeeded, useKickOffCheckAndDisableAutoModeIfNeeded } from 'src/utils/permissions/bypassPermissionsKillswitch.js';
 import { SandboxManager } from 'src/utils/sandbox/sandbox-adapter.js';
-import { SANDBOX_NETWORK_ACCESS_TOOL_NAME } from 'src/cli/structuredIO.js';
 import { useFileHistorySnapshotInit } from 'src/hooks/useFileHistorySnapshotInit.js';
 import { SandboxPermissionRequest } from 'src/components/permissions/SandboxPermissionRequest.js';
 import { SandboxViolationExpandedView } from 'src/components/SandboxViolationExpandedView.js';
@@ -263,16 +247,11 @@ import { useFastModeNotification } from 'src/hooks/notifs/useFastModeNotificatio
 import { AutoRunIssueNotification, shouldAutoRunIssue, getAutoRunIssueReasonText, getAutoRunCommand, type AutoRunIssueReason } from '../utils/autoRunIssue.js';
 import type { HookProgress } from '../types/hooks.js';
 import { TungstenLiveMonitor } from '../tools/TungstenTool/TungstenLiveMonitor.js';
-/* eslint-disable @typescript-eslint/no-require-imports */
-const WebBrowserPanelModule = feature('WEB_BROWSER_TOOL') ? require('../tools/WebBrowserTool/WebBrowserPanel.js') as typeof import('../tools/WebBrowserTool/WebBrowserPanel.js') : null;
-/* eslint-enable @typescript-eslint/no-require-imports */
+import * as WebBrowserPanelModuleImport from '../tools/WebBrowserTool/WebBrowserPanel.js';
+const WebBrowserPanelModule = feature('WEB_BROWSER_TOOL') ? WebBrowserPanelModuleImport : null;
 import { IssueFlagBanner } from '../components/PromptInput/IssueFlagBanner.js';
 import { useIssueFlagBanner } from '../hooks/useIssueFlagBanner.js';
-import { CompanionSprite, CompanionFloatingBubble, MIN_COLS_FOR_FULL_SPRITE } from '../buddy/CompanionSprite.js';
 import { DevBar } from '../components/DevBar.js';
-// Session manager removed - using AppState now
-import type { RemoteSessionConfig } from '../remote/RemoteSessionManager.js';
-import { REMOTE_SAFE_COMMANDS } from '../commands.js';
 import { FullscreenLayout, useUnseenDivider, computeUnseenDivider } from '../components/FullscreenLayout.js';
 import { isFullscreenEnvEnabled, maybeGetTmuxMouseHint, isMouseTrackingEnabled } from '../utils/fullscreen.js';
 import { AlternateScreen } from '../ink/components/AlternateScreen.js';
@@ -284,21 +263,14 @@ import { createAttachmentMessage, getQueuedCommandAttachments } from '../utils/a
 import { RemoteMessageContent } from "src/types/remoteMessage";
 
 // Stubs for ant-only symbols (dead-code-eliminated but still type-checked)
-declare function fireCompanionObserver(messages: any[], cb: (reaction: any) => void): Promise<void>
-declare const UltraplanChoiceDialog: any
-declare const UltraplanLaunchDialog: any
-declare function launchUltraplan(opts: any): Promise<void>
 
 // Stable empty array for hooks that accept MCPServerConnection[] — avoids
 // creating a new [] literal on every render in remote mode, which would
 // cause useEffect dependency changes and infinite re-render loops.
 const EMPTY_MCP_CLIENTS: MCPServerConnection[] = [];
 
-// Stable stub for useAssistantHistory's non-KAIROS branch — avoids a new
+// Stable stub for optional history loading branch — avoids a new
 // function identity each render, which would break composedOnScroll's memo.
-const HISTORY_STUB = {
-  maybeLoadOlder: (_: ScrollBoxHandle) => {}
-};
 // Window after a user-initiated scroll during which type-into-empty does NOT
 // repin to bottom. Josh Rosen's workflow: Claude emits long output → scroll
 // up to read the start → start typing → before this fix, snapped to bottom.
@@ -537,7 +509,7 @@ export type Props = {
   // Content-replacement records from a resumed session's transcript — used to
   // reconstruct contentReplacementState so the same results are re-replaced
   initialContentReplacements?: ContentReplacementRecord[];
-  // Initial agent context for session resume (name/color set via /rename or /color)
+  // 恢复会话时使用的初始 agent 上下文（名称/颜色）
   initialAgentName?: string;
   initialAgentColor?: AgentColorName;
   mcpClients?: MCPServerConnection[];
@@ -561,7 +533,6 @@ export type Props = {
   // Task list id: when set, enables tasks mode that watches a task list and auto-processes tasks.
   taskListId?: string;
   // Remote session config for --remote mode (uses CCR as execution engine)
-  remoteSessionConfig?: RemoteSessionConfig;
   // Direct connect config for `claude connect` mode (connects to a claude server)
   directConnectConfig?: DirectConnectConfig;
   // SSH session for `claude ssh` mode (local REPL, remote tools over ssh)
@@ -578,9 +549,7 @@ export function REPL({
   pendingHookMessages,
   initialFileHistorySnapshots,
   initialContentReplacements,
-  initialAgentName,
-  initialAgentColor,
-  mcpClients: initialMcpClients,
+                       mcpClients: initialMcpClients,
   dynamicMcpConfig: initialDynamicMcpConfig,
   autoConnectIdeFlag,
   strictMcpConfig = false,
@@ -592,13 +561,10 @@ export function REPL({
   mainThreadAgentDefinition: initialMainThreadAgentDefinition,
   disableSlashCommands = false,
   taskListId,
-  remoteSessionConfig,
   directConnectConfig,
   sshSession,
   thinkingConfig
 }: Props): React.ReactNode {
-  const isRemoteSession = !!remoteSessionConfig;
-
   // Env-var gates hoisted to mount-time — isEnvTruthy does toLowerCase+trim+
   // includes, and these were on the render path (hot during PageUp spam).
   const titleDisabled = useMemo(() => isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE), []);
@@ -635,8 +601,6 @@ export function REPL({
   const tasks = useAppState(s => s.tasks);
   const workerSandboxPermissions = useAppState(s => s.workerSandboxPermissions);
   const elicitation = useAppState(s => s.elicitation);
-  const ultraplanPendingChoice = useAppState(s => s.ultraplanPendingChoice);
-  const ultraplanLaunchPending = useAppState(s => s.ultraplanLaunchPending);
   const viewingAgentTaskId = useAppState(s => s.viewingAgentTaskId);
   const setAppState = useSetAppState();
 
@@ -682,19 +646,9 @@ export function REPL({
   const [localCommands, setLocalCommands] = useState(initialCommands);
 
   // Watch for skill file changes and reload all commands
-  useSkillsChange(isRemoteSession ? undefined : getProjectRoot(), setLocalCommands);
+  useSkillsChange(getProjectRoot(), setLocalCommands);
 
-  // Track proactive mode for tools dependency - SleepTool filters by proactive state
-  const proactiveActive = React.useSyncExternalStore(proactiveModule?.subscribeToProactiveChanges ?? PROACTIVE_NO_OP_SUBSCRIBE, proactiveModule?.isProactiveActive ?? PROACTIVE_FALSE);
-
-  // BriefTool.isEnabled() reads getUserMsgOptIn() from bootstrap state, which
-  // /brief flips mid-session alongside isBriefOnly. The memo below needs a
-  // React-visible dep to re-run getTools() when that happens; isBriefOnly is
-  // the AppState mirror that triggers the re-render. Without this, toggling
-  // /brief mid-session leaves the stale tool list (no SendUserMessage) and
-  // the model emits plain text the brief filter hides.
-  const isBriefOnly = useAppState(s => s.isBriefOnly);
-  const localTools = useMemo(() => getTools(toolPermissionContext), [toolPermissionContext, proactiveActive, isBriefOnly]);
+  const localTools = useMemo(() => getTools(toolPermissionContext), [toolPermissionContext]);
   useKickOffCheckAndDisableBypassPermissionsIfNeeded();
   useKickOffCheckAndDisableAutoModeIfNeeded();
   const [dynamicMcpConfig, setDynamicMcpConfig] = useState<Record<string, ScopedMcpServerConfig> | undefined>(initialDynamicMcpConfig);
@@ -740,7 +694,6 @@ export function REPL({
     return false;
   });
   const [showEffortCallout, setShowEffortCallout] = useState(() => shouldShowEffortCallout(mainLoopModel));
-  const showRemoteCallout = useAppState(s => s.showRemoteCallout);
   const [showDesktopUpsellStartup, setShowDesktopUpsellStartup] = useState(() => shouldShowDesktopUpsellStartup());
   // notifications
   useModelMigrationNotifications();
@@ -783,7 +736,7 @@ export function REPL({
 
   // Initialize plugin management
   useManagePlugins({
-    enabled: !isRemoteSession
+    enabled: true
   });
   const tasksV2 = useTasksV2WithCollapseEffect();
 
@@ -796,18 +749,17 @@ export function REPL({
   // This ensures that plugin installations from repository and user settings only
   // happen after explicit user consent to trust the current working directory.
   useEffect(() => {
-    if (isRemoteSession) return;
     void performStartupChecks(setAppState);
-  }, [setAppState, isRemoteSession]);
+  }, [setAppState]);
 
   // Allow Claude in Chrome MCP to send prompts through MCP notifications
   // and sync permission mode changes to the Chrome extension
-  usePromptsFromClaudeInChrome(isRemoteSession ? EMPTY_MCP_CLIENTS : mcpClients, toolPermissionContext.mode);
+  usePromptsFromClaudeInChrome(mcpClients, toolPermissionContext.mode);
 
   // Initialize swarm features: teammate hooks and context
   // Handles both fresh spawns and resumed teammate sessions
   useSwarmInitialization(setAppState, initialMessages, {
-    enabled: !isRemoteSession
+    enabled: true
   });
   const mergedTools = useMergedTools(combinedInitialTools, mcp.tools, toolPermissionContext);
 
@@ -834,8 +786,8 @@ export function REPL({
   const mergedCommands = useMergedCommands(commandsWithPlugins, mcp.commands as Command[]);
   // Filter out all commands if disableSlashCommands is true
   const commands = useMemo(() => disableSlashCommands ? [] : mergedCommands, [disableSlashCommands, mergedCommands]);
-  useIdeLogging(isRemoteSession ? EMPTY_MCP_CLIENTS : mcp.clients);
-  useIdeSelection(isRemoteSession ? EMPTY_MCP_CLIENTS : mcp.clients, setIDESelection);
+  useIdeLogging(mcp.clients);
+  useIdeSelection(mcp.clients, setIDESelection);
   const [streamMode, setStreamMode] = useState<SpinnerMode>('responding');
   // Ref mirror so onSubmit can read the latest value without adding
   // streamMode to its deps. streamMode flips between
@@ -869,9 +821,6 @@ export function REPL({
   const abortControllerRef = useRef<AbortController | null>(null);
   abortControllerRef.current = abortController;
 
-  // Ref for the bridge result callback — set after useReplBridge initializes,
-  // read in the onQuery finally block to notify mobile clients that a turn ended.
-  const sendBridgeResultRef = useRef<() => void>(() => {});
 
   // Ref for the synchronous restore callback — set after restoreMessageSync is
   // defined, read in the onQuery finally block for auto-restore on interrupt.
@@ -905,11 +854,10 @@ export function REPL({
   const isQueryActive = React.useSyncExternalStore(queryGuard.subscribe, queryGuard.getSnapshot);
 
   // Separate loading flag for operations outside the local query guard:
-  // remote sessions (useRemoteSession / useDirectConnect) and foregrounded
-  // background tasks (useSessionBackgrounding). These don't route through
-  // onQuery / queryGuard, so they need their own spinner-visibility state.
-  // Initialize true if remote mode with initial prompt (CCR processing it).
-  const [isExternalLoading, setIsExternalLoadingRaw] = React.useState(remoteSessionConfig?.hasInitialPrompt ?? false);
+  // direct connect / ssh transport and foregrounded background tasks
+  // (useSessionBackgrounding). These don't route through onQuery /
+  // queryGuard, so they need their own spinner-visibility state.
+  const [isExternalLoading, setIsExternalLoadingRaw] = React.useState(false);
 
   // Derived: any loading source active. Read-only — no setter. Local query
   // loading is driven by queryGuard (reserve/tryStart/end/cancelReservation),
@@ -1122,9 +1070,9 @@ export function REPL({
   const sandboxBridgeCleanupRef = useRef<Map<string, Array<() => void>>>(new Map());
 
   // -- Terminal title management
-  // Session title (set via /rename or restored on resume) wins over
-  // the agent name, which wins over the Haiku-extracted topic;
-  // all fall back to the product name.
+  // 会话标题（自定义或恢复得到）优先于 agent 名称，
+  // agent 名称优先于 Haiku 生成的话题标题；
+  // 最终都回退到产品名。
   const terminalTitleFromRename = useAppState(s => s.settings.terminalTitleFromRename) !== false;
   const sessionTitle = terminalTitleFromRename ? getCurrentSessionTitle(getSessionId()) : undefined;
   const [haikuTitle, setHaikuTitle] = useState<string>();
@@ -1267,7 +1215,7 @@ export function REPL({
   // handler's scrollToBottom can be undone. This effect fires on the render
   // where the user's message actually lands — tied to React's commit cycle,
   // so it can't race with stdin. Keyed on lastMsg identity (not messages.length)
-  // so useAssistantHistory's prepends don't spuriously repin.
+  // so prepends of older history don't spuriously repin.
   const lastMsg = messages.at(-1);
   const lastMsgIsHuman = lastMsg != null && isHumanTurn(lastMsg);
   useEffect(() => {
@@ -1275,39 +1223,14 @@ export function REPL({
       repinScroll();
     }
   }, [lastMsgIsHuman, lastMsg, repinScroll]);
-  // Assistant-chat: lazy-load remote history on scroll-up. No-op unless
-  // KAIROS build + config.viewerOnly. feature() is build-time constant so
-  // the branch is dead-code-eliminated in non-KAIROS builds (same pattern
-  // as useUnseenDivider above).
-  const {
-    maybeLoadOlder
-  } = feature('KAIROS') ?
-  // biome-ignore lint/correctness/useHookAtTopLevel: feature() is a compile-time constant
-  useAssistantHistory({
-    config: remoteSessionConfig,
-    setMessages,
-    scrollRef,
-    onPrepend: shiftDivider
-  }) : HISTORY_STUB;
-  // Compose useUnseenDivider's callbacks with the lazy-load trigger.
   const composedOnScroll = useCallback((sticky: boolean, handle: ScrollBoxHandle) => {
     lastUserScrollTsRef.current = Date.now();
     if (sticky) {
       onRepin();
     } else {
       onScrollAway(handle);
-      if (feature('KAIROS')) maybeLoadOlder(handle);
-      // Dismiss the companion bubble on scroll — it's absolute-positioned
-      // at bottom-right and covers transcript content. Scrolling = user is
-      // trying to read something under it.
-      if (feature('BUDDY')) {
-        setAppState(prev => prev.companionReaction === undefined ? prev : {
-          ...prev,
-          companionReaction: undefined
-        });
-      }
     }
-  }, [onRepin, onScrollAway, maybeLoadOlder, setAppState]);
+  }, [onRepin, onScrollAway]);
   // Deferred SessionStart hook messages — REPL renders immediately and
   // hook messages are injected when they resolve. awaitPendingHooks()
   // must be called before the first API call so the model sees hook context.
@@ -1332,13 +1255,12 @@ export function REPL({
   const [inputValue, setInputValueRaw] = useState(() => consumeEarlyInput());
   const inputValueRef = useRef(inputValue);
   inputValueRef.current = inputValue;
-  const insertTextRef = useRef<{
+  useRef<{
     insert: (text: string) => void;
     setInputWithCursor: (value: string, cursor: number) => void;
     cursorOffset: number;
   } | null>(null);
-
-  // Wrap setInputValue to co-locate suppression state updates.
+// Wrap setInputValue to co-locate suppression state updates.
   // Both setState calls happen in the same synchronous context so React
   // batches them into a single render, eliminating the extra render that
   // the previous useEffect → setState pattern caused.
@@ -1377,27 +1299,8 @@ export function REPL({
     pastedContents: Record<number, PastedContent>;
   } | undefined>();
 
-  // Callback to filter commands based on CCR's available slash commands
-  const handleRemoteInit = useCallback((remoteSlashCommands: string[]) => {
-    const remoteCommandSet = new Set(remoteSlashCommands);
-    // Keep commands that CCR lists OR that are in the local-safe set
-    setLocalCommands(prev => prev.filter(cmd => remoteCommandSet.has(cmd.name) || REMOTE_SAFE_COMMANDS.has(cmd)));
-  }, [setLocalCommands]);
   const [inProgressToolUseIDs, setInProgressToolUseIDs] = useState<Set<string>>(new Set());
   const hasInterruptibleToolInProgressRef = useRef(false);
-
-  // Remote session hook - manages WebSocket connection and message handling for --remote mode
-  const remoteSession = useRemoteSession({
-    config: remoteSessionConfig,
-    setMessages,
-    setIsLoading: setIsExternalLoading,
-    onInit: handleRemoteInit,
-    setToolUseConfirmQueue,
-    tools: combinedInitialTools,
-    setStreamingToolUses,
-    setStreamMode,
-    setInProgressToolUseIDs
-  });
 
   // Direct connect hook - manages WebSocket to a claude server for `claude connect` mode
   const directConnect = useDirectConnect({
@@ -1419,8 +1322,8 @@ export function REPL({
     tools: combinedInitialTools
   });
 
-  // Use whichever remote mode is active
-  const activeRemote = sshRemote.isRemoteMode ? sshRemote : directConnect.isRemoteMode ? directConnect : remoteSession;
+  // Use whichever external transport mode is active
+  const activeRemote = sshRemote.isRemoteMode ? sshRemote : directConnect;
   const [pastedContents, setPastedContents] = useState<Record<number, PastedContent>>({});
   const [submitCount, setSubmitCount] = useState(0);
   // Ref instead of state to avoid triggering React re-renders on every
@@ -1510,19 +1413,7 @@ export function REPL({
   const [isSearchingHistory, setIsSearchingHistory] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
-  // showBashesDialog is REPL-level so it survives PromptInput unmounting.
-  // When ultraplan approval fires while the pill dialog is open, PromptInput
-  // unmounts (focusedInputDialog → 'ultraplan-choice') but this stays true;
-  // after accepting, PromptInput remounts into an empty "No tasks" dialog
-  // (the completed ultraplan task has been filtered out). Close it here.
-  useEffect(() => {
-    if (ultraplanPendingChoice && showBashesDialog) {
-      setShowBashesDialog(false);
-    }
-  }, [ultraplanPendingChoice, showBashesDialog]);
-  const isTerminalFocused = useTerminalFocus();
-  const terminalFocusRef = useRef(isTerminalFocused);
-  terminalFocusRef.current = isTerminalFocused;
+  useTerminalFocus();
   const [theme] = useTheme();
 
   // resetLoadingState runs twice per turn (onQueryImpl tail + onQuery finally).
@@ -1681,9 +1572,8 @@ export function REPL({
   getCommandQueueLength() > 0) &&
   // Hide spinner when waiting for leader to approve permission request
   !pendingWorkerRequest && !onlySleepToolActive && (
-  // Hide spinner when streaming text is visible (the text IS the feedback),
-  // but keep it when isBriefOnly suppresses the streaming text display
-  !visibleStreamingText || isBriefOnly);
+  // Hide spinner when streaming text is visible (the text IS the feedback).
+  !visibleStreamingText);
 
   // Check if any permission or ask question prompt is currently visible
   // This is used to prevent the survey from opening while prompts are active
@@ -1709,13 +1599,13 @@ export function REPL({
 
   // Post-compact survey: shown after compaction if feature gate is enabled
   const postCompactSurvey = usePostCompactSurvey(messages, isLoading, hasActivePrompt, {
-    enabled: !isRemoteSession
+    enabled: true
   });
 
   // Memory survey: shown when the assistant mentions memory and a memory file
   // was read this conversation
   const memorySurvey = useMemorySurvey(messages, isLoading, hasActivePrompt, {
-    enabled: !isRemoteSession
+    enabled: true
   });
 
   // Frustration detection: show transcript sharing prompt after detecting frustrated messages
@@ -1742,19 +1632,15 @@ export function REPL({
 
       // Match coordinator/normal mode to the resumed session
       if (feature('COORDINATOR_MODE')) {
-        /* eslint-disable @typescript-eslint/no-require-imports */
-        const coordinatorModule = require('../coordinator/coordinatorMode.js') as typeof import('../coordinator/coordinatorMode.js');
-        /* eslint-enable @typescript-eslint/no-require-imports */
+        const coordinatorModule = await import('../coordinator/coordinatorMode.js');
         const warning = coordinatorModule.matchSessionMode(log.mode);
         if (warning) {
           // Re-derive agent definitions after mode switch so built-in agents
           // reflect the new coordinator/normal mode
-          /* eslint-disable @typescript-eslint/no-require-imports */
           const {
             getAgentDefinitionsWithOverrides,
             getActiveAgentsFromList
-          } = require('../tools/AgentTool/loadAgentsDir.js') as typeof import('../tools/AgentTool/loadAgentsDir.js');
-          /* eslint-enable @typescript-eslint/no-require-imports */
+          } = await import('../tools/AgentTool/loadAgentsDir.js');
           getAgentDefinitionsWithOverrides.cache.clear?.();
           const freshAgentDefs = await getAgentDefinitionsWithOverrides(getOriginalCwd());
           setAppState(prev => ({
@@ -1889,14 +1775,10 @@ export function REPL({
 
       // Persist the current mode so future resumes know what mode this session was in
       if (feature('COORDINATOR_MODE')) {
-        /* eslint-disable @typescript-eslint/no-require-imports */
-        const {
-          saveMode
-        } = require('../utils/sessionStorage.js');
-        const {
-          isCoordinatorMode
-        } = require('../coordinator/coordinatorMode.js') as typeof import('../coordinator/coordinatorMode.js');
-        /* eslint-enable @typescript-eslint/no-require-imports */
+        const [{ saveMode }, { isCoordinatorMode }] = await Promise.all([
+          import('../utils/sessionStorage.js'),
+          import('../coordinator/coordinatorMode.js')
+        ]);
         saveMode(isCoordinatorMode() ? 'coordinator' : 'normal');
       }
 
@@ -2005,7 +1887,7 @@ export function REPL({
   // Permission and interactive dialogs can show even when toolJSX is set,
   // as long as shouldContinueAnimation is true. This prevents deadlocks when
   // agents set background hints while waiting for user interaction.
-  function getFocusedInputDialog(): 'message-selector' | 'sandbox-permission' | 'tool-permission' | 'prompt' | 'worker-sandbox-permission' | 'elicitation' | 'cost' | 'idle-return' | 'init-onboarding' | 'ide-onboarding' | 'model-switch' | 'undercover-callout' | 'effort-callout' | 'remote-callout' | 'lsp-recommendation' | 'plugin-hint' | 'desktop-upsell' | 'ultraplan-choice' | 'ultraplan-launch' | undefined {
+  function getFocusedInputDialog(): 'message-selector' | 'sandbox-permission' | 'tool-permission' | 'prompt' | 'worker-sandbox-permission' | 'elicitation' | 'cost' | 'idle-return' | 'init-onboarding' | 'ide-onboarding' | 'model-switch' | 'undercover-callout' | 'effort-callout' | 'lsp-recommendation' | 'plugin-hint' | 'desktop-upsell' | undefined {
     // Exit states always take precedence
     if (isExiting || exitFlow) return undefined;
 
@@ -2025,8 +1907,6 @@ export function REPL({
     if (allowDialogsWithAnimation && elicitation.queue[0]) return 'elicitation';
     if (allowDialogsWithAnimation && showingCostDialog) return 'cost';
     if (allowDialogsWithAnimation && idleReturnPending) return 'idle-return';
-    if (feature('ULTRAPLAN') && allowDialogsWithAnimation && !isLoading && ultraplanPendingChoice) return 'ultraplan-choice';
-    if (feature('ULTRAPLAN') && allowDialogsWithAnimation && !isLoading && ultraplanLaunchPending) return 'ultraplan-launch';
 
     // Onboarding dialogs (special conditions)
     if (allowDialogsWithAnimation && showIdeOnboarding) return 'ide-onboarding';
@@ -2039,9 +1919,6 @@ export function REPL({
 
     // Effort callout (shown once for Opus 4.6 users when effort is enabled)
     if (allowDialogsWithAnimation && showEffortCallout) return 'effort-callout';
-
-    // Remote callout (shown once before first bridge enable)
-    if (allowDialogsWithAnimation && showRemoteCallout) return 'remote-callout';
 
     // LSP plugin recommendation (lowest priority - non-blocking suggestion)
     if (allowDialogsWithAnimation && lspRecommendation) return 'lsp-recommendation';
@@ -2101,11 +1978,6 @@ export function REPL({
     }
     logForDebugging(`[onCancel] focusedInputDialog=${focusedInputDialog} streamMode=${streamMode}`);
 
-    // Pause proactive mode so the user gets control back.
-    // It will resume when they submit their next input (see onSubmit).
-    if (feature('PROACTIVE') || feature('KAIROS')) {
-      proactiveModule?.pauseProactive();
-    }
     queryGuard.forceEnd();
     skipIdleCheckRef.current = false;
 
@@ -2137,7 +2009,6 @@ export function REPL({
       setPromptQueue([]);
       abortController?.abort('user-cancel');
     } else if (activeRemote.isRemoteMode) {
-      // Remote mode: send interrupt signal to CCR
       activeRemote.cancelRequest();
     } else {
       abortController?.abort('user-cancel');
@@ -2254,49 +2125,6 @@ export function REPL({
         hostPattern,
         resolvePromise: resolveOnce
       }]);
-
-      // When the REPL bridge is connected, also forward the sandbox
-      // permission request as a can_use_tool control_request so the
-      // remote user (e.g. on claude.ai) can approve it too.
-      if (feature('BRIDGE_MODE')) {
-        const bridgeCallbacks = store.getState().replBridgePermissionCallbacks;
-        if (bridgeCallbacks) {
-          const bridgeRequestId = randomUUID();
-          bridgeCallbacks.sendRequest(bridgeRequestId, SANDBOX_NETWORK_ACCESS_TOOL_NAME, {
-            host: hostPattern.host
-          }, randomUUID(), `Allow network connection to ${hostPattern.host}?`);
-          const unsubscribe = bridgeCallbacks.onResponse(bridgeRequestId, response => {
-            unsubscribe();
-            const allow = response.behavior === 'allow';
-            // Resolve ALL pending requests for the same host, not just
-            // this one — mirrors the local dialog handler pattern.
-            setSandboxPermissionRequestQueue(queue => {
-              queue.filter(item => item.hostPattern.host === hostPattern.host).forEach(item => item.resolvePromise(allow));
-              return queue.filter(item => item.hostPattern.host !== hostPattern.host);
-            });
-            // Clean up all sibling bridge subscriptions for this host
-            // (other concurrent same-host requests) before deleting.
-            const siblingCleanups = sandboxBridgeCleanupRef.current.get(hostPattern.host);
-            if (siblingCleanups) {
-              for (const fn of siblingCleanups) {
-                fn();
-              }
-              sandboxBridgeCleanupRef.current.delete(hostPattern.host);
-            }
-          });
-
-          // Register cleanup so the local dialog handler can cancel
-          // the remote prompt and unsubscribe when the local user
-          // responds first.
-          const cleanup = () => {
-            unsubscribe();
-            bridgeCallbacks.cancelRequest(bridgeRequestId);
-          };
-          const existing = sandboxBridgeCleanupRef.current.get(hostPattern.host) ?? [];
-          existing.push(cleanup);
-          sandboxBridgeCleanupRef.current.set(hostPattern.host, existing);
-        }
-      }
     });
   }, [setAppState, store]);
 
@@ -2592,10 +2420,6 @@ export function REPL({
         // Bump conversationId so Messages.tsx row keys change and
         // stale memoized rows remount with post-compact content.
         setConversationId(randomUUID());
-        // Compaction succeeded — clear the context-blocked flag so ticks resume
-        if (feature('PROACTIVE') || feature('KAIROS')) {
-          proactiveModule?.setContextBlocked(false);
-        }
       } else if (newMessage.type === 'progress' && isEphemeralToolProgress(newMessage.data.type)) {
         // Replace the previous ephemeral progress tick for the same tool
         // call instead of appending. Sleep/Bash emit a tick per second and
@@ -2618,16 +2442,6 @@ export function REPL({
         });
       } else {
         setMessages(oldMessages => [...oldMessages, newMessage]);
-      }
-      // Block ticks on API errors to prevent tick → error → tick
-      // runaway loops (e.g., auth failure, rate limit, blocking limit).
-      // Cleared on compact boundary (above) or successful response (below).
-      if (feature('PROACTIVE') || feature('KAIROS')) {
-        if (newMessage.type === 'assistant' && 'isApiErrorMessage' in newMessage && newMessage.isApiErrorMessage) {
-          proactiveModule?.setContextBlocked(true);
-        } else if (newMessage.type === 'assistant') {
-          proactiveModule?.setContextBlocked(false);
-        }
       }
     }, newContent => {
       // setResponseLength handles updating both responseLengthRef (for
@@ -2720,15 +2534,10 @@ export function REPL({
     // or if the user input was an invalid slash command.
     if (!shouldQuery) {
       // Manual /compact sets messages directly (shouldQuery=false) bypassing
-      // handleMessageFromStream. Clear context-blocked if a compact boundary
-      // is present so proactive ticks resume after compaction.
+      // handleMessageFromStream. Bump conversationId if a compact boundary is
+      // present so stale memoized rows remount with post-compact content.
       if (newMessages.some(isCompactBoundaryMessage)) {
-        // Bump conversationId so Messages.tsx row keys change and
-        // stale memoized rows remount with post-compact content.
         setConversationId(randomUUID());
-        if (feature('PROACTIVE') || feature('KAIROS')) {
-          proactiveModule?.setContextBlocked(false);
-        }
       }
       resetLoadingState();
       setAbortController(null);
@@ -2763,10 +2572,7 @@ export function REPL({
     feature('TRANSCRIPT_CLASSIFIER') ? checkAndDisableAutoModeIfNeeded(toolPermissionContext, setAppState, store.getState().fastMode) : undefined, getSystemPrompt(freshTools, mainLoopModelParam, Array.from(toolPermissionContext.additionalWorkingDirectories.keys()), freshMcpClients), getUserContext(), getSystemContext()]);
     const userContext = {
       ...baseUserContext,
-      ...getCoordinatorUserContext(freshMcpClients, isScratchpadEnabled() ? getScratchpadDir() : undefined),
-      ...((feature('PROACTIVE') || feature('KAIROS')) && proactiveModule?.isProactiveActive() && !terminalFocusRef.current ? {
-        terminalFocus: 'The terminal is unfocused \u2014 the user is not actively watching.'
-      } : {})
+      ...getCoordinatorUserContext(freshMcpClients, isScratchpadEnabled() ? getScratchpadDir() : undefined)
     };
     queryCheckpoint('query_context_loading_end');
     const systemPrompt = buildEffectiveSystemPrompt({
@@ -2791,12 +2597,6 @@ export function REPL({
       querySource: getQuerySourceForREPL()
     })) {
       onQueryEvent(event);
-    }
-    if (feature('BUDDY')) {
-      void fireCompanionObserver(messagesRef.current, reaction => setAppState(prev => prev.companionReaction === reaction ? prev : {
-        ...prev,
-        companionReaction: reaction
-      }));
     }
     queryCheckpoint('query_end');
 
@@ -2920,10 +2720,6 @@ export function REPL({
         resetLoadingState();
         await mrOnTurnComplete(messagesRef.current, abortController.signal.aborted);
 
-        // Notify bridge clients that the turn is complete so mobile apps
-        // can stop the spark animation and show post-turn UI.
-        sendBridgeResultRef.current();
-
         // Auto-hide tungsten panel content at turn end (ant-only), but keep
         // tungstenActiveSession set so the pill stays in the footer and the user
         // can reopen the panel. Background tmux tasks (e.g. /hunter) run for
@@ -2958,11 +2754,10 @@ export function REPL({
           snapshotOutputTokensForTurn(null);
         }
 
-        // Add turn duration message for turns longer than 30s or with a budget
-        // Skip if user aborted or if in loop mode (too noisy between ticks)
-        // Defer if swarm teammates are still running (show when they finish)
+        // Add turn duration message for turns longer than 30s or with a budget.
+        // Defer if swarm teammates are still running (show when they finish).
         const turnDurationMs = Date.now() - loadingStartTimeRef.current - totalPausedMsRef.current;
-        if ((turnDurationMs > 30000 || budgetInfo !== undefined) && !abortController.signal.aborted && !proactiveActive) {
+        if ((turnDurationMs > 30000 || budgetInfo !== undefined) && !abortController.signal.aborted) {
           const hasRunningSwarmAgents = getAllInProcessTeammateTasks(store.getState().tasks).some(t => t.status === 'running');
           if (hasRunningSwarmAgents) {
             // Only record start time on the first deferred turn
@@ -3141,11 +2936,6 @@ export function REPL({
     // exchange (matches OpenCode's auto-scroll behavior).
     repinScroll();
 
-    // Resume loop mode if paused
-    if (feature('PROACTIVE') || feature('KAIROS')) {
-      proactiveModule?.resumeProactive();
-    }
-
     // Handle immediate commands - these bypass the queue and execute right away
     // even while Claude is processing. Commands opt-in via `immediate: true`.
     // Commands triggered via keybindings are always treated as immediate.
@@ -3272,7 +3062,7 @@ export function REPL({
       }
     }
 
-    // Remote mode: skip empty input early before any state mutations
+    // External transport mode: skip empty input early before any state mutations
     if (activeRemote.isRemoteMode && !input.trim()) {
       return;
     }
@@ -3324,12 +3114,12 @@ export function REPL({
     // - When loading, the submitted input will be queued and handlePromptSubmit
     //   will clear the input field (onInputChange('')), which would clobber the
     //   restored stash. Defer restoration to after handlePromptSubmit (below).
-    //   Remote mode is exempt: it sends via WebSocket and returns early without
+    //   External transport mode is exempt: it sends via stream transport and returns early without
     //   calling handlePromptSubmit, so there's no clobbering risk — restore eagerly.
     // In both deferred cases, the stash is restored after await handlePromptSubmit.
     const isSlashCommand = !speculationAccept && input.trim().startsWith('/');
     // Submit runs "now" (not queued) when not already loading, or when
-    // accepting speculation, or in remote mode (which sends via WS and
+    // accepting speculation, or in external transport mode (which sends directly and
     // returns early without calling handlePromptSubmit).
     const submitsNow = !isLoading || speculationAccept || activeRemote.isRemoteMode;
     if (stashedPrompt !== undefined && !isSlashCommand && submitsNow) {
@@ -3354,8 +3144,8 @@ export function REPL({
       tipPickedThisTurnRef.current = false;
 
       // Show the placeholder in the same React batch as setInputValue('').
-      // Skip for slash/bash (they have their own echo), speculation and remote
-      // mode (both setMessages directly with no gap to bridge).
+      // Skip for slash/bash (they have their own echo), speculation and external
+      // transport mode (both setMessages directly with no gap to bridge).
       if (!isSlashCommand && inputMode === 'prompt' && !speculationAccept && !activeRemote.isRemoteMode) {
         setUserInputOnProcessing(input);
         // showSpinner includes userInputOnProcessing, so the spinner appears
@@ -3396,36 +3186,16 @@ export function REPL({
       return;
     }
 
-    // Remote mode: send input via stream-json instead of local query.
-    // Permission requests from the remote are bridged into toolUseConfirmQueue
-    // and rendered using the standard PermissionRequest component.
-    //
-    // local-jsx slash commands (e.g. /agents, /config) render UI in THIS
-    // process — they have no remote equivalent. Let those fall through to
-    // handlePromptSubmit so they execute locally. Prompt commands and
-    // plain text go to the remote.
-    if (activeRemote.isRemoteMode && !(isSlashCommand && commands.find(c => {
-      const name = input.trim().slice(1).split(/\s/)[0];
-      return isCommandEnabled(c) && (c.name === name || c.aliases?.includes(name!) || getCommandName(c) === name);
-    })?.type === 'local-jsx')) {
-      // Build content blocks when there are pasted attachments (images)
+    if (activeRemote.isRemoteMode) {
       const pastedValues = Object.values(pastedContents);
-      const imageContents = pastedValues.filter(c => c.type === 'image');
-      const imagePasteIds = imageContents.length > 0 ? imageContents.map(c => c.id) : undefined;
-      let messageContent: string | ContentBlockParam[] = input.trim();
       let remoteContent: RemoteMessageContent = input.trim();
       if (pastedValues.length > 0) {
-        const contentBlocks: ContentBlockParam[] = [];
         const remoteBlocks: Array<{
           type: string;
           [key: string]: unknown;
         }> = [];
         const trimmedInput = input.trim();
         if (trimmedInput) {
-          contentBlocks.push({
-            type: 'text',
-            text: trimmedInput
-          });
           remoteBlocks.push({
             type: 'text',
             text: trimmedInput
@@ -3433,46 +3203,25 @@ export function REPL({
         }
         for (const pasted of pastedValues) {
           if (pasted.type === 'image') {
-            const source = {
-              type: 'base64' as const,
-              media_type: (pasted.mediaType ?? 'image/png') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-              data: pasted.content
-            };
-            contentBlocks.push({
-              type: 'image',
-              source
-            });
             remoteBlocks.push({
               type: 'image',
-              source
+              source: {
+                type: 'base64',
+                media_type: (pasted.mediaType ?? 'image/png') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+                data: pasted.content
+              }
             });
           } else {
-            contentBlocks.push({
-              type: 'text',
-              text: pasted.content
-            });
             remoteBlocks.push({
               type: 'text',
               text: pasted.content
             });
           }
         }
-        messageContent = contentBlocks;
         remoteContent = remoteBlocks;
       }
 
-      // Create and add user message to UI
-      // Note: empty input already handled by early return above
-      const userMessage = createUserMessage({
-        content: messageContent,
-        imagePasteIds
-      });
-      setMessages(prev => [...prev, userMessage]);
-
-      // Send to remote session
-      await activeRemote.sendMessage(remoteContent, {
-        uuid: userMessage.uuid
-      });
+      await activeRemote.sendMessage(remoteContent);
       return;
     }
 
@@ -3533,7 +3282,7 @@ export function REPL({
   // messages array in downstream closures (PromptInput, handleAutoRunIssue).
   // Heap analysis showed ~9 REPL scopes and ~15 messages array versions
   // accumulating after #20174/#20175, all traced to this dep.
-  mainLoopModel, pastedContents, ideSelection, setUserInputOnProcessing, setAbortController, addNotification, onQuery, stashedPrompt, setStashedPrompt, setAppState, onBeforeQuery, canUseTool, remoteSession, setMessages, awaitPendingHooks, repinScroll]);
+  mainLoopModel, pastedContents, ideSelection, setUserInputOnProcessing, setAbortController, addNotification, onQuery, stashedPrompt, setStashedPrompt, setAppState, onBeforeQuery, canUseTool, setMessages, awaitPendingHooks, repinScroll]);
 
   // Callback for when user submits input while viewing a teammate's transcript
   const onAgentSubmit = useCallback(async (input: string, task: InProcessTeammateTaskState | LocalAgentTaskState, helpers: PromptInputHelpers) => {
@@ -3672,10 +3421,7 @@ export function REPL({
       // maps reference stale uuids. Simplest safe reset: drop
       // everything. The ctx-agent will re-stage on the next
       // threshold crossing.
-      /* eslint-disable @typescript-eslint/no-require-imports */
-      ;
-      (require('../services/contextCollapse/index.js') as typeof import('../services/contextCollapse/index.js')).resetContextCollapse();
-      /* eslint-enable @typescript-eslint/no-require-imports */
+      resetContextCollapse();
     }
 
     // Restore state from the message we're rewinding to
@@ -3819,12 +3565,6 @@ export function REPL({
   // anything else
   useLogMessages(messages, messages.length === initialMessages?.length);
 
-  // REPL Bridge: replicate user/assistant messages to the bridge session
-  // for remote access via claude.ai. No-op in external builds or when not enabled.
-  const {
-    sendBridgeResult
-  } = useReplBridge(messages, setMessages, abortControllerRef, commands, mainLoopModel);
-  sendBridgeResultRef.current = sendBridgeResult;
   useAfterFirstRender();
 
   // Track prompt queue usage for analytics. Fire once per transition from
@@ -4022,13 +3762,9 @@ export function REPL({
 
   // Scheduled tasks from .claude/scheduled_tasks.json (CronCreate/Delete/List)
   if (feature('AGENT_TRIGGERS')) {
-    // Assistant mode bypasses the isLoading gate (the proactive tick →
-    // Sleep → tick loop would otherwise starve the scheduler).
-    // kairosEnabled is set once in initialState (main.tsx) and never mutated — no
-    // subscription needed. The tengu_kairos_cron runtime gate is checked inside
-    // useScheduledTasks's effect (not here) since wrapping a hook call in a dynamic
-    // condition would break rules-of-hooks.
-    const assistantMode = store.getState().kairosEnabled;
+    // 定时任务模式会绕过 isLoading 门控，避免调度长期被流式响应阻塞。
+    // 具体运行时 gate 仍在 useScheduledTasks 内部判断。
+    const assistantMode = false;
     // biome-ignore lint/correctness/useHookAtTopLevel: feature() is a compile-time constant
     useScheduledTasks!({
       isLoading,
@@ -4051,26 +3787,6 @@ export function REPL({
       onSubmitTask: handleIncomingPrompt
     });
 
-    // Loop mode: auto-tick when enabled (via /job command)
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    // biome-ignore lint/correctness/useHookAtTopLevel: conditional for dead code elimination in external builds
-    useProactive?.({
-      // Suppress ticks while an initial message is pending — the initial
-      // message will be processed asynchronously and a premature tick would
-      // race with it, causing concurrent-query enqueue of expanded skill text.
-      isLoading: isLoading || initialMessage !== null,
-      queuedCommandsLength: queuedCommands.length,
-      hasActiveLocalJsxUI: isShowingLocalJSXCommand,
-      isInPlanMode: toolPermissionContext.mode === 'plan',
-      onSubmitTick: (prompt: string) => handleIncomingPrompt(prompt, {
-        isMeta: true
-      }),
-      onQueueTick: (prompt: string) => enqueue({
-        mode: 'prompt',
-        value: prompt,
-        isMeta: true
-      })
-    });
   }
 
   // Abort the current operation when a 'now' priority message arrives
@@ -4391,9 +4107,7 @@ export function REPL({
       // Its raw useInput handler only stops propagation when a selection
       // exists — without one, ctrl+c falls through to CancelRequestHandler.
       <ScrollKeybindingHandler scrollRef={scrollRef}
-      // Yield wheel/ctrl+u/d to UltraplanChoiceDialog's own scroll
-      // handler while the modal is showing.
-      isActive={focusedInputDialog !== 'ultraplan-choice'}
+      isActive
       // g/G/j/k/ctrl+u/ctrl+d would eat keystrokes the search bar
       // wants. Off while searching.
       isModal={!searchOpen}
@@ -4495,17 +4209,11 @@ export function REPL({
   const placeholderText = userInputOnProcessing && !viewedAgentTask && displayedMessages.length <= userInputBaselineRef.current ? userInputOnProcessing : undefined;
   const toolPermissionOverlay = focusedInputDialog === 'tool-permission' ? <PermissionRequest key={toolUseConfirmQueue[0]?.toolUseID} onDone={() => setToolUseConfirmQueue(([_, ...tail]) => tail)} onReject={handleQueuedCommandOnCancel} toolUseConfirm={toolUseConfirmQueue[0]!} toolUseContext={getToolUseContext(messages, messages, abortController ?? createAbortController(), mainLoopModel)} verbose={verbose} workerBadge={toolUseConfirmQueue[0]?.workerBadge} setStickyFooter={isFullscreenEnvEnabled() ? setPermissionStickyFooter : undefined} /> : null;
 
-  // Narrow terminals: companion collapses to a one-liner that REPL stacks
-  // on its own row (above input in fullscreen, below in scrollback) instead
-  // of row-beside. Wide terminals keep the row layout with sprite on the right.
-  const companionNarrow = transcriptCols < MIN_COLS_FOR_FULL_SPRITE;
-  // Hide the sprite when PromptInput early-returns BackgroundTasksDialog.
   // The sprite sits as a row sibling of PromptInput, so the dialog's Pane
   // divider draws at useTerminalSize() width but only gets terminalWidth -
   // spriteWidth — divider stops short and dialog text wraps early. Don't
   // check footerSelection: pill FOCUS (arrow-down to tasks pill) must keep
   // the sprite visible so arrow-right can navigate to it.
-  const companionVisible = !toolJSX?.shouldHidePromptInput && !focusedInputDialog && !showBashesDialog;
 
   // In fullscreen, ALL local-jsx slash commands float in the modal slot —
   // FullscreenLayout wraps them in an absolute-positioned bottom-anchored
@@ -4538,12 +4246,12 @@ export function REPL({
       {feature('MESSAGE_ACTIONS') && isFullscreenEnvEnabled() && !disableMessageActions ? <MessageActionsKeybindings handlers={messageActionHandlers} isActive={cursor !== null} /> : null}
       <CancelRequestHandler {...cancelRequestProps} />
       <MCPConnectionManager key={remountKey} dynamicMcpConfig={dynamicMcpConfig} isStrictMcpConfig={strictMcpConfig}>
-        <FullscreenLayout scrollRef={scrollRef} overlay={toolPermissionOverlay} bottomFloat={feature('BUDDY') && companionVisible && !companionNarrow ? <CompanionFloatingBubble /> : undefined} modal={centeredModal} modalScrollRef={modalScrollRef} dividerYRef={dividerYRef} hidePill={!!viewedAgentTask} hideSticky={!!viewedTeammateTask} newMessageCount={unseenDivider?.count ?? 0} onPillClick={() => {
+        <FullscreenLayout scrollRef={scrollRef} overlay={toolPermissionOverlay} modal={centeredModal} modalScrollRef={modalScrollRef} dividerYRef={dividerYRef} hidePill={!!viewedAgentTask} hideSticky={!!viewedTeammateTask} newMessageCount={unseenDivider?.count ?? 0} onPillClick={() => {
         setCursor(null);
         jumpToNew(scrollRef.current);
       }} scrollable={<>
               <TeammateViewHeader />
-              <Messages messages={displayedMessages} tools={tools} commands={commands} verbose={verbose} toolJSX={toolJSX} toolUseConfirmQueue={toolUseConfirmQueue} inProgressToolUseIDs={viewedTeammateTask ? viewedTeammateTask.inProgressToolUseIDs ?? new Set() : inProgressToolUseIDs} isMessageSelectorVisible={isMessageSelectorVisible} conversationId={conversationId} screen={screen} streamingToolUses={streamingToolUses} showAllInTranscript={showAllInTranscript} agentDefinitions={agentDefinitions} onOpenRateLimitOptions={handleOpenRateLimitOptions} isLoading={isLoading} streamingText={isLoading && !viewedAgentTask ? visibleStreamingText : null} isBriefOnly={viewedAgentTask ? false : isBriefOnly} unseenDivider={viewedAgentTask ? undefined : unseenDivider} scrollRef={isFullscreenEnvEnabled() ? scrollRef : undefined} trackStickyPrompt={isFullscreenEnvEnabled() ? true : undefined} cursor={cursor} setCursor={setCursor} cursorNavRef={cursorNavRef} />
+              <Messages messages={displayedMessages} tools={tools} commands={commands} verbose={verbose} toolJSX={toolJSX} toolUseConfirmQueue={toolUseConfirmQueue} inProgressToolUseIDs={viewedTeammateTask ? viewedTeammateTask.inProgressToolUseIDs ?? new Set() : inProgressToolUseIDs} isMessageSelectorVisible={isMessageSelectorVisible} conversationId={conversationId} screen={screen} streamingToolUses={streamingToolUses} showAllInTranscript={showAllInTranscript} agentDefinitions={agentDefinitions} onOpenRateLimitOptions={handleOpenRateLimitOptions} isLoading={isLoading} streamingText={isLoading && !viewedAgentTask ? visibleStreamingText : null} unseenDivider={viewedAgentTask ? undefined : unseenDivider} scrollRef={isFullscreenEnvEnabled() ? scrollRef : undefined} trackStickyPrompt={isFullscreenEnvEnabled() ? true : undefined} cursor={cursor} setCursor={setCursor} cursorNavRef={cursorNavRef} />
               <AwsAuthStatusBox />
               {/* Hide the processing placeholder while a modal is showing —
                   it would sit at the last visible transcript row right above
@@ -4561,10 +4269,8 @@ export function REPL({
               {feature('WEB_BROWSER_TOOL') ? WebBrowserPanelModule && <WebBrowserPanelModule.WebBrowserPanel /> : null}
               <Box flexGrow={1} />
               {showSpinner && <SpinnerWithVerb mode={streamMode} spinnerTip={spinnerTip} responseLengthRef={responseLengthRef} apiMetricsRef={apiMetricsRef} overrideMessage={spinnerMessage} spinnerSuffix={stopHookSpinnerSuffix} verbose={verbose} loadingStartTimeRef={loadingStartTimeRef} totalPausedMsRef={totalPausedMsRef} pauseStartTimeRef={pauseStartTimeRef} overrideColor={spinnerColor} overrideShimmerColor={spinnerShimmerColor} hasActiveTools={inProgressToolUseIDs.size > 0} leaderIsIdle={!isLoading} />}
-              {!showSpinner && !isLoading && !userInputOnProcessing && !hasRunningTeammates && isBriefOnly && !viewedAgentTask && <BriefIdleStatus />}
               {isFullscreenEnvEnabled() && <PromptInputQueuedCommands />}
-            </>} bottom={<Box flexDirection={feature('BUDDY') && companionNarrow ? 'column' : 'row'} width="100%" alignItems={feature('BUDDY') && companionNarrow ? undefined : 'flex-end'}>
-              {feature('BUDDY') && companionNarrow && isFullscreenEnvEnabled() && companionVisible ? <CompanionSprite /> : null}
+            </>} bottom={<Box flexDirection="row" width="100%" alignItems="flex-end">
               <Box flexDirection="column" flexGrow={1}>
                 {permissionStickyFooter}
                 {/* Immediate local-jsx commands (/btw, /sandbox, /assistant,
@@ -4800,20 +4506,6 @@ export function REPL({
               }));
             }
           }} />}
-                {focusedInputDialog === 'remote-callout' && <RemoteCallout onDone={selection => {
-            setAppState(prev => {
-              if (!prev.showRemoteCallout) return prev;
-              return {
-                ...prev,
-                showRemoteCallout: false,
-                ...(selection === 'enable' && {
-                  replBridgeEnabled: true,
-                  replBridgeExplicit: true,
-                  replBridgeOutboundOnly: false
-                })
-              };
-            });
-          }} />}
 
                 {exitFlow}
 
@@ -4822,48 +4514,6 @@ export function REPL({
                 {focusedInputDialog === 'lsp-recommendation' && lspRecommendation && <LspRecommendationMenu pluginName={lspRecommendation.pluginName} pluginDescription={lspRecommendation.pluginDescription} fileExtension={lspRecommendation.fileExtension} onResponse={handleLspResponse} />}
 
                 {focusedInputDialog === 'desktop-upsell' && <DesktopUpsellStartup onDone={() => setShowDesktopUpsellStartup(false)} />}
-
-                {feature('ULTRAPLAN') ? focusedInputDialog === 'ultraplan-choice' && ultraplanPendingChoice && <UltraplanChoiceDialog plan={ultraplanPendingChoice.plan} sessionId={ultraplanPendingChoice.sessionId} taskId={ultraplanPendingChoice.taskId} setMessages={setMessages} readFileState={readFileState.current} getAppState={() => store.getState()} setConversationId={setConversationId} /> : null}
-
-                {feature('ULTRAPLAN') ? focusedInputDialog === 'ultraplan-launch' && ultraplanLaunchPending && <UltraplanLaunchDialog onChoice={(choice, opts) => {
-            const blurb = ultraplanLaunchPending.blurb;
-            setAppState(prev => prev.ultraplanLaunchPending ? {
-              ...prev,
-              ultraplanLaunchPending: undefined
-            } : prev);
-            if (choice === 'cancel') return;
-            // Command's onDone used display:'skip', so add the
-            // echo here — gives immediate feedback before the
-            // ~5s remote launch resolves.
-            setMessages(prev => [...prev, createCommandInputMessage(formatCommandInputTags('ultraplan', blurb))]);
-            const appendStdout = (msg: string) => setMessages(prev => [...prev, createCommandInputMessage(`<${LOCAL_COMMAND_STDOUT_TAG}>${escapeXml(msg)}</${LOCAL_COMMAND_STDOUT_TAG}>`)]);
-            // Defer the second message if a query is mid-turn
-            // so it lands after the assistant reply, not
-            // between the user's prompt and the reply.
-            const appendWhenIdle = (msg: string) => {
-              if (!queryGuard.isActive) {
-                appendStdout(msg);
-                return;
-              }
-              const unsub = queryGuard.subscribe(() => {
-                if (queryGuard.isActive) return;
-                unsub();
-                // Skip if the user stopped ultraplan while we
-                // were waiting — avoids a stale "Monitoring
-                // <url>" message for a session that's gone.
-                if (!store.getState().ultraplanSessionUrl) return;
-                appendStdout(msg);
-              });
-            };
-            void launchUltraplan({
-              blurb,
-              getAppState: () => store.getState(),
-              setAppState,
-              signal: createAbortController().signal,
-              disconnectedBridge: opts?.disconnectedBridge,
-              onSessionReady: appendWhenIdle
-            }).then(() => {}).catch(logError);
-          }} /> : null}
 
                 {mrRender()}
 
@@ -4939,11 +4589,6 @@ export function REPL({
             } else {
               setMessages(postCompact);
             }
-            // Partial compact bypasses handleMessageFromStream — clear
-            // the context-blocked flag so proactive ticks resume.
-            if (feature('PROACTIVE') || feature('KAIROS')) {
-              proactiveModule?.setContextBlocked(false);
-            }
             setConversationId(randomUUID());
             runPostCompactCleanup(context.options.querySource);
             if (direction === 'from') {
@@ -4968,7 +4613,6 @@ export function REPL({
           }} />}
                 {("external" as string) === 'ant' && <DevBar />}
               </Box>
-              {feature('BUDDY') && !(companionNarrow && isFullscreenEnvEnabled()) && companionVisible ? <CompanionSprite /> : null}
             </Box>} />
       </MCPConnectionManager>
     </KeybindingSetup>;

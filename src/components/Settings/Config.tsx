@@ -9,13 +9,12 @@ import { useKeybinding, useKeybindings } from '../../keybindings/useKeybinding.j
 import figures from 'figures';
 import { type GlobalConfig, saveGlobalConfig, getCurrentProjectConfig, type OutputStyle } from '../../utils/config.js';
 import { normalizeApiKeyForConfig } from '../../utils/authPortable.js';
-import { getGlobalConfig, getAutoUpdaterDisabledReason, formatAutoUpdaterDisabledReason, getRemoteControlAtStartup } from '../../utils/config.js';
+import { getGlobalConfig, getAutoUpdaterDisabledReason, formatAutoUpdaterDisabledReason } from '../../utils/config.js';
 import chalk from 'chalk';
 import { permissionModeTitle, permissionModeFromString, toExternalPermissionMode, isExternalPermissionMode, EXTERNAL_PERMISSION_MODES, PERMISSION_MODES, type ExternalPermissionMode, type PermissionMode } from '../../utils/permissions/PermissionMode.js';
 import { getAutoModeEnabledState, hasAutoModeOptInAnySource, transitionPlanAutoMode } from '../../utils/permissions/permissionSetup.js';
 import { logError } from '../../utils/log.js';
 import { logEvent, type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS } from 'src/services/analytics/index.js';
-import { isBridgeEnabled } from '../../bridge/bridgeEnabled.js';
 import { ThemePicker } from '../ThemePicker.js';
 import { useAppState, useSetAppState, useAppStateStore } from '../../state/AppState.js';
 import { ModelPicker } from '../ModelPicker.js';
@@ -36,7 +35,6 @@ import { useIsInsideModal } from '../../context/modalContext.js';
 import { SearchBox } from '../SearchBox.js';
 import { isSupportedTerminal, hasAccessToIDEExtensionDiffFeature } from '../../utils/ide.js';
 import { getInitialSettings, getSettingsForSource, updateSettingsForSource } from '../../utils/settings/settings.js';
-import { getUserMsgOptIn, setUserMsgOptIn } from '../../bootstrap/state.js';
 import { DEFAULT_OUTPUT_STYLE_NAME } from 'src/constants/outputStyles.js';
 import { isEnvTruthy, isRunningOnHomespace } from 'src/utils/envUtils.js';
 import type { LocalJSXCommandContext, CommandResultDisplay } from '../../commands.js';
@@ -126,13 +124,6 @@ export function Config({
   // config is fully 'enabled' — even if currently circuit-broken ('disabled'),
   // an opted-in user should still see it in settings (it's a temporary state).
   const showAutoInDefaultModePicker = feature('TRANSCRIPT_CLASSIFIER') ? hasAutoModeOptInAnySource() || getAutoModeEnabledState() === 'enabled' : false;
-  // Chat/Transcript view picker is visible to entitled users (pass the GB
-  // gate) even if they haven't opted in this session — it IS the persistent
-  // opt-in. 'chat' written here is read at next startup by main.tsx which
-  // sets userMsgOptIn if still entitled.
-  /* eslint-disable @typescript-eslint/no-require-imports */
-  const showDefaultViewPicker = feature('KAIROS') || feature('KAIROS_BRIEF') ? (require('../../tools/BriefTool/BriefTool.js') as typeof import('../../tools/BriefTool/BriefTool.js')).isBriefEntitled() : false;
-  /* eslint-enable @typescript-eslint/no-require-imports */
   const setAppState = useSetAppState();
   const [changes, setChanges] = useState<{
     [key: string]: unknown;
@@ -158,18 +149,9 @@ export function Config({
       thinkingEnabled: s_4.thinkingEnabled,
       fastMode: s_4.fastMode,
       promptSuggestionEnabled: s_4.promptSuggestionEnabled,
-      isBriefOnly: s_4.isBriefOnly,
-      replBridgeEnabled: s_4.replBridgeEnabled,
-      replBridgeOutboundOnly: s_4.replBridgeOutboundOnly,
       settings: s_4.settings
     };
   });
-  // Bootstrap state snapshot — userMsgOptIn is outside AppState, so
-  // revertChanges needs to restore it separately. Without this, cycling
-  // defaultView to 'chat' then Escape leaves the tool active while the
-  // display filter reverts — the exact ambient-activation behavior this
-  // PR's entitlement/opt-in split is meant to prevent.
-  const [initialUserMsgOptIn] = useState(() => getUserMsgOptIn());
   // Set on first user-visible change; gates revertChanges() on Escape so
   // opening-then-closing doesn't trigger redundant disk writes.
   const isDirty = React.useRef(false);
@@ -655,7 +637,7 @@ export function Config({
     onChange: setTheme
   }, {
     id: 'notifChannel',
-    label: feature('KAIROS') || feature('KAIROS_PUSH_NOTIFICATION') ? 'Local notifications' : 'Notifications',
+    label: 'Notifications',
     value: globalConfig.preferredNotifChannel,
     options: ['auto', 'iterm2', 'terminal_bell', 'iterm2_with_bell', 'kitty', 'ghostty', 'notifications_disabled'],
     type: 'enum',
@@ -669,97 +651,13 @@ export function Config({
         preferredNotifChannel: notifChannel
       });
     }
-  }, ...(feature('KAIROS') || feature('KAIROS_PUSH_NOTIFICATION') ? [{
-    id: 'taskCompleteNotifEnabled',
-    label: 'Push when idle',
-    value: globalConfig.taskCompleteNotifEnabled ?? false,
-    type: 'boolean' as const,
-    onChange(taskCompleteNotifEnabled: boolean) {
-      saveGlobalConfig(current_10 => ({
-        ...current_10,
-        taskCompleteNotifEnabled
-      }));
-      setGlobalConfig({
-        ...getGlobalConfig(),
-        taskCompleteNotifEnabled
-      });
-    }
   }, {
-    id: 'inputNeededNotifEnabled',
-    label: 'Push when input needed',
-    value: globalConfig.inputNeededNotifEnabled ?? false,
-    type: 'boolean' as const,
-    onChange(inputNeededNotifEnabled: boolean) {
-      saveGlobalConfig(current_11 => ({
-        ...current_11,
-        inputNeededNotifEnabled
-      }));
-      setGlobalConfig({
-        ...getGlobalConfig(),
-        inputNeededNotifEnabled
-      });
-    }
-  }, {
-    id: 'agentPushNotifEnabled',
-    label: 'Push when Claude decides',
-    value: globalConfig.agentPushNotifEnabled ?? false,
-    type: 'boolean' as const,
-    onChange(agentPushNotifEnabled: boolean) {
-      saveGlobalConfig(current_12 => ({
-        ...current_12,
-        agentPushNotifEnabled
-      }));
-      setGlobalConfig({
-        ...getGlobalConfig(),
-        agentPushNotifEnabled
-      });
-    }
-  }] : []), {
     id: 'outputStyle',
     label: 'Output style',
     value: currentOutputStyle,
     type: 'managedEnum' as const,
     onChange: () => {} // handled by OutputStylePicker submenu
-  }, ...(showDefaultViewPicker ? [{
-    id: 'defaultView',
-    label: 'What you see by default',
-    // 'default' means the setting is unset — currently resolves to
-    // transcript (main.tsx falls through when defaultView !== 'chat').
-    // String() narrows the conditional-schema-spread union to string.
-    value: settingsData?.defaultView === undefined ? 'default' : String(settingsData.defaultView),
-    options: ['transcript', 'chat', 'default'],
-    type: 'enum' as const,
-    onChange(selected: string) {
-      const defaultView = selected === 'default' ? undefined : selected as 'chat' | 'transcript';
-      updateSettingsForSource('localSettings', {
-        defaultView
-      });
-      setSettingsData(prev_17 => ({
-        ...prev_17,
-        defaultView
-      }));
-      const nextBrief = defaultView === 'chat';
-      setAppState(prev_18 => {
-        if (prev_18.isBriefOnly === nextBrief) return prev_18;
-        return {
-          ...prev_18,
-          isBriefOnly: nextBrief
-        };
-      });
-      // Keep userMsgOptIn in sync so the tool list follows the view.
-      // Two-way now (same as /brief) — accepting a cache invalidation
-      // is better than leaving the tool on after switching away.
-      // Reverted on Escape via initialUserMsgOptIn snapshot.
-      setUserMsgOptIn(nextBrief);
-      setChanges(prev_19 => ({
-        ...prev_19,
-        'Default view': selected
-      }));
-      logEvent('tengu_default_view_setting_changed', {
-        value: (defaultView ?? 'unset') as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
-      });
-    }
-  }] : []), {
+  }, {
     id: 'language',
     label: 'Language',
     value: currentLanguage ?? 'Default (English)',
@@ -926,54 +824,7 @@ export function Config({
       onChange() {}
     }];
   })() : []),
-  // Remote at startup toggle — gated on build flag + GrowthBook + policy
-  ...(false ? [{
-    id: 'remoteControlAtStartup',
-    label: 'Enable Remote Control for all sessions',
-    value: globalConfig.remoteControlAtStartup === undefined ? 'default' : String(globalConfig.remoteControlAtStartup),
-    options: ['true', 'false', 'default'],
-    type: 'enum' as const,
-    onChange(selected_0: string) {
-      if (selected_0 === 'default') {
-        // Unset the config key so it falls back to the platform default
-        saveGlobalConfig(current_20 => {
-          if (current_20.remoteControlAtStartup === undefined) return current_20;
-          const next_0 = {
-            ...current_20
-          };
-          delete next_0.remoteControlAtStartup;
-          return next_0;
-        });
-        setGlobalConfig({
-          ...getGlobalConfig(),
-          remoteControlAtStartup: undefined
-        });
-      } else {
-        const enabled_6 = selected_0 === 'true';
-        saveGlobalConfig(current_21 => {
-          if (current_21.remoteControlAtStartup === enabled_6) return current_21;
-          return {
-            ...current_21,
-            remoteControlAtStartup: enabled_6
-          };
-        });
-        setGlobalConfig({
-          ...getGlobalConfig(),
-          remoteControlAtStartup: enabled_6
-        });
-      }
-      // Sync to AppState so useReplBridge reacts immediately
-      const resolved = getRemoteControlAtStartup();
-      setAppState(prev_20 => {
-        if (prev_20.replBridgeEnabled === resolved && !prev_20.replBridgeOutboundOnly) return prev_20;
-        return {
-          ...prev_20,
-          replBridgeEnabled: resolved,
-          replBridgeOutboundOnly: false
-        };
-      });
-    }
-  }] : []), ...(shouldShowExternalIncludesToggle ? [{
+  ...(shouldShowExternalIncludesToggle ? [{
     id: 'showExternalIncludesDialog',
     label: 'External CLAUDE.md includes',
     value: (() => {
@@ -1157,10 +1008,6 @@ export function Config({
     if (globalConfig.showTurnDuration !== initialConfig.current.showTurnDuration) {
       formattedChanges.push(`${globalConfig.showTurnDuration ? 'Enabled' : 'Disabled'} turn duration`);
     }
-    if (globalConfig.remoteControlAtStartup !== initialConfig.current.remoteControlAtStartup) {
-      const remoteLabel = globalConfig.remoteControlAtStartup === undefined ? 'Reset Remote Control to default' : `${globalConfig.remoteControlAtStartup ? 'Enabled' : 'Disabled'} Remote Control for all sessions`;
-      formattedChanges.push(remoteLabel);
-    }
     if (settingsData?.autoUpdatesChannel !== initialSettingsData.current?.autoUpdatesChannel) {
       formattedChanges.push(`Set auto-update channel to ${chalk.bold(settingsData?.autoUpdatesChannel ?? 'latest')}`);
     }
@@ -1193,7 +1040,6 @@ export function Config({
     updateSettingsForSource('localSettings', {
       spinnerTipsEnabled: il?.spinnerTipsEnabled,
       prefersReducedMotion: il?.prefersReducedMotion,
-      defaultView: il?.defaultView,
       outputStyle: il?.outputStyle
     });
     const iu = initialUserSettings;
@@ -1233,21 +1079,12 @@ export function Config({
       thinkingEnabled: ia.thinkingEnabled,
       fastMode: ia.fastMode,
       promptSuggestionEnabled: ia.promptSuggestionEnabled,
-      isBriefOnly: ia.isBriefOnly,
-      replBridgeEnabled: ia.replBridgeEnabled,
-      replBridgeOutboundOnly: ia.replBridgeOutboundOnly,
       settings: ia.settings,
       // Reconcile auto-mode state after useAutoModeDuringPlan revert above —
       // the onChange handler may have activated/deactivated auto mid-plan.
       toolPermissionContext: transitionPlanAutoMode(prev_23.toolPermissionContext)
     }));
-    // Bootstrap state: restore userMsgOptIn. Only touched by the defaultView
-    // onChange above, so no feature() guard needed here (that path only
-    // exists when showDefaultViewPicker is true).
-    if (getUserMsgOptIn() !== initialUserMsgOptIn) {
-      setUserMsgOptIn(initialUserMsgOptIn);
-    }
-  }, [themeSetting, setTheme, initialLocalSettings, initialUserSettings, initialAppState, initialUserMsgOptIn, setAppState]);
+  }, [themeSetting, setTheme, initialLocalSettings, initialUserSettings, initialAppState, setAppState]);
 
   // Escape: revert all changes (if any) and close.
   const handleEscape = useCallback(() => {

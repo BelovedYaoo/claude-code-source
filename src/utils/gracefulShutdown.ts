@@ -256,9 +256,8 @@ export const setupGracefulShutdown = memoize(() => {
   process.on('SIGINT', () => {
     // In print mode, print.ts registers its own SIGINT handler that aborts
     // the in-flight query and calls gracefulShutdown(0); skip here to
-    // avoid racing with it. Only check print mode — other non-interactive
-    // sessions (--sdk-url, --init-only, non-TTY) don't register their own
-    // SIGINT handler and need gracefulShutdown to run.
+    // avoid racing with it. Other non-interactive sessions still rely on
+    // gracefulShutdown to run here.
     if (process.argv.includes('-p') || process.argv.includes('--print')) {
       return
     }
@@ -367,26 +366,6 @@ let pendingShutdown: Promise<void> | undefined
 export function isShuttingDown(): boolean {
   return shutdownInProgress
 }
-
-/** Reset shutdown state - only for use in tests */
-export function resetShutdownState(): void {
-  shutdownInProgress = false
-  resumeHintPrinted = false
-  if (failsafeTimer !== undefined) {
-    clearTimeout(failsafeTimer)
-    failsafeTimer = undefined
-  }
-  pendingShutdown = undefined
-}
-
-/**
- * Returns the in-flight shutdown promise, if any. Only for use in tests
- * to await completion before restoring mocks.
- */
-export function getPendingShutdownForTesting(): Promise<void> | undefined {
-  return pendingShutdown
-}
-
 // Graceful shutdown function that drains the event loop
 export async function gracefulShutdown(
   exitCode = 0,

@@ -1,4 +1,3 @@
-import { feature } from 'bun:bundle'
 import { randomUUID } from 'crypto'
 import { getSdkBetas, getSessionId } from 'src/bootstrap/state.js'
 import { DEFAULT_OUTPUT_STYLE_NAME } from 'src/constants/outputStyles.js'
@@ -15,7 +14,6 @@ import { getAnthropicApiKeyWithSource } from '../auth.js'
 import { getCwd } from '../cwd.js'
 import { getFastModeState } from '../fastMode.js'
 import { getSettings_DEPRECATED } from '../settings/settings.js'
-import { getUdsMessagingSocketPath } from '../utils/udsMessaging.js'
 
 // TODO(next-minor): remove this translation once SDK consumers have migrated
 // to the 'Agent' tool name. The wire name was renamed Task → Agent in #19647,
@@ -84,11 +82,6 @@ export function buildSystemInitMessage(inputs: SystemInitInputs): SDKMessage {
       source: plugin.source,
     })),
     uuid: randomUUID(),
-  }
-  // Hidden from public SDK types — ant-only UDS messaging socket path
-  if (feature('UDS_INBOX')) {
-    ;(initMessage as Record<string, unknown>).messaging_socket_path =
-      getUdsMessagingSocketPath()
   }
   initMessage.fast_mode_state = getFastModeState(inputs.model, inputs.fastMode)
   return initMessage

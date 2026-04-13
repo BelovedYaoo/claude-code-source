@@ -83,9 +83,6 @@ export async function registerSession(): Promise<boolean> {
         startedAt: Date.now(),
         kind,
         entrypoint: process.env.CLAUDE_CODE_ENTRYPOINT,
-        ...(feature('UDS_INBOX')
-          ? { messagingSocketPath: process.env.CLAUDE_CODE_MESSAGING_SOCKET }
-          : {}),
         ...(feature('BG_SESSIONS')
           ? {
               name: process.env.CLAUDE_CODE_SESSION_NAME,
@@ -134,19 +131,6 @@ export async function updateSessionName(
   if (!name) return
   await updatePidFile({ name })
 }
-
-/**
- * Record this session's Remote Control session ID so peer enumeration can
- * dedup: a session reachable over both UDS and bridge should only appear
- * once (local wins). Cleared on bridge teardown so stale IDs don't
- * suppress a legitimately-remote session after reconnect.
- */
-export async function updateSessionBridgeId(
-  bridgeSessionId: string | null,
-): Promise<void> {
-  await updatePidFile({ bridgeSessionId })
-}
-
 /**
  * Push live activity state for `claude ps`. Fire-and-forget from REPL's
  * status-change effect — a dropped write just means ps falls back to

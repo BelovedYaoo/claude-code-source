@@ -154,8 +154,6 @@ export const ORG_DISABLED_ERROR_MESSAGE_ENV_KEY_WITH_OAUTH =
   ORG_DISABLED_ERROR_MESSAGE_ENV_KEY
 export const TOKEN_REVOKED_ERROR_MESSAGE =
   'Authentication expired · Refresh your credentials and try again'
-export const CCR_AUTH_ERROR_MESSAGE =
-  'Authentication error · This may be a temporary network issue, please try again'
 export const REPEATED_529_ERROR_MESSAGE = 'Repeated 529 Overloaded errors'
 export const CUSTOM_OFF_SWITCH_MESSAGE =
   'Opus is experiencing high load, please use /model to switch to Sonnet'
@@ -203,7 +201,8 @@ export function getOauthOrgNotAllowedErrorMessage(): string {
 }
 
 /**
-// Temp helper to log tool_use/tool_result mismatch errors
+ * Temp helper to log tool_use/tool_result mismatch errors
+ */
 function logToolUseToolResultMismatch(
   toolUseId: string,
   messages: Message[],
@@ -782,14 +781,6 @@ export function getAssistantMessageFromError(
     error instanceof Error &&
     error.message.toLowerCase().includes('x-api-key')
   ) {
-    // In CCR mode, auth is via JWTs - this is likely a transient network issue
-    if (isCCRMode()) {
-      return createAssistantAPIErrorMessage({
-        error: 'authentication_failed',
-        content: CCR_AUTH_ERROR_MESSAGE,
-      })
-    }
-
     // Check if the API key is from an external source
     const { source } = getAnthropicApiKeyWithSource()
     const isExternalSource =
@@ -833,14 +824,6 @@ export function getAssistantMessageFromError(
     error instanceof APIError &&
     (error.status === 401 || error.status === 403)
   ) {
-    // In CCR mode, auth is via JWTs - this is likely a transient network issue
-    if (isCCRMode()) {
-      return createAssistantAPIErrorMessage({
-        error: 'authentication_failed',
-        content: CCR_AUTH_ERROR_MESSAGE,
-      })
-    }
-
     return createAssistantAPIErrorMessage({
       error: 'authentication_failed',
       content: getIsNonInteractiveSession()

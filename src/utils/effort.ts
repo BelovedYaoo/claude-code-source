@@ -211,9 +211,8 @@ export function isValidNumericEffort(value: number): boolean {
 
 export function convertEffortValueToLevel(value: EffortValue): EffortLevel {
   if (typeof value === 'string') {
-    // Runtime guard: value may come from remote config (GrowthBook) where
-    // TypeScript types can't help us. Coerce unknown strings to 'high'
-    // rather than passing them through unchecked.
+    // 运行时保护：该值可能来自本地配置，静态类型无法保证其合法。
+    // 未知字符串统一回退到 'high'，避免直接透传。
     return isEffortLevel(value) ? value : 'high'
   }
   if (process.env.USER_TYPE === 'ant' && typeof value === 'number') {

@@ -86,18 +86,9 @@ export function setSessionMemoryCompactConfig(
 export function getSessionMemoryCompactConfig(): SessionMemoryCompactConfig {
   return { ...smCompactConfig }
 }
-
 /**
- * Reset config state (useful for testing)
- */
-export function resetSessionMemoryCompactConfig(): void {
-  smCompactConfig = { ...DEFAULT_SM_COMPACT_CONFIG }
-  configInitialized = false
-}
-
-/**
- * Initialize configuration from remote config (GrowthBook).
- * Only fetches once per session - subsequent calls return immediately.
+ * 从本地 GrowthBook 配置初始化参数。
+ * 每个会话只读取一次，后续调用直接返回。
  */
 async function initSessionMemoryCompactConfig(): Promise<void> {
   if (configInitialized) {
@@ -105,25 +96,25 @@ async function initSessionMemoryCompactConfig(): Promise<void> {
   }
   configInitialized = true
 
-  // Load config from GrowthBook, merging with defaults
-  const remoteConfig = await getDynamicConfig_BLOCKS_ON_INIT<
+  // 从本地 GrowthBook 配置读取并与默认值合并
+  const localConfig = await getDynamicConfig_BLOCKS_ON_INIT<
     Partial<SessionMemoryCompactConfig>
   >('tengu_sm_compact_config', {})
 
-  // Only use remote values if they are explicitly set (positive numbers)
+  // 仅在显式设置了正数时才覆盖默认值
   // This ensures sensible defaults aren't overridden by zero values
   const config: SessionMemoryCompactConfig = {
     minTokens:
-      remoteConfig.minTokens && remoteConfig.minTokens > 0
-        ? remoteConfig.minTokens
+      localConfig.minTokens && localConfig.minTokens > 0
+        ? localConfig.minTokens
         : DEFAULT_SM_COMPACT_CONFIG.minTokens,
     minTextBlockMessages:
-      remoteConfig.minTextBlockMessages && remoteConfig.minTextBlockMessages > 0
-        ? remoteConfig.minTextBlockMessages
+      localConfig.minTextBlockMessages && localConfig.minTextBlockMessages > 0
+        ? localConfig.minTextBlockMessages
         : DEFAULT_SM_COMPACT_CONFIG.minTextBlockMessages,
     maxTokens:
-      remoteConfig.maxTokens && remoteConfig.maxTokens > 0
-        ? remoteConfig.maxTokens
+      localConfig.maxTokens && localConfig.maxTokens > 0
+        ? localConfig.maxTokens
         : DEFAULT_SM_COMPACT_CONFIG.maxTokens,
   }
   setSessionMemoryCompactConfig(config)

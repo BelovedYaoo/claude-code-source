@@ -45,7 +45,6 @@ import mobile from './commands/mobile/index.js'
 import model from './commands/model/index.js'
 import mockLimits from './commands/mock-limits/index.js'
 import onboarding from './commands/onboarding/index.js'
-import peersCommand from './commands/peers/index.js'
 import perfIssue from './commands/perf-issue/index.js'
 import permissions from './commands/permissions/index.js'
 import plan from './commands/plan/index.js'
@@ -90,9 +89,6 @@ const clearSkillIndexCache = feature('EXPERIMENTAL_SKILL_SEARCH')
   ? importedClearSkillIndexCache
   : null
 const torch = null
-const peersCmd = feature('UDS_INBOX')
-  ? peersCommand
-  : null
 const forkCmd = feature('FORK_SUBAGENT')
   ? forkCommand
   : null
@@ -244,7 +240,6 @@ const COMMANDS = memoize((): Command[] => [
   hooks,
   exportCommand,
   sandboxToggle,
-  ...(peersCmd ? [peersCmd] : []),
   tasks,
   ...(workflowsCmd ? [workflowsCmd] : []),
   ...(torch ? [torch] : []),

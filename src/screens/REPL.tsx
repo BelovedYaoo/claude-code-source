@@ -56,10 +56,6 @@ import { PromptDialog } from '../components/hooks/PromptDialog.js';
 import type { PromptRequest, PromptResponse } from '../types/hooks.js';
 import PromptInput from '../components/PromptInput/PromptInput.js';
 import { PromptInputQueuedCommands } from '../components/PromptInput/PromptInputQueuedCommands.js';
-import { useDirectConnect } from '../hooks/useDirectConnect.js';
-import type { DirectConnectConfig } from '../server/directConnectManager.js';
-import { useSSHSession } from '../hooks/useSSHSession.js';
-import type { SSHSession } from '../ssh/createSSHSession.js';
 import { SkillImprovementSurvey } from '../components/SkillImprovementSurvey.js';
 import { useSkillImprovementSurvey } from '../hooks/useSkillImprovementSurvey.js';
 import { useMoreRight } from '../moreright/useMoreRight.js';
@@ -155,7 +151,7 @@ import { resolveAgentTools } from '../tools/AgentTool/agentToolUtils.js';
 import { resumeAgentBackground } from '../tools/AgentTool/resumeAgent.js';
 import { useMainLoopModel } from '../hooks/useMainLoopModel.js';
 import { useAppState, useSetAppState, useAppStateStore } from '../state/AppState.js';
-import type { ContentBlockParam, ImageBlockParam } from '@anthropic-ai/sdk/resources/messages.mjs';
+import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages.mjs';
 import type { ProcessUserInputContext } from '../utils/processUserInput/processUserInput.js';
 import type { PastedContent } from '../utils/config.js';
 import { copyPlanForFork, copyPlanForResume, getPlanSlug, setPlanSlug } from '../utils/plans.js';
@@ -260,14 +256,8 @@ import { useMessageActions, MessageActionsKeybindings, MessageActionsBar, type M
 import { setClipboard } from '../ink/termio/osc.js';
 import type { ScrollBoxHandle } from '../ink/components/ScrollBox.js';
 import { createAttachmentMessage, getQueuedCommandAttachments } from '../utils/attachments.js';
-import { RemoteMessageContent } from "src/types/remoteMessage";
 
 // Stubs for ant-only symbols (dead-code-eliminated but still type-checked)
-
-// Stable empty array for hooks that accept MCPServerConnection[] — avoids
-// creating a new [] literal on every render in remote mode, which would
-// cause useEffect dependency changes and infinite re-render loops.
-const EMPTY_MCP_CLIENTS: MCPServerConnection[] = [];
 
 // Stable stub for optional history loading branch — avoids a new
 // function identity each render, which would break composedOnScroll's memo.
@@ -532,11 +522,6 @@ export type Props = {
   disableSlashCommands?: boolean;
   // Task list id: when set, enables tasks mode that watches a task list and auto-processes tasks.
   taskListId?: string;
-  // Remote session config for --remote mode (uses CCR as execution engine)
-  // Direct connect config for `claude connect` mode (connects to a claude server)
-  directConnectConfig?: DirectConnectConfig;
-  // SSH session for `claude ssh` mode (local REPL, remote tools over ssh)
-  sshSession?: SSHSession;
   // Thinking configuration to use when thinking is enabled
   thinkingConfig: ThinkingConfig;
 };
@@ -561,8 +546,6 @@ export function REPL({
   mainThreadAgentDefinition: initialMainThreadAgentDefinition,
   disableSlashCommands = false,
   taskListId,
-  directConnectConfig,
-  sshSession,
   thinkingConfig
 }: Props): React.ReactNode {
   // Env-var gates hoisted to mount-time — isEnvTruthy does toLowerCase+trim+
@@ -1302,28 +1285,6 @@ export function REPL({
   const [inProgressToolUseIDs, setInProgressToolUseIDs] = useState<Set<string>>(new Set());
   const hasInterruptibleToolInProgressRef = useRef(false);
 
-  // Direct connect hook - manages WebSocket to a claude server for `claude connect` mode
-  const directConnect = useDirectConnect({
-    config: directConnectConfig,
-    setMessages,
-    setIsLoading: setIsExternalLoading,
-    setToolUseConfirmQueue,
-    tools: combinedInitialTools
-  });
-
-  // SSH session hook - manages ssh child process for `claude ssh` mode.
-  // Same callback shape as useDirectConnect; only the transport under the
-  // hood differs (ChildProcess stdin/stdout vs WebSocket).
-  const sshRemote = useSSHSession({
-    session: sshSession,
-    setMessages,
-    setIsLoading: setIsExternalLoading,
-    setToolUseConfirmQueue,
-    tools: combinedInitialTools
-  });
-
-  // Use whichever external transport mode is active
-  const activeRemote = sshRemote.isRemoteMode ? sshRemote : directConnect;
   const [pastedContents, setPastedContents] = useState<Record<number, PastedContent>>({});
   const [submitCount, setSubmitCount] = useState(0);
   // Ref instead of state to avoid triggering React re-renders on every
@@ -2008,8 +1969,6 @@ export function REPL({
       }
       setPromptQueue([]);
       abortController?.abort('user-cancel');
-    } else if (activeRemote.isRemoteMode) {
-      activeRemote.cancelRequest();
     } else {
       abortController?.abort('user-cancel');
     }
@@ -3062,11 +3021,6 @@ export function REPL({
       }
     }
 
-    // External transport mode: skip empty input early before any state mutations
-    if (activeRemote.isRemoteMode && !input.trim()) {
-      return;
-    }
-
     // Idle-return: prompt returning users to start fresh when the
     // conversation is large and the cache is cold. tengu_willow_mode
     // controls treatment: "dialog" (blocking), "hint" (notification), "off".
@@ -3114,14 +3068,11 @@ export function REPL({
     // - When loading, the submitted input will be queued and handlePromptSubmit
     //   will clear the input field (onInputChange('')), which would clobber the
     //   restored stash. Defer restoration to after handlePromptSubmit (below).
-    //   External transport mode is exempt: it sends via stream transport and returns early without
-    //   calling handlePromptSubmit, so there's no clobbering risk — restore eagerly.
     // In both deferred cases, the stash is restored after await handlePromptSubmit.
     const isSlashCommand = !speculationAccept && input.trim().startsWith('/');
     // Submit runs "now" (not queued) when not already loading, or when
-    // accepting speculation, or in external transport mode (which sends directly and
-    // returns early without calling handlePromptSubmit).
-    const submitsNow = !isLoading || speculationAccept || activeRemote.isRemoteMode;
+    // accepting speculation.
+    const submitsNow = !isLoading || speculationAccept;
     if (stashedPrompt !== undefined && !isSlashCommand && submitsNow) {
       setInputValue(stashedPrompt.text);
       helpers.setCursorOffset(stashedPrompt.cursorOffset);
@@ -3144,9 +3095,8 @@ export function REPL({
       tipPickedThisTurnRef.current = false;
 
       // Show the placeholder in the same React batch as setInputValue('').
-      // Skip for slash/bash (they have their own echo), speculation and external
-      // transport mode (both setMessages directly with no gap to bridge).
-      if (!isSlashCommand && inputMode === 'prompt' && !speculationAccept && !activeRemote.isRemoteMode) {
+      // Skip for slash/bash (they have their own echo) and speculation.
+      if (!isSlashCommand && inputMode === 'prompt' && !speculationAccept) {
         setUserInputOnProcessing(input);
         // showSpinner includes userInputOnProcessing, so the spinner appears
         // on this render. Reset timing refs now (before queryGuard.reserve()
@@ -3183,45 +3133,6 @@ export function REPL({
         setAbortController(newAbortController);
         void onQuery([], newAbortController, true, [], mainLoopModel);
       }
-      return;
-    }
-
-    if (activeRemote.isRemoteMode) {
-      const pastedValues = Object.values(pastedContents);
-      let remoteContent: RemoteMessageContent = input.trim();
-      if (pastedValues.length > 0) {
-        const remoteBlocks: Array<{
-          type: string;
-          [key: string]: unknown;
-        }> = [];
-        const trimmedInput = input.trim();
-        if (trimmedInput) {
-          remoteBlocks.push({
-            type: 'text',
-            text: trimmedInput
-          });
-        }
-        for (const pasted of pastedValues) {
-          if (pasted.type === 'image') {
-            remoteBlocks.push({
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: (pasted.mediaType ?? 'image/png') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-                data: pasted.content
-              }
-            });
-          } else {
-            remoteBlocks.push({
-              type: 'text',
-              text: pasted.content
-            });
-          }
-        }
-        remoteContent = remoteBlocks;
-      }
-
-      await activeRemote.sendMessage(remoteContent);
       return;
     }
 

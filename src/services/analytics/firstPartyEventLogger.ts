@@ -19,8 +19,7 @@ import { profileCheckpoint } from '../../utils/startupProfiler.js'
 import { getCoreUserData } from '../../utils/user.js'
 import { isAnalyticsDisabled } from './config.js'
 import { FirstPartyEventLoggingExporter } from './firstPartyEventLoggingExporter.js'
-import type { GrowthBookUserAttributes } from './growthbook.js'
-import { getDynamicConfig_CACHED_MAY_BE_STALE } from './growthbook.js'
+import { getFeatureValue_CACHED_MAY_BE_STALE } from './growthbook.js'
 import { getEventMetadata } from './metadata.js'
 import { isSinkKilled } from './sinkKillswitch.js'
 
@@ -41,7 +40,7 @@ const EVENT_SAMPLING_CONFIG_NAME = 'tengu_event_sampling_config'
  * Uses cached value if available, updates cache in background.
  */
 export function getEventSamplingConfig(): EventSamplingConfig {
-  return getDynamicConfig_CACHED_MAY_BE_STALE<EventSamplingConfig>(
+  return getFeatureValue_CACHED_MAY_BE_STALE<EventSamplingConfig>(
     EVENT_SAMPLING_CONFIG_NAME,
     {},
   )
@@ -95,7 +94,7 @@ type BatchConfig = {
   baseUrl?: string
 }
 function getBatchConfig(): BatchConfig {
-  return getDynamicConfig_CACHED_MAY_BE_STALE<BatchConfig>(
+  return getFeatureValue_CACHED_MAY_BE_STALE<BatchConfig>(
     BATCH_CONFIG_NAME,
     {},
   )
@@ -228,75 +227,9 @@ export function logEventTo1P(
   // Fire and forget - don't block on metadata enrichment
   void logEventTo1PAsync(firstPartyEventLogger, eventName, metadata)
 }
-
-/**
- * GrowthBook experiment event data for logging
- */
-export type GrowthBookExperimentData = {
-  experimentId: string
-  variationId: number
-  userAttributes?: GrowthBookUserAttributes
-  experimentMetadata?: Record<string, unknown>
-}
-
 // api.anthropic.com only serves the "production" GrowthBook environment
 // (see starling/starling/cli/cli.py DEFAULT_ENVIRONMENTS). Staging and
 // development environments are not exported to the prod API.
-function getEnvironmentForGrowthBook(): string {
-  return 'production'
-}
-
-/**
- * Log a GrowthBook experiment assignment event to 1P.
- * Events are batched and exported to /api/event_logging/batch
- *
- * @param data - GrowthBook experiment assignment data
- */
-export function logGrowthBookExperimentTo1P(
-  data: GrowthBookExperimentData,
-): void {
-  if (!is1PEventLoggingEnabled()) {
-    return
-  }
-
-  if (!firstPartyEventLogger || isSinkKilled('firstParty')) {
-    return
-  }
-
-  const userId = getOrCreateUserID()
-  const { accountUuid, organizationUuid } = getCoreUserData(true)
-
-  // Build attributes for GrowthbookExperimentEvent
-  const attributes = {
-    event_type: 'GrowthbookExperimentEvent',
-    event_id: randomUUID(),
-    experiment_id: data.experimentId,
-    variation_id: data.variationId,
-    ...(userId && { device_id: userId }),
-    ...(accountUuid && { account_uuid: accountUuid }),
-    ...(organizationUuid && { organization_uuid: organizationUuid }),
-    ...(data.userAttributes && {
-      session_id: data.userAttributes.sessionId,
-      user_attributes: jsonStringify(data.userAttributes),
-    }),
-    ...(data.experimentMetadata && {
-      experiment_metadata: jsonStringify(data.experimentMetadata),
-    }),
-    environment: getEnvironmentForGrowthBook(),
-  }
-
-  if (process.env.USER_TYPE === 'ant') {
-    logForDebugging(
-      `[ANT-ONLY] 1P GrowthBook experiment: ${data.experimentId} variation=${data.variationId}`,
-    )
-  }
-
-  firstPartyEventLogger.emit({
-    body: 'growthbook_experiment',
-    attributes,
-  })
-}
-
 const DEFAULT_LOGS_EXPORT_INTERVAL_MS = 10000
 const DEFAULT_MAX_EXPORT_BATCH_SIZE = 200
 const DEFAULT_MAX_QUEUE_SIZE = 8192
@@ -390,8 +323,8 @@ export function initialize1PEventLogging(): void {
 
 /**
  * Rebuild the 1P event logging pipeline if the batch config changed.
- * Register this with onGrowthBookRefresh so long-running sessions pick up
- * changes to batch size, delay, endpoint, etc.
+ * 将其注册到 onGrowthBookRefresh 上，确保长会话能感知本地配置变更，
+ * 例如 batch size、delay、endpoint 等参数的更新。
  *
  * Event-loss safety:
  * 1. Null the logger first — concurrent logEventTo1P() calls hit the

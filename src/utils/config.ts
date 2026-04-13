@@ -419,11 +419,10 @@ export type GlobalConfig = {
   // Cached statsig dynamic configs
   cachedDynamicConfigs?: { [configName: string]: unknown }
 
-  // Cached GrowthBook feature values
+  // 本地持久化的 GrowthBook 配置值
   cachedGrowthBookFeatures?: { [featureName: string]: unknown }
 
-  // Local GrowthBook overrides (ant-only, set via /config Gates tab).
-  // Checked after env-var overrides but before the real resolved value.
+  // 本地 GrowthBook 覆盖值（仅 ant）
   growthBookOverrides?: { [featureName: string]: unknown }
 
   // Emergency tip tracking - stores the last shown tip to prevent re-showing

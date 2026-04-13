@@ -48,7 +48,6 @@ import {
 import {
   notifySessionStateChanged,
   type RequiresActionDetails,
-  type SessionExternalMetadata,
 } from '../utils/sessionState.js'
 import { jsonParse } from '../utils/slowOperations.js'
 import { Stream } from '../utils/stream.js'
@@ -136,11 +135,6 @@ export class StructuredIO {
   readonly structuredInput: AsyncGenerator<StdinMessage | SDKMessage>
   private readonly pendingRequests = new Map<string, PendingRequest<unknown>>()
 
-  // CCR external_metadata read back on worker start; null when the
-  // transport doesn't restore. Assigned by RemoteIO.
-  restoredWorkerState: Promise<SessionExternalMetadata | null> =
-    Promise.resolve(null)
-
   private inputClosed = false
   private unexpectedResponseCallback?: (
     response: SDKControlResponse,
@@ -184,16 +178,6 @@ export class StructuredIO {
         }
       }
     }
-  }
-
-  /** Flush pending internal events. No-op for non-remote IO. Overridden by RemoteIO. */
-  flushInternalEvents(): Promise<void> {
-    return Promise.resolve()
-  }
-
-  /** Internal-event queue depth. Overridden by RemoteIO; zero otherwise. */
-  get internalEventsPending(): number {
-    return 0
   }
 
   /**
@@ -271,65 +255,6 @@ export class StructuredIO {
   ): void {
     this.unexpectedResponseCallback = callback
   }
-
-  /**
-   * Inject a control_response message to resolve a pending permission request.
-   * Used by the bridge to feed permission responses from claude.ai into the
-   * SDK permission flow.
-   *
-   * Also sends a control_cancel_request to the SDK consumer so its canUseTool
-   * callback is aborted via the signal — otherwise the callback hangs.
-   */
-  injectControlResponse(response: SDKControlResponse): void {
-    const requestId = response.response?.request_id
-    if (!requestId) return
-    const request = this.pendingRequests.get(requestId)
-    if (!request) return
-    this.trackResolvedToolUseId(request.request)
-    this.pendingRequests.delete(requestId)
-    // Cancel the SDK consumer's canUseTool callback — the bridge won.
-    void this.write({
-      type: 'control_cancel_request',
-      request_id: requestId,
-    })
-    if (response.response.subtype === 'error') {
-      request.reject(new Error(response.response.error))
-    } else {
-      const result = response.response.response
-      if (request.schema) {
-        try {
-          request.resolve(request.schema.parse(result))
-        } catch (error) {
-          request.reject(error)
-        }
-      } else {
-        request.resolve({})
-      }
-    }
-  }
-
-  /**
-   * Register a callback invoked whenever a can_use_tool control_request
-   * is written to stdout. Used by the bridge to forward permission
-   * requests to claude.ai.
-   */
-  setOnControlRequestSent(
-    callback: ((request: SDKControlRequest) => void) | undefined,
-  ): void {
-    this.onControlRequestSent = callback
-  }
-
-  /**
-   * Register a callback invoked when a can_use_tool control_response arrives
-   * from the SDK consumer (via stdin). Used by the bridge to cancel the
-   * stale permission prompt on claude.ai when the SDK consumer wins the race.
-   */
-  setOnControlRequestResolved(
-    callback: ((requestId: string) => void) | undefined,
-  ): void {
-    this.onControlRequestResolved = callback
-  }
-
   private async processLine(
     line: string,
   ): Promise<StdinMessage | SDKMessage | undefined> {

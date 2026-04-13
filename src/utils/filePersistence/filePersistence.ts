@@ -7,7 +7,6 @@
  * - 1P/Cloud mode: Query Files API listDirectory for file IDs (rclone handles sync)
  */
 
-import { feature } from 'bun:bundle'
 import { join, relative } from 'path'
 import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
@@ -42,7 +41,7 @@ import {
  * Assembles all config internally:
  * - Checks environment kind (CLAUDE_CODE_ENVIRONMENT_KIND)
  * - Retrieves session access token
- * - Requires CLAUDE_CODE_REMOTE_SESSION_ID for session ID
+ * - Uses the current session ID
  *
  * @param turnStartTime - The timestamp when the turn started
  * @param signal - Optional abort signal for cancellation
@@ -62,12 +61,10 @@ export async function runFilePersistence(
     return null
   }
 
-  const sessionId = process.env.CLAUDE_CODE_REMOTE_SESSION_ID
+  const sessionId = process.env.CLAUDE_CODE_SESSION_ID
   if (!sessionId) {
     logError(
-      new Error(
-        'File persistence enabled but CLAUDE_CODE_REMOTE_SESSION_ID is not set',
-      ),
+      new Error('File persistence enabled but CLAUDE_CODE_SESSION_ID is not set'),
     )
     return null
   }
@@ -266,22 +263,4 @@ export async function executeFilePersistence(
   } catch (error) {
     logError(error)
   }
-}
-
-/**
- * Check if file persistence is enabled.
- * Requires: feature flag ON, valid environment kind, session access token,
- * and CLAUDE_CODE_REMOTE_SESSION_ID.
- * This ensures only public-api/sessions users trigger file persistence,
- * not normal Claude Code CLI users.
- */
-export function isFilePersistenceEnabled(): boolean {
-  if (feature('FILE_PERSISTENCE')) {
-    return (
-      getEnvironmentKind() === 'byoc' &&
-      !!getSessionIngressAuthToken() &&
-      !!process.env.CLAUDE_CODE_REMOTE_SESSION_ID
-    )
-  }
-  return false
 }

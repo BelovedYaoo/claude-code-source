@@ -1,11 +1,10 @@
 import { c as _c } from "react/compiler-runtime";
-import { feature } from 'bun:bundle';
 import type { TextBlockParam } from '@anthropic-ai/sdk/resources/index.mjs';
 import * as React from 'react';
 import { NO_CONTENT_MESSAGE } from '../../constants/messages.js';
 import { COMMAND_MESSAGE_TAG, LOCAL_COMMAND_CAVEAT_TAG, TASK_NOTIFICATION_TAG, TEAMMATE_MESSAGE_TAG } from '../../constants/xml.js';
 import { isAgentSwarmsEnabled } from '../../utils/agentSwarmsEnabled.js';
-import { extractTag, INTERRUPT_MESSAGE, INTERRUPT_MESSAGE_FOR_TOOL_USE } from '../../utils/messages.js';
+import { INTERRUPT_MESSAGE, INTERRUPT_MESSAGE_FOR_TOOL_USE } from '../../utils/messages.js';
 import { InterruptedByUser } from '../InterruptedByUser.js';
 import { MessageResponse } from '../MessageResponse.js';
 import { UserAgentNotificationMessage } from './UserAgentNotificationMessage.js';
@@ -17,9 +16,9 @@ import { UserMemoryInputMessage } from './UserMemoryInputMessage.js';
 import { UserPlanMessage } from './UserPlanMessage.js';
 import { UserPromptMessage } from './UserPromptMessage.js';
 import { UserResourceUpdateMessage } from './UserResourceUpdateMessage.js';
-import { UserCrossSessionMessage } from './UserCrossSessionMessage.js';
 import { UserForkBoilerplateMessage } from './UserForkBoilerplateMessage.js';
 import { UserTeammateMessage } from './UserTeammateMessage.js';
+import { feature } from "bun:bundle";
 type Props = {
   addMargin: boolean;
   param: TextBlockParam;
@@ -172,20 +171,6 @@ export function UserTextMessage(t0: Props) {
         $[35] = t2;
       } else {
         t2 = $[35];
-      }
-      return t2;
-    }
-  }
-  if (feature("UDS_INBOX")) {
-    if (param.text.includes("<cross-session-message")) {
-      let t2;
-      if ($[37] !== addMargin || $[38] !== param) {
-        t2 = <UserCrossSessionMessage addMargin={addMargin} param={param} />;
-        $[37] = addMargin;
-        $[38] = param;
-        $[39] = t2;
-      } else {
-        t2 = $[39];
       }
       return t2;
     }

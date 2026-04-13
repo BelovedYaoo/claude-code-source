@@ -180,8 +180,6 @@ type State = {
   sdkBetas: string[] | undefined
   // Main thread agent type (from --agent flag or settings)
   mainThreadAgentType: string | undefined
-  // Direct connect server URL (for display in header)
-  directConnectServerUrl: string | undefined
   // System prompt section cache state
   systemPromptSectionCache: Map<string, string | null>
   // Last date emitted to the model (for detecting midnight date changes)
@@ -361,8 +359,6 @@ function getInitialState(): State {
           replBridgeActive: false,
         }
       : {}),
-    // Direct connect server URL
-    directConnectServerUrl: undefined,
     // System prompt section cache state
     systemPromptSectionCache: new Map(),
     // Last date emitted to the model
@@ -497,14 +493,6 @@ export function setCwdState(cwd: string): void {
   STATE.cwd = cwd.normalize('NFC')
 }
 
-export function getDirectConnectServerUrl(): string | undefined {
-  return STATE.directConnectServerUrl
-}
-
-export function setDirectConnectServerUrl(url: string): void {
-  STATE.directConnectServerUrl = url
-}
-
 export function addToTotalDurationState(
   duration: number,
   durationWithoutRetries: number,
@@ -512,13 +500,6 @@ export function addToTotalDurationState(
   STATE.totalAPIDuration += duration
   STATE.totalAPIDurationWithoutRetries += durationWithoutRetries
 }
-
-export function resetTotalDurationStateAndCost_FOR_TESTS_ONLY(): void {
-  STATE.totalAPIDuration = 0
-  STATE.totalAPIDurationWithoutRetries = 0
-  STATE.totalCostUSD = 0
-}
-
 export function addToTotalCostState(
   cost: number,
   modelUsage: ModelUsage,
@@ -906,10 +887,6 @@ export function setModelStrings(modelStrings: ModelStrings): void {
 
 // Test utility function to reset model strings for re-initialization.
 // Separate from setModelStrings because we only want to accept 'null' in tests.
-export function resetModelStringsForTestingOnly() {
-  STATE.modelStrings = null
-}
-
 export function setMeter(
   meter: Meter,
   createCounter: (name: string, options: MetricOptions) => AttributedCounter,
@@ -950,11 +927,6 @@ export function setMeter(
     unit: 's',
   })
 }
-
-export function getMeter(): Meter | null {
-  return STATE.meter
-}
-
 export function getSessionCounter(): AttributedCounter | null {
   return STATE.sessionCounter
 }
@@ -1050,29 +1022,8 @@ export function setSdkAgentProgressSummariesEnabled(value: boolean): void {
 export function getStrictToolResultPairing(): boolean {
   return STATE.strictToolResultPairing
 }
-
-export function setStrictToolResultPairing(value: boolean): void {
-  STATE.strictToolResultPairing = value
-}
-
 // Field name 'userMsgOptIn' avoids excluded-string substrings. 调用方在各自能力门控内使用，
 // 这里无需重复增加额外门控。
-export function getUserMsgOptIn(): boolean {
-  return STATE.userMsgOptIn
-}
-
-export function setUserMsgOptIn(value: boolean): void {
-  STATE.userMsgOptIn = value
-}
-
-export function getSessionSource(): string | undefined {
-  return STATE.sessionSource
-}
-
-export function setSessionSource(source: string): void {
-  STATE.sessionSource = source
-}
-
 export function getQuestionPreviewFormat(): 'markdown' | 'html' | undefined {
   return STATE.questionPreviewFormat
 }
@@ -1145,13 +1096,6 @@ export function setLastAPIRequestMessages(
 ): void {
   STATE.lastAPIRequestMessages = messages
 }
-
-export function getLastAPIRequestMessages():
-  | BetaMessageStreamParams['messages']
-  | null {
-  return STATE.lastAPIRequestMessages
-}
-
 export function setLastClassifierRequests(requests: unknown[] | null): void {
   STATE.lastClassifierRequests = requests
 }
@@ -1167,18 +1111,6 @@ export function setCachedClaudeMdContent(content: string | null): void {
 export function getCachedClaudeMdContent(): string | null {
   return STATE.cachedClaudeMdContent
 }
-
-export function addToInMemoryErrorLog(errorInfo: {
-  error: string
-  timestamp: string
-}): void {
-  const MAX_IN_MEMORY_ERRORS = 100
-  if (STATE.inMemoryErrorLog.length >= MAX_IN_MEMORY_ERRORS) {
-    STATE.inMemoryErrorLog.shift() // Remove oldest error
-  }
-  STATE.inMemoryErrorLog.push(errorInfo)
-}
-
 export function getAllowedSettingSources(): SettingSource[] {
   return STATE.allowedSettingSources
 }
@@ -1394,11 +1326,6 @@ export function getRegisteredHooks(): Partial<
 > | null {
   return STATE.registeredHooks
 }
-
-export function clearRegisteredHooks(): void {
-  STATE.registeredHooks = null
-}
-
 export function clearRegisteredPluginHooks(): void {
   if (!STATE.registeredHooks) {
     return
@@ -1453,11 +1380,6 @@ export function addInvokedSkill(
     agentId,
   })
 }
-
-export function getInvokedSkills(): Map<string, InvokedSkillInfo> {
-  return STATE.invokedSkills
-}
-
 export function getInvokedSkillsForAgent(
   agentId: string | undefined | null,
 ): Map<string, InvokedSkillInfo> {
@@ -1662,9 +1584,3 @@ export function getPromptId(): string | null {
 export function setPromptId(id: string | null): void {
   STATE.promptId = id
 }
-
-
-export function isReplBridgeActive(): boolean {
-  return false
-}
-

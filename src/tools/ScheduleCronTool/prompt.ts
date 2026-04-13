@@ -1,10 +1,7 @@
 import { feature } from 'bun:bundle'
-import { getFeatureValue_CACHED_WITH_REFRESH } from '../../services/analytics/growthbook.js'
+import { getFeatureValue_CACHED_MAY_BE_STALE } from '../../services/analytics/growthbook.js'
 import { DEFAULT_CRON_JITTER_CONFIG } from '../../utils/cronTasks.js'
 import { isEnvTruthy } from '../../utils/envUtils.js'
-
-const CRON_REFRESH_MS = 5 * 60 * 1000
-
 export const DEFAULT_MAX_AGE_DAYS =
   DEFAULT_CRON_JITTER_CONFIG.recurringMaxAgeMs / (24 * 60 * 60 * 1000)
 
@@ -33,10 +30,9 @@ export const DEFAULT_MAX_AGE_DAYS =
 export function isCronSchedulingEnabled(): boolean {
   return feature('AGENT_TRIGGERS')
     ? !isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_CRON) &&
-        getFeatureValue_CACHED_WITH_REFRESH(
+    getFeatureValue_CACHED_MAY_BE_STALE(
           'tengu_cron',
           true,
-          CRON_REFRESH_MS,
         )
     : false
 }
@@ -51,10 +47,9 @@ export function isCronSchedulingEnabled(): boolean {
  * scheduler via isCronSchedulingEnabled).
  */
 export function isDurableCronEnabled(): boolean {
-  return getFeatureValue_CACHED_WITH_REFRESH(
+  return getFeatureValue_CACHED_MAY_BE_STALE(
     'tengu_cron_durable',
     true,
-    CRON_REFRESH_MS,
   )
 }
 

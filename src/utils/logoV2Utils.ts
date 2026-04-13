@@ -1,4 +1,4 @@
-import { getDirectConnectServerUrl, getSessionId } from '../bootstrap/state.js'
+import { getSessionId } from '../bootstrap/state.js'
 import { stringWidth } from '../ink/stringWidth.js'
 import type { LogOption } from '../types/logs.js'
 import { getCwd } from './cwd.js'
@@ -223,18 +223,6 @@ export async function getRecentActivity(): Promise<LogOption[]> {
 export function getRecentActivitySync(): LogOption[] {
   return cachedActivity
 }
-
-/**
- * Formats release notes for display, with smart truncation
- */
-export function formatReleaseNoteForDisplay(
-  note: string,
-  maxWidth: number,
-): string {
-  // Simply truncate at the max width, same as Recent Activity descriptions
-  return truncate(note, maxWidth)
-}
-
 /**
  * Gets the common logo display data used by both LogoV2 and CondensedLogo
  */
@@ -245,13 +233,7 @@ export function getLogoDisplayData(): {
   agentName: string | undefined
 } {
   const version = process.env.DEMO_VERSION ?? MACRO.VERSION
-  const serverUrl = getDirectConnectServerUrl()
-  const displayPath = process.env.DEMO_VERSION
-    ? '/code/claude'
-    : getDisplayPath(getCwd())
-  const cwd = serverUrl
-    ? `${displayPath} in ${serverUrl.replace(/^https?:\/\//, '')}`
-    : displayPath
+  const cwd = process.env.DEMO_VERSION ? '/code/claude' : getDisplayPath(getCwd())
   const billingType = 'API Usage Billing'
   const agentName = getInitialSettings().agent
 

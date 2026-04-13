@@ -52,7 +52,7 @@ export type MaxVersionConfig = {
 }
 
 /**
- * Checks if the current version meets the minimum required version from Statsig config
+ * 检查当前版本是否满足本地配置中的最低版本要求
  * Terminates the process with an error message if the version is too old
  *
  * NOTE ON SHA-BASED VERSIONING:
@@ -102,7 +102,7 @@ This will ensure you have access to the latest features and improvements.
  * Returns the maximum allowed version for the current user type.
  * For ants, returns the `ant` field (dev version format).
  * For external users, returns the `external` field (clean semver).
- * This is used as a server-side kill switch to pause auto-updates during incidents.
+ * 该配置可作为本地停更开关，在需要时暂停自动更新。
  * Returns undefined if no cap is configured.
  */
 export async function getMaxVersion(): Promise<string | undefined> {
@@ -114,7 +114,7 @@ export async function getMaxVersion(): Promise<string | undefined> {
 }
 
 /**
- * Returns the server-driven message explaining the known issue, if configured.
+ * 返回配置中定义的提示信息（如果存在）。
  * Shown in the warning banner when the current version exceeds the max allowed version.
  */
 export async function getMaxVersionMessage(): Promise<string | undefined> {
@@ -408,51 +408,6 @@ export async function getGcsDistTags(): Promise<NpmDistTags> {
 
   return { latest, stable }
 }
-
-/**
- * Get version history from npm registry (ant-only feature)
- * Returns versions sorted newest-first, limited to the specified count
- *
- * Uses NATIVE_PACKAGE_URL when available because:
- * 1. Native installation is the primary installation method for ant users
- * 2. Not all JS package versions have corresponding native packages
- * 3. This prevents rollback from listing versions that don't have native binaries
- */
-export async function getVersionHistory(limit: number): Promise<string[]> {
-  if (process.env.USER_TYPE !== 'ant') {
-    return []
-  }
-
-  // Use native package URL when available to ensure we only show versions
-  // that have native binaries (not all JS package versions have native builds)
-  const packageUrl = MACRO.NATIVE_PACKAGE_URL ?? MACRO.PACKAGE_URL
-
-  // Run from home directory to avoid reading project-level .npmrc
-  const result = await execFileNoThrowWithCwd(
-    'npm',
-    ['view', packageUrl, 'versions', '--json', '--prefer-online'],
-    // Longer timeout for version list
-    { abortSignal: AbortSignal.timeout(30000), cwd: homedir() },
-  )
-
-  if (result.code !== 0) {
-    logForDebugging(`npm view versions failed with code ${result.code}`)
-    if (result.stderr) {
-      logForDebugging(`npm stderr: ${result.stderr.trim()}`)
-    }
-    return []
-  }
-
-  try {
-    const versions = jsonParse(result.stdout.trim()) as string[]
-    // Take last N versions, then reverse to get newest first
-    return versions.slice(-limit).reverse()
-  } catch (error) {
-    logForDebugging(`Failed to parse version history: ${error}`)
-    return []
-  }
-}
-
 export async function installGlobalPackage(
   specificVersion?: string | null,
 ): Promise<InstallStatus> {

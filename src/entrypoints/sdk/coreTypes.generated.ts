@@ -11,14 +11,8 @@ import type {
   ApiKeySourceSchema,
   ConfigScopeSchema,
   ThinkingConfigSchema,
-  McpStdioServerConfigSchema,
-  McpSSEServerConfigSchema,
-  McpSdkServerConfigSchema,
   McpServerConfigForProcessTransportSchema,
-  McpClaudeAIProxyServerConfigSchema,
   McpServerStatusSchema,
-  PermissionUpdateDestinationSchema,
-  PermissionBehaviorSchema,
   PermissionRuleValueSchema,
   PermissionUpdateSchema,
   PermissionResultSchema,
@@ -54,8 +48,6 @@ import type {
   AsyncHookJSONOutputSchema,
   SyncHookJSONOutputSchema,
   HookJSONOutputSchema,
-  PromptRequestSchema,
-  PromptResponseSchema,
   ModelInfoSchema,
   AgentDefinitionSchema,
   SettingSourceSchema,
@@ -66,7 +58,6 @@ import type {
   SDKUserMessageReplaySchema,
   SDKRateLimitInfoSchema,
   SDKAssistantMessageSchema,
-  SDKRateLimitEventSchema,
   SDKPermissionDenialSchema,
   SDKCompactBoundaryMessageSchema,
   SDKMessageSchema,
@@ -95,19 +86,13 @@ export type ThinkingConfig = z.infer<ReturnType<typeof ThinkingConfigSchema>>
 // MCP Types
 // ============================================================================
 
-export type McpStdioServerConfig = z.infer<ReturnType<typeof McpStdioServerConfigSchema>>
-export type McpSSEServerConfig = z.infer<ReturnType<typeof McpSSEServerConfigSchema>>
-export type McpSdkServerConfig = z.infer<ReturnType<typeof McpSdkServerConfigSchema>>
 export type McpServerConfigForProcessTransport = z.infer<ReturnType<typeof McpServerConfigForProcessTransportSchema>>
-export type McpClaudeAIProxyServerConfig = z.infer<ReturnType<typeof McpClaudeAIProxyServerConfigSchema>>
 export type McpServerStatus = z.infer<ReturnType<typeof McpServerStatusSchema>>
 
 // ============================================================================
 // Permission Types
 // ============================================================================
 
-export type PermissionUpdateDestination = z.infer<ReturnType<typeof PermissionUpdateDestinationSchema>>
-export type PermissionBehavior = z.infer<ReturnType<typeof PermissionBehaviorSchema>>
 export type PermissionRuleValue = z.infer<ReturnType<typeof PermissionRuleValueSchema>>
 export type PermissionUpdate = z.infer<ReturnType<typeof PermissionUpdateSchema>>
 export type PermissionResult = z.infer<ReturnType<typeof PermissionResultSchema>>
@@ -158,9 +143,6 @@ export type HookJSONOutput = z.infer<ReturnType<typeof HookJSONOutputSchema>>
 // Prompt & UI Types
 // ============================================================================
 
-export type PromptRequest = z.infer<ReturnType<typeof PromptRequestSchema>>
-export type PromptResponse = z.infer<ReturnType<typeof PromptResponseSchema>>
-
 // ============================================================================
 // Agent & Model Types
 // ============================================================================
@@ -180,7 +162,6 @@ export type SDKUserMessage = z.infer<ReturnType<typeof SDKUserMessageSchema>>
 export type SDKUserMessageReplay = z.infer<ReturnType<typeof SDKUserMessageReplaySchema>>
 export type SDKRateLimitInfo = z.infer<ReturnType<typeof SDKRateLimitInfoSchema>>
 export type SDKAssistantMessage = z.infer<ReturnType<typeof SDKAssistantMessageSchema>>
-export type SDKRateLimitEvent = z.infer<ReturnType<typeof SDKRateLimitEventSchema>>
 export type SDKPermissionDenial = z.infer<ReturnType<typeof SDKPermissionDenialSchema>>
 export type SDKCompactBoundaryMessage = z.infer<ReturnType<typeof SDKCompactBoundaryMessageSchema>>
 export type SDKMessage = z.infer<ReturnType<typeof SDKMessageSchema>>

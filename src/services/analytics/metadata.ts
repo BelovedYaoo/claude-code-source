@@ -11,7 +11,6 @@ import memoize from 'lodash-es/memoize.js'
 import { env, getHostPlatformForAnalytics } from '../../utils/env.js'
 import { envDynamic } from '../../utils/envDynamic.js'
 import { isEnvTruthy } from '../../utils/envUtils.js'
-import { isOfficialMcpUrl } from '../mcp/officialRegistry.js'
 import { COMPUTER_USE_MCP_SERVER_NAME } from '../../utils/computerUse/common.js'
 import {
   getWslVersion,
@@ -74,34 +73,6 @@ export function isToolDetailsLoggingEnabled(): boolean {
 }
 
 /**
- * Check if detailed tool name logging (MCP server/tool names) is enabled
- * for analytics events.
- *
- * Per go/taxonomy, MCP names are medium PII. We log them for:
- * - Cowork (entrypoint=local-agent) — no ZDR concept, log all MCPs
- * - claude.ai-proxied connectors — always official (from claude.ai's list)
- * - Servers whose URL matches the official MCP registry — directory
- *   connectors added via `claude mcp add`, not customer-specific config
- *
- * Custom/user-configured MCPs stay sanitized (toolName='mcp_tool').
- */
-export function isAnalyticsToolDetailsLoggingEnabled(
-  mcpServerType: string | undefined,
-  mcpServerBaseUrl: string | undefined,
-): boolean {
-  if (process.env.CLAUDE_CODE_ENTRYPOINT === 'local-agent') {
-    return true
-  }
-  if (mcpServerType === 'claudeai-proxy') {
-    return true
-  }
-  if (mcpServerBaseUrl && isOfficialMcpUrl(mcpServerBaseUrl)) {
-    return true
-  }
-  return false
-}
-
-/**
  * Built-in first-party MCP servers whose names are fixed reserved strings,
  * not user-configured — so logging them is not PII. Checked in addition to
  * isAnalyticsToolDetailsLoggingEnabled's transport/URL gates, which a stdio
@@ -114,35 +85,6 @@ export function isAnalyticsToolDetailsLoggingEnabled(
 const BUILTIN_MCP_SERVER_NAMES: ReadonlySet<string> = new Set(
   feature('CHICAGO_MCP') ? [COMPUTER_USE_MCP_SERVER_NAME] : [],
 )
-
-/**
- * Spreadable helper for logEvent payloads — returns {mcpServerName, mcpToolName}
- * if the gate passes, empty object otherwise. Consolidates the identical IIFE
- * pattern at each tengu_tool_use_* call site.
- */
-export function mcpToolDetailsForAnalytics(
-  toolName: string,
-  mcpServerType: string | undefined,
-  mcpServerBaseUrl: string | undefined,
-): {
-  mcpServerName?: AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
-  mcpToolName?: AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
-} {
-  const details = extractMcpToolDetails(toolName)
-  if (!details) {
-    return {}
-  }
-  if (
-    !BUILTIN_MCP_SERVER_NAMES.has(details.serverName) &&
-    !isAnalyticsToolDetailsLoggingEnabled(mcpServerType, mcpServerBaseUrl)
-  ) {
-    return {}
-  }
-  return {
-    mcpServerName: details.serverName,
-    mcpToolName: details.mcpToolName,
-  }
-}
 
 /**
  * Extract MCP server and tool names from a full MCP tool name.

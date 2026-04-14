@@ -34,12 +34,6 @@ export type InstallStatus =
   | 'install_failed'
   | 'in_progress'
 
-export type AutoUpdaterResult = {
-  version: string | null
-  status: InstallStatus
-  notifications?: string[]
-}
-
 export type MaxVersionConfig = {
   external?: string
   ant?: string

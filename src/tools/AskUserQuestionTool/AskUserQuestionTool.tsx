@@ -75,7 +75,6 @@ type OutputSchema = ReturnType<typeof outputSchema>;
 // SDK schemas are identical to internal schemas now that `preview` and
 // `annotations` are public (configurable via `toolConfig.askUserQuestion`).
 export type Question = z.infer<ReturnType<typeof questionSchema>>;
-export type QuestionOption = z.infer<ReturnType<typeof questionOptionSchema>>;
 export type Output = z.infer<OutputSchema>;
 function AskUserQuestionResultMessage(t0) {
   const $ = _c(3);

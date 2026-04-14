@@ -40,45 +40,6 @@ type MockHeaders = {
   'anthropic-ratelimit-unified-overage-surpassed-threshold'?: string
 }
 
-export type MockHeaderKey =
-  | 'status'
-  | 'reset'
-  | 'claim'
-  | 'overage-status'
-  | 'overage-reset'
-  | 'overage-disabled-reason'
-  | 'fallback'
-  | 'fallback-percentage'
-  | 'retry-after'
-  | '5h-utilization'
-  | '5h-reset'
-  | '5h-surpassed-threshold'
-  | '7d-utilization'
-  | '7d-reset'
-  | '7d-surpassed-threshold'
-
-export type MockScenario =
-  | 'normal'
-  | 'session-limit-reached'
-  | 'approaching-weekly-limit'
-  | 'weekly-limit-reached'
-  | 'overage-active'
-  | 'overage-warning'
-  | 'overage-exhausted'
-  | 'out-of-credits'
-  | 'org-zero-credit-limit'
-  | 'org-spend-cap-hit'
-  | 'member-zero-credit-limit'
-  | 'seat-tier-zero-credit-limit'
-  | 'opus-limit'
-  | 'opus-warning'
-  | 'sonnet-limit'
-  | 'sonnet-warning'
-  | 'fast-mode-limit'
-  | 'fast-mode-short-limit'
-  | 'extra-usage-required'
-  | 'clear'
-
 let mockHeaders: MockHeaders = {}
 let mockEnabled = false
 let mockHeaderless429Message: string | null = null
@@ -169,14 +130,6 @@ function updateRepresentativeClaim(): void {
 // hoursFromNow: hours until reset (default: 4 for 5h, 120 for 7d)
 
 // Clear mock early warning headers
-export function clearMockEarlyWarning(): void {
-  delete mockHeaders['anthropic-ratelimit-unified-5h-utilization']
-  delete mockHeaders['anthropic-ratelimit-unified-5h-reset']
-  delete mockHeaders['anthropic-ratelimit-unified-5h-surpassed-threshold']
-  delete mockHeaders['anthropic-ratelimit-unified-7d-utilization']
-  delete mockHeaders['anthropic-ratelimit-unified-7d-reset']
-  delete mockHeaders['anthropic-ratelimit-unified-7d-surpassed-threshold']
-}
 
 export function getMockHeaderless429Message(): string | null {
   if (process.env.USER_TYPE !== 'ant') {

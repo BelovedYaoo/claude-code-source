@@ -394,16 +394,6 @@ class Project {
 
   constructor() {}
 
-  /** @internal Reset flush/queue state for testing. */
-  _resetFlushState(): void {
-    this.pendingWriteCount = 0
-    this.flushResolvers = []
-    if (this.flushTimer) clearTimeout(this.flushTimer)
-    this.flushTimer = null
-    this.activeDrain = null
-    this.writeQueues = new Map()
-  }
-
   private incrementPendingWrites(): void {
     this.pendingWriteCount++
   }
@@ -3726,36 +3716,6 @@ export async function getAgentTranscript(agentId: AgentId): Promise<{
   } catch {
     return null
   }
-}
-
-/**
- * Load subagent transcripts for the given agent IDs
- */
-export async function loadSubagentTranscripts(
-  agentIds: string[],
-): Promise<{ [agentId: string]: Message[] }> {
-  const results = await Promise.all(
-    agentIds.map(async agentId => {
-      try {
-        const result = await getAgentTranscript(asAgentId(agentId))
-        if (result && result.messages.length > 0) {
-          return { agentId, transcript: result.messages }
-        }
-        return null
-      } catch {
-        // Skip if transcript can't be loaded
-        return null
-      }
-    }),
-  )
-
-  const transcripts: { [agentId: string]: Message[] } = {}
-  for (const result of results) {
-    if (result) {
-      transcripts[result.agentId] = result.transcript
-    }
-  }
-  return transcripts
 }
 
 // Globs the session's subagents dir directly — unlike AppState.tasks, this survives task eviction.

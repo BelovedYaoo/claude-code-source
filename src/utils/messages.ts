@@ -4228,19 +4228,6 @@ export function createPermissionRetryMessage(
   }
 }
 
-export function createScheduledTaskFireMessage(
-  content: string,
-): SystemScheduledTaskFireMessage {
-  return {
-    type: 'system',
-    subtype: 'scheduled_task_fire',
-    content,
-    isMeta: false,
-    timestamp: new Date().toISOString(),
-    uuid: randomUUID(),
-  }
-}
-
 export function createStopHookSummaryMessage(
   hookCount: number,
   hookInfos: StopHookInfo[],

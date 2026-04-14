@@ -13,7 +13,6 @@ import {
   type SerializedMessage,
   sortLogs,
 } from '../types/logs.js'
-import { CACHE_PATHS } from './cachePaths.js'
 import { stripDisplayTags, stripDisplayTagsAllowEmpty } from './displayTags.js'
 import { isEnvTruthy } from './envUtils.js'
 import { toError } from './errors.js'
@@ -194,14 +193,6 @@ export function logError(error: unknown): void {
 
 export function getInMemoryErrors(): { error: string; timestamp: string }[] {
   return [...inMemoryErrorLog]
-}
-
-/**
- * Loads the list of error logs
- * @returns List of error logs sorted by date
- */
-export function loadErrorLogs(): Promise<LogOption[]> {
-  return loadLogList(CACHE_PATHS.errors())
 }
 
 /**

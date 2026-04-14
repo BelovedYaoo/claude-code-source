@@ -19,7 +19,7 @@ import { enqueueSdkEvent } from '../sdkEventQueue.js'
 import { getTaskOutputDelta, getTaskOutputPath } from './diskOutput.js'
 
 // Standard polling interval for all tasks
-export const POLL_INTERVAL_MS = 1000
+
 
 // Duration to display killed tasks before eviction
 export const STOPPED_DISPLAY_MS = 3_000

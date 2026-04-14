@@ -1,7 +1,6 @@
 import memoize from 'lodash-es/memoize.js'
 import { homedir } from 'os'
 import { join } from 'path'
-import { checkProtectedNamespace } from './protectedNamespace.js'
 
 // Memoized: 150+ callers, many on hot paths. Keyed off CLAUDE_CONFIG_DIR so
 // tests that change the env var get a fresh value without explicit cache.clear.
@@ -121,26 +120,6 @@ export function isRunningOnHomespace(): boolean {
     process.env.USER_TYPE === 'ant' &&
     isEnvTruthy(process.env.COO_RUNNING_ON_HOMESPACE)
   )
-}
-
-/**
- * Conservative check for whether Claude Code is running inside a protected
- * (privileged or ASL3+) COO namespace or cluster.
- *
- * Conservative means: when signals are ambiguous, assume protected. We would
- * rather over-report protected usage than miss it. Unprotected environments
- * are homespace, namespaces on the open allowlist, and no k8s/COO signals
- * at all (laptop/local dev).
- *
- * Used for telemetry to measure auto-mode usage in sensitive environments.
- */
-export function isInProtectedNamespace(): boolean {
-  // USER_TYPE is build-time --define'd; in external builds this block is
-  // DCE'd so受保护命名空间检查不会进入 bundle。
-  if (process.env.USER_TYPE === 'ant') {
-    return checkProtectedNamespace()
-  }
-  return false
 }
 
 // @[MODEL LAUNCH]: Add a Vertex region override env var for the new model.

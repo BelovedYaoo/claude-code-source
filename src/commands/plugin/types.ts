@@ -1,12 +1,3 @@
-import type { CommandResultDisplay } from '../../commands.js'
-
-export type PluginSettingsProps = {
-  onComplete: (result?: string, options?: { display?: CommandResultDisplay }) => void
-  targetPlugin?: string
-  targetMarketplace?: string
-  action?: 'enable' | 'disable' | 'uninstall' | 'add' | 'remove'
-}
-
 export type ViewState =
   | { type: 'menu' }
   | { type: 'help' }

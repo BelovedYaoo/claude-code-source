@@ -233,11 +233,6 @@ export type HookProgress = {
   statusMessage?: string
 }
 
-export type HookBlockingError = {
-  blockingError: string
-  command: string
-}
-
 export type PermissionRequestResult =
   | {
       behavior: 'allow'

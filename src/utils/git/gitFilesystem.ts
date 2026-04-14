@@ -569,10 +569,6 @@ export function getCachedBranch(): Promise<string> {
   return gitWatcher.get('branch', computeBranch)
 }
 
-export function getCachedHead(): Promise<string> {
-  return gitWatcher.get('head', computeHead)
-}
-
 export function getCachedRemoteUrl(): Promise<string | null> {
   return gitWatcher.get('remoteUrl', computeRemoteUrl)
 }
@@ -632,26 +628,6 @@ export async function readWorktreeHeadSha(
     return resolveRef(gitDir, `refs/heads/${head.name}`)
   }
   return head.sha
-}
-
-/**
- * Read the remote origin URL for an arbitrary directory via .git/config.
- */
-export async function getRemoteUrlForDir(cwd: string): Promise<string | null> {
-  const gitDir = await resolveGitDir(cwd)
-  if (!gitDir) {
-    return null
-  }
-  const url = await parseGitConfigValue(gitDir, 'remote', 'origin', 'url')
-  if (url) {
-    return url
-  }
-  // In worktrees, the config with remote URLs is in the common dir
-  const commonDir = await getCommonDir(gitDir)
-  if (commonDir && commonDir !== gitDir) {
-    return parseGitConfigValue(commonDir, 'remote', 'origin', 'url')
-  }
-  return null
 }
 
 /**

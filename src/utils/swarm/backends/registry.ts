@@ -8,7 +8,6 @@ import {
   isIt2CliAvailable,
   isTmuxAvailable,
 } from './detection.js'
-import { createInProcessBackend } from './InProcessBackend.js'
 import { getPreferTmuxOverIterm2 } from './it2Setup.js'
 import { createPaneBackendExecutor } from './PaneBackendExecutor.js'
 import { getTeammateModeFromSnapshot } from './teammateModeSnapshot.js'
@@ -386,26 +385,6 @@ export function isInProcessEnabled(): boolean {
     `[BackendRegistry] isInProcessEnabled: ${enabled} (mode=${mode}, insideTmux=${isInsideTmuxSync()}, inITerm2=${isInITerm2()})`,
   )
   return enabled
-}
-
-/**
- * Returns the resolved teammate executor mode for this session.
- * Unlike getTeammateModeFromSnapshot which may return 'auto', this returns
- * what 'auto' actually resolves to given the current environment.
- */
-export function getResolvedTeammateMode(): 'in-process' | 'tmux' {
-  return isInProcessEnabled() ? 'in-process' : 'tmux'
-}
-
-/**
- * Gets the InProcessBackend instance.
- * Creates and caches the instance on first call.
- */
-export function getInProcessBackend(): TeammateExecutor {
-  if (!cachedInProcessBackend) {
-    cachedInProcessBackend = createInProcessBackend()
-  }
-  return cachedInProcessBackend
 }
 
 /**

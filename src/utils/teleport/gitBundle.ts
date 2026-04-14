@@ -19,16 +19,6 @@ const DEFAULT_BUNDLE_MAX_BYTES = 100 * 1024 * 1024
 
 type BundleScope = 'all' | 'head' | 'squashed'
 
-export type BundleUploadResult =
-  | {
-      success: true
-      fileId: string
-      bundleSizeBytes: number
-      scope: BundleScope
-      hasWip: boolean
-    }
-  | { success: false; error: string; failReason?: BundleFailReason }
-
 type BundleFailReason = 'git_error' | 'too_large' | 'empty_repo'
 
 type BundleCreateResult =

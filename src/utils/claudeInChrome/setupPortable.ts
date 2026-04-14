@@ -1,5 +1,4 @@
 import { readdir } from 'fs/promises'
-import { homedir } from 'os'
 import { join } from 'path'
 import { isFsInaccessible } from '../errors.js'
 
@@ -88,50 +87,6 @@ const CHROMIUM_BROWSERS: Record<ChromiumBrowser, BrowserDataConfig> = {
     linux: ['.config', 'opera'],
     windows: { path: ['Opera Software', 'Opera Stable'], useRoaming: true },
   },
-}
-
-/**
- * Get all browser data paths to check for extension installation.
- * Portable version that uses process.platform directly.
- */
-export function getAllBrowserDataPathsPortable(): BrowserPath[] {
-  const home = homedir()
-  const paths: BrowserPath[] = []
-
-  for (const browserId of BROWSER_DETECTION_ORDER) {
-    const config = CHROMIUM_BROWSERS[browserId]
-    let dataPath: string[] | undefined
-
-    switch (process.platform) {
-      case 'darwin':
-        dataPath = config.macos
-        break
-      case 'linux':
-        dataPath = config.linux
-        break
-      case 'win32': {
-        if (config.windows.path.length > 0) {
-          const appDataBase = config.windows.useRoaming
-            ? join(home, 'AppData', 'Roaming')
-            : join(home, 'AppData', 'Local')
-          paths.push({
-            browser: browserId,
-            path: join(appDataBase, ...config.windows.path),
-          })
-        }
-        continue
-      }
-    }
-
-    if (dataPath && dataPath.length > 0) {
-      paths.push({
-        browser: browserId,
-        path: join(home, ...dataPath),
-      })
-    }
-  }
-
-  return paths
 }
 
 /**

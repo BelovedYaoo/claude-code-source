@@ -163,15 +163,6 @@ export async function checkTmuxAvailable(): Promise<boolean> {
 }
 
 /**
- * Returns the cached tmux availability status.
- * Returns false if availability hasn't been checked yet.
- * Use checkTmuxAvailable() to perform the check.
- */
-export function isTmuxAvailable(): boolean {
-  return tmuxAvailabilityChecked && tmuxAvailable
-}
-
-/**
  * Returns whether the Tmux tool has been used at least once.
  * Used by Shell.ts to decide whether to initialize the socket.
  */

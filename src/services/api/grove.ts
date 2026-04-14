@@ -31,16 +31,6 @@ export const getGroveSettings = memoize(
   },
 )
 
-export async function markGroveNoticeViewed(): Promise<void> {
-  getGroveSettings.cache.clear?.()
-}
-
-export async function updateGroveSettings(
-  _groveEnabled: boolean,
-): Promise<void> {
-  getGroveSettings.cache.clear?.()
-}
-
 export const getGroveNoticeConfig = memoize(
   async (): Promise<ApiResult<GroveConfig>> => {
     if (isEssentialTrafficOnly()) {
@@ -58,44 +48,4 @@ export const getGroveNoticeConfig = memoize(
     }
   },
 )
-
-export function calculateShouldShowGrove(
-  settingsResult: ApiResult<AccountSettings>,
-  configResult: ApiResult<GroveConfig>,
-  showIfAlreadyViewed: boolean,
-): boolean {
-  if (!settingsResult.success || !configResult.success) {
-    return false
-  }
-
-  const settings = settingsResult.data
-  const config = configResult.data
-
-  if (!config.grove_enabled || config.domain_excluded) {
-    return false
-  }
-
-  const hasChosen = settings.grove_enabled !== null
-  if (hasChosen) {
-    return false
-  }
-  if (showIfAlreadyViewed) {
-    return true
-  }
-  if (!config.notice_is_grace_period) {
-    return true
-  }
-
-  const reminderFrequency = config.notice_reminder_frequency
-  if (reminderFrequency !== null && settings.grove_notice_viewed_at) {
-    const daysSinceViewed = Math.floor(
-      (Date.now() - new Date(settings.grove_notice_viewed_at).getTime()) /
-        (1000 * 60 * 60 * 24),
-    )
-    return daysSinceViewed >= reminderFrequency
-  }
-
-  const viewedAt = settings.grove_notice_viewed_at
-  return viewedAt === null || viewedAt === undefined
-}
 

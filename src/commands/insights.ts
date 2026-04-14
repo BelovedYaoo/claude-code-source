@@ -2621,29 +2621,6 @@ function generateHtmlReport(
 // Export Types & Functions
 // ============================================================================
 
-/**
- * Structured export format for claudescope consumption
- */
-export type InsightsExport = {
-  metadata: {
-    username: string
-    generated_at: string
-    claude_code_version: string
-    date_range: { start: string; end: string }
-    session_count: number
-    remote_hosts_collected?: string[]
-  }
-  aggregated_data: AggregatedData
-  insights: InsightResults
-  facets_summary?: {
-    total: number
-    goal_categories: Record<string, number>
-    outcomes: Record<string, number>
-    satisfaction: Record<string, number>
-    friction: Record<string, number>
-  }
-}
-
 // ============================================================================
 // Lite Session Scanning
 // ============================================================================

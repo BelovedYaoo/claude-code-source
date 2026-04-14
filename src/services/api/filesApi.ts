@@ -568,15 +568,6 @@ export async function uploadSessionFiles(
 // List Files Functions (1P/Cloud mode)
 // ============================================================================
 
-/**
- * File metadata returned from listFilesCreatedAfter
- */
-export type FileMetadata = {
-  filename: string
-  fileId: string
-  size: number
-}
-
 // ============================================================================
 // Parse Functions
 // ============================================================================

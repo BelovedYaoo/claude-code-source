@@ -128,9 +128,6 @@ let hasFormattedOutput = false
 export function setHasFormattedOutput(value: boolean): void {
   hasFormattedOutput = value
 }
-export function getHasFormattedOutput(): boolean {
-  return hasFormattedOutput
-}
 
 let debugWriter: BufferedWriter | null = null
 let pendingWrite: Promise<void> = Promise.resolve()

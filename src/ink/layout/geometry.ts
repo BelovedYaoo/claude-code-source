@@ -20,13 +20,6 @@ export type Edges = {
 
 /** Create uniform edges */
 export function edges(all: number): Edges
-export function edges(vertical: number, horizontal: number): Edges
-export function edges(
-  top: number,
-  right: number,
-  bottom: number,
-  left: number,
-): Edges
 export function edges(a: number, b?: number, c?: number, d?: number): Edges {
   if (b === undefined) {
     return { top: a, right: a, bottom: a, left: a }

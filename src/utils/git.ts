@@ -12,7 +12,6 @@ import { getFsImplementation } from './fsOperations.js'
 import {
   getCachedBranch,
   getCachedDefaultBranch,
-  getCachedHead,
   getCachedRemoteUrl,
   getWorktreeCountFromFs,
   isShallowClone as isShallowCloneFs,
@@ -235,9 +234,7 @@ export const dirIsInGitRepo = async (cwd: string): Promise<boolean> => {
   return findGitRoot(cwd) !== null
 }
 
-export const getHead = async (): Promise<string> => {
-  return getCachedHead()
-}
+
 
 export const getBranch = async (): Promise<string> => {
   return getCachedBranch()
@@ -318,27 +315,11 @@ export async function getRepoRemoteHash(): Promise<string | null> {
   return hash.substring(0, 16)
 }
 
-export const getIsHeadOnRemote = async (): Promise<boolean> => {
-  const { code } = await execFileNoThrow(gitExe(), ['rev-parse', '@{u}'], {
-    preserveOutputOnError: false,
-  })
-  return code === 0
-}
 
 
 
-export const getIsClean = async (options?: {
-  ignoreUntracked?: boolean
-}): Promise<boolean> => {
-  const args = ['--no-optional-locks', 'status', '--porcelain']
-  if (options?.ignoreUntracked) {
-    args.push('-uno')
-  }
-  const { stdout } = await execFileNoThrow(gitExe(), args, {
-    preserveOutputOnError: false,
-  })
-  return stdout.trim().length === 0
-}
+
+
 
 export const getChangedFiles = async (): Promise<string[]> => {
   const { stdout } = await execFileNoThrow(
@@ -355,55 +336,11 @@ export const getChangedFiles = async (): Promise<string[]> => {
     .filter(line => typeof line === 'string') // Remove empty entries
 }
 
-export type GitFileStatus = {
-  tracked: string[]
-  untracked: string[]
-}
-
-export const getFileStatus = async (): Promise<GitFileStatus> => {
-  const { stdout } = await execFileNoThrow(
-    gitExe(),
-    ['--no-optional-locks', 'status', '--porcelain'],
-    {
-      preserveOutputOnError: false,
-    },
-  )
-
-  const tracked: string[] = []
-  const untracked: string[] = []
-
-  stdout
-    .trim()
-    .split('\n')
-    .filter(line => line.length > 0)
-    .forEach(line => {
-      const status = line.substring(0, 2)
-      const filename = line.substring(2).trim()
-
-      if (status === '??') {
-        untracked.push(filename)
-      } else if (filename) {
-        tracked.push(filename)
-      }
-    })
-
-  return { tracked, untracked }
-}
 
 export const getWorktreeCount = async (): Promise<number> => {
   return getWorktreeCountFromFs()
 }
 
-
-
-export type GitRepoState = {
-  commitHash: string
-  branchName: string
-  remoteUrl: string | null
-  isHeadOnRemote: boolean
-  isClean: boolean
-  worktreeCount: number
-}
 
 export async function getGithubRepo(): Promise<string | null> {
   const { parseGitRemote } = await import('./detectRepository.js')
@@ -424,30 +361,6 @@ export async function getGithubRepo(): Promise<string | null> {
   return null
 }
 
-/**
- * Preserved git state for issue submission.
- * Uses remote base (e.g., origin/main) which is rarely force-pushed,
- * unlike local commits that can be GC'd after force push.
- */
-export type PreservedGitState = {
-  /** The SHA of the merge-base with the remote branch */
-  remote_base_sha: string | null
-  /** The remote branch used (e.g., "origin/main") */
-  remote_base: string | null
-  /** Patch from merge-base to current state (includes uncommitted changes) */
-  patch: string
-  /** Untracked files with their contents */
-  untracked_files: Array<{ path: string; content: string }>
-  /** git format-patch output for committed changes between merge-base and HEAD.
-   *  Used to reconstruct the actual commit chain (author, date, message) in
-   *  replay containers. null when there are no commits between merge-base and HEAD. */
-  format_patch: string | null
-  /** The current HEAD SHA (tip of the feature branch) */
-  head_sha: string | null
-  /** The current branch name (e.g., "feat/my-feature") */
-  branch_name: string | null
-}
-
 // Size limits for untracked file capture
 const MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024 // 500MB per file
 const MAX_TOTAL_SIZE_BYTES = 5 * 1024 * 1024 * 1024 // 5GB total
@@ -458,53 +371,6 @@ const MAX_FILE_COUNT = 20000
 // only its first 8KB for the binary heuristic, so the extra bytes are
 // purely for avoiding a second read when the file turns out to be text.
 const SNIFF_BUFFER_SIZE = 64 * 1024
-
-/**
- * Find the best remote branch to use as a base.
- * Priority: tracking branch > origin/main > origin/staging > origin/master
- */
-export async function findRemoteBase(): Promise<string | null> {
-  // First try: get the tracking branch for the current branch
-  const { stdout: trackingBranch, code: trackingCode } = await execFileNoThrow(
-    gitExe(),
-    ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'],
-    { preserveOutputOnError: false },
-  )
-
-  if (trackingCode === 0 && trackingBranch.trim()) {
-    return trackingBranch.trim()
-  }
-
-  // Second try: check for common default branch names on origin
-  const { stdout: remoteRefs, code: remoteCode } = await execFileNoThrow(
-    gitExe(),
-    ['remote', 'show', 'origin', '--', 'HEAD'],
-    { preserveOutputOnError: false },
-  )
-
-  if (remoteCode === 0) {
-    // Parse the default branch from remote show output
-    const match = remoteRefs.match(/HEAD branch: (\S+)/)
-    if (match && match[1]) {
-      return `origin/${match[1]}`
-    }
-  }
-
-  // Third try: check which common branches exist
-  const candidates = ['origin/main', 'origin/staging', 'origin/master']
-  for (const candidate of candidates) {
-    const { code } = await execFileNoThrow(
-      gitExe(),
-      ['rev-parse', '--verify', candidate],
-      { preserveOutputOnError: false },
-    )
-    if (code === 0) {
-      return candidate
-    }
-  }
-
-  return null
-}
 
 /**
  * Check if we're in a shallow clone by looking for <gitDir>/shallow.

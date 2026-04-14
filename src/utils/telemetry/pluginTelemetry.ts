@@ -16,7 +16,7 @@ import { type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS } from 
 import type {
   LoadedPlugin,
   PluginError,
-  PluginManifest,
+
 } from '../../types/plugin.js'
 import {
   isOfficialMarketplaceName,
@@ -76,17 +76,6 @@ export function getTelemetryPluginScope(
 }
 
 /**
- * How a plugin arrived in the session. Splits self-selected from org-pushed
- * — plugin_scope alone doesn't (an official plugin can be user-installed OR
- * org-pushed; both are scope='official').
- */
-export type EnabledVia =
-  | 'user-install'
-  | 'org-policy'
-  | 'default-enable'
-  | 'seed-mount'
-
-/**
  * Common plugin telemetry fields keyed off name@marketplace. Returns the
  * hash, scope enum, and the redacted-twin columns. Callers add the raw
  * _PROTO_* fields separately (those require the PII-tagged marker type).
@@ -125,25 +114,6 @@ export function buildPluginTelemetryFields(
 }
 
 /**
- * Per-invocation callers (SkillTool, processSlashCommand) pass
- * managedNames=null — the session-level tengu_plugin_enabled_for_session
- * event carries the authoritative plugin_scope, and per-invocation rows can
- * join on plugin_id_hash to recover it. This keeps hot-path call sites free
- * of the extra settings read.
- */
-export function buildPluginCommandTelemetryFields(
-  pluginInfo: { pluginManifest: PluginManifest; repository: string },
-  managedNames: Set<string> | null = null,
-): ReturnType<typeof buildPluginTelemetryFields> {
-  const { marketplace } = parsePluginIdentifier(pluginInfo.repository)
-  return buildPluginTelemetryFields(
-    pluginInfo.pluginManifest.name,
-    marketplace,
-    managedNames,
-  )
-}
-
-/**
  * Emit tengu_plugin_enabled_for_session once per enabled plugin at session
  * start. Supplements tengu_skill_loaded (which still fires per-skill) — use
  * this for plugin-level aggregates instead of DISTINCT-on-prefix hacks.
@@ -157,41 +127,6 @@ export function logPluginsEnabledForSession(
   for (const plugin of plugins) {
     const { marketplace } = parsePluginIdentifier(plugin.repository)
   }
-}
-
-/**
- * Bounded-cardinality error bucket for CLI plugin operation failures.
- * Maps free-form error messages to 5 stable categories so dashboard
- * GROUP BY stays tractable.
- */
-export type PluginCommandErrorCategory =
-  | 'network'
-  | 'not-found'
-  | 'permission'
-  | 'validation'
-  | 'unknown'
-
-export function classifyPluginCommandError(
-  error: unknown,
-): PluginCommandErrorCategory {
-  const msg = String((error as { message?: unknown })?.message ?? error)
-  if (
-    /ENOTFOUND|ECONNREFUSED|EAI_AGAIN|ETIMEDOUT|ECONNRESET|network|Could not resolve|Connection refused|timed out/i.test(
-      msg,
-    )
-  ) {
-    return 'network'
-  }
-  if (/\b404\b|not found|does not exist|no such plugin/i.test(msg)) {
-    return 'not-found'
-  }
-  if (/\b40[13]\b|EACCES|EPERM|permission denied|unauthorized/i.test(msg)) {
-    return 'permission'
-  }
-  if (/invalid|malformed|schema|validation|parse error/i.test(msg)) {
-    return 'validation'
-  }
-  return 'unknown'
 }
 
 /**

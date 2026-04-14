@@ -68,7 +68,4 @@ export function getClearTerminalSequence(): string {
   return ERASE_SCREEN + ERASE_SCROLLBACK + CURSOR_HOME
 }
 
-/**
- * Clears the terminal screen. On supported terminals, also clears scrollback.
- */
-export const clearTerminal = getClearTerminalSequence()
+getClearTerminalSequence();

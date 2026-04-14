@@ -18,13 +18,12 @@
  * 6. Worker polls mailbox for responses and continues execution
  */
 
-import { mkdir, readFile, unlink, writeFile } from 'fs/promises'
+import { mkdir, readFile, unlink } from 'fs/promises'
 import { join } from 'path'
 import { z } from 'zod/v4'
 import { logForDebugging } from '../debug.js'
 import { getErrnoCode } from '../errors.js'
 import { lazySchema } from '../lazySchema.js'
-import * as lockfile from '../lockfile.js'
 import { logError } from '../log.js'
 import type { PermissionUpdate } from '../permissions/PermissionUpdateSchema.js'
 import { jsonParse, jsonStringify } from '../slowOperations.js'
@@ -207,49 +206,6 @@ export function createPermissionRequest(params: {
 }
 
 /**
- * Write a permission request to the pending directory with file locking
- * Called by worker agents when they need permission approval from the leader
- *
- * @returns The written request
- */
-export async function writePermissionRequest(
-  request: SwarmPermissionRequest,
-): Promise<SwarmPermissionRequest> {
-  await ensurePermissionDirsAsync(request.teamName)
-
-  const pendingPath = getPendingRequestPath(request.teamName, request.id)
-  const lockDir = getPendingDir(request.teamName)
-
-  // Create a directory-level lock file for atomic writes
-  const lockFilePath = join(lockDir, '.lock')
-  await writeFile(lockFilePath, '', 'utf-8')
-
-  let release: (() => Promise<void>) | undefined
-  try {
-    release = await lockfile.lock(lockFilePath)
-
-    // Write the request file
-    await writeFile(pendingPath, jsonStringify(request, null, 2), 'utf-8')
-
-    logForDebugging(
-      `[PermissionSync] Wrote pending request ${request.id} from ${request.workerName} for ${request.toolName}`,
-    )
-
-    return request
-  } catch (error) {
-    logForDebugging(
-      `[PermissionSync] Failed to write permission request: ${error}`,
-    )
-    logError(error)
-    throw error
-  } finally {
-    if (release) {
-      await release()
-    }
-  }
-}
-
-/**
  * Read a resolved permission request by ID
  * Called by workers to check if their request has been resolved
  *
@@ -306,46 +262,6 @@ export type PermissionResponse = {
   updatedInput?: Record<string, unknown>
   /** Permission updates to apply (e.g., "always allow" rules) */
   permissionUpdates?: unknown[]
-}
-
-/**
- * Poll for a permission response (worker-side convenience function)
- * Converts the resolved request into a simpler response format
- *
- * @returns The permission response, or null if not yet resolved
- */
-export async function pollForResponse(
-  requestId: string,
-  _agentName?: string,
-  teamName?: string,
-): Promise<PermissionResponse | null> {
-  const resolved = await readResolvedPermission(requestId, teamName)
-  if (!resolved) {
-    return null
-  }
-
-  return {
-    requestId: resolved.id,
-    decision: resolved.status === 'approved' ? 'approved' : 'denied',
-    timestamp: resolved.resolvedAt
-      ? new Date(resolved.resolvedAt).toISOString()
-      : new Date(resolved.createdAt).toISOString(),
-    feedback: resolved.feedback,
-    updatedInput: resolved.updatedInput,
-    permissionUpdates: resolved.permissionUpdates,
-  }
-}
-
-/**
- * Remove a worker's response after processing
- * This is an alias for deleteResolvedPermission for backward compatibility
- */
-export async function removeWorkerResponse(
-  requestId: string,
-  _agentName?: string,
-  teamName?: string,
-): Promise<void> {
-  await deleteResolvedPermission(requestId, teamName)
 }
 
 /**

@@ -322,10 +322,3 @@ export class InProcessBackend implements TeammateExecutor {
   }
 }
 
-/**
- * Factory function to create an InProcessBackend instance.
- * Used by the registry (Task #8) to get backend instances.
- */
-export function createInProcessBackend(): InProcessBackend {
-  return new InProcessBackend()
-}

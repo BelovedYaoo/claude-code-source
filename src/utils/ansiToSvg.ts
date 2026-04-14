@@ -187,13 +187,3 @@ function get256Color(index: number): AnsiColor {
   return { r: gray, g: gray, b: gray }
 }
 
-export type AnsiToSvgOptions = {
-  fontFamily?: string
-  fontSize?: number
-  lineHeight?: number
-  paddingX?: number
-  paddingY?: number
-  backgroundColor?: string
-  borderRadius?: number
-}
-

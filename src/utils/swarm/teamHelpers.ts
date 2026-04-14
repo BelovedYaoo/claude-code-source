@@ -221,55 +221,6 @@ export function removeTeammateFromTeamFile(
 }
 
 /**
- * Adds a pane ID to the hidden panes list in the team file.
- * @param teamName - The name of the team
- * @param paneId - The pane ID to hide
- * @returns true if the pane was added to hidden list, false if team doesn't exist
- */
-export function addHiddenPaneId(teamName: string, paneId: string): boolean {
-  const teamFile = readTeamFile(teamName)
-  if (!teamFile) {
-    return false
-  }
-
-  const hiddenPaneIds = teamFile.hiddenPaneIds ?? []
-  if (!hiddenPaneIds.includes(paneId)) {
-    hiddenPaneIds.push(paneId)
-    teamFile.hiddenPaneIds = hiddenPaneIds
-    writeTeamFile(teamName, teamFile)
-    logForDebugging(
-      `[TeammateTool] Added ${paneId} to hidden panes for team ${teamName}`,
-    )
-  }
-  return true
-}
-
-/**
- * Removes a pane ID from the hidden panes list in the team file.
- * @param teamName - The name of the team
- * @param paneId - The pane ID to show (remove from hidden list)
- * @returns true if the pane was removed from hidden list, false if team doesn't exist
- */
-export function removeHiddenPaneId(teamName: string, paneId: string): boolean {
-  const teamFile = readTeamFile(teamName)
-  if (!teamFile) {
-    return false
-  }
-
-  const hiddenPaneIds = teamFile.hiddenPaneIds ?? []
-  const index = hiddenPaneIds.indexOf(paneId)
-  if (index !== -1) {
-    hiddenPaneIds.splice(index, 1)
-    teamFile.hiddenPaneIds = hiddenPaneIds
-    writeTeamFile(teamName, teamFile)
-    logForDebugging(
-      `[TeammateTool] Removed ${paneId} from hidden panes for team ${teamName}`,
-    )
-  }
-  return true
-}
-
-/**
  * Removes a teammate from the team config file by pane ID.
  * Also removes from hiddenPaneIds if present.
  * @param teamName - The name of the team

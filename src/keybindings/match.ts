@@ -1,5 +1,5 @@
 import type { Key } from '../ink.js'
-import type { ParsedBinding, ParsedKeystroke } from './types.js'
+import type { ParsedKeystroke } from './types.js'
 
 /**
  * Modifier keys from Ink's Key type that we care about for matching.
@@ -78,43 +78,3 @@ function modifiersMatch(
   return true
 }
 
-/**
- * Check if a ParsedKeystroke matches the given Ink input + Key.
- *
- * The display text will show platform-appropriate names (opt on macOS, alt elsewhere).
- */
-export function matchesKeystroke(
-  input: string,
-  key: Key,
-  target: ParsedKeystroke,
-): boolean {
-  const keyName = getKeyName(input, key)
-  if (keyName !== target.key) return false
-
-  const inkMods = getInkModifiers(key)
-
-  // QUIRK: Ink sets key.meta=true when escape is pressed (see input-event.ts).
-  // This is a legacy behavior from how escape sequences work in terminals.
-  // We need to ignore the meta modifier when matching the escape key itself,
-  // otherwise bindings like "escape" (without modifiers) would never match.
-  if (key.escape) {
-    return modifiersMatch({ ...inkMods, meta: false }, target)
-  }
-
-  return modifiersMatch(inkMods, target)
-}
-
-/**
- * Check if Ink's Key + input matches a parsed binding's first keystroke.
- * For single-keystroke bindings only (Phase 1).
- */
-export function matchesBinding(
-  input: string,
-  key: Key,
-  binding: ParsedBinding,
-): boolean {
-  if (binding.chord.length !== 1) return false
-  const keystroke = binding.chord[0]
-  if (!keystroke) return false
-  return matchesKeystroke(input, key, keystroke)
-}

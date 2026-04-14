@@ -22,8 +22,6 @@ export * from './sdk/runtimeTypes.js'
 
 // Re-export settings types (generated from settings JSON schema)
 export type { Settings } from './sdk/settingsTypes.generated.js'
-// Re-export tool types (all marked @internal until SDK API stabilizes)
-export * from './sdk/toolTypes.js'
 
 // ============================================================================
 // Functions

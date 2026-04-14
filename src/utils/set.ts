@@ -14,21 +14,6 @@ export function difference<A>(a: Set<A>, b: Set<A>): Set<A> {
 /**
  * Note: this code is hot, so is optimized for speed.
  */
-export function intersects<A>(a: Set<A>, b: Set<A>): boolean {
-  if (a.size === 0 || b.size === 0) {
-    return false
-  }
-  for (const item of a) {
-    if (b.has(item)) {
-      return true
-    }
-  }
-  return false
-}
-
-/**
- * Note: this code is hot, so is optimized for speed.
- */
 export function every<A>(a: ReadonlySet<A>, b: ReadonlySet<A>): boolean {
   for (const item of a) {
     if (!b.has(item)) {

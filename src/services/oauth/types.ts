@@ -36,8 +36,6 @@ export type OAuthProfileResponse = {
   }
 }
 
-export type ReferralCampaign = 'claude_code_guest_pass' | string
-
 export type ReferrerRewardInfo = {
   currency: string
   amount_minor_units: number
@@ -55,14 +53,5 @@ export type ReferralEligibilityResponse = {
     url: string
     [key: string]: unknown
   }
-}
-
-export type ReferralRedemptionsResponse = {
-  redemptions: Array<{
-    redeemed_at: string
-    referral_code: string
-    status: string
-  }>
-  total_count: number
 }
 

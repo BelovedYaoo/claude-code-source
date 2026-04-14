@@ -422,10 +422,6 @@ export function trackClaudeInChromeTabId(tabId: number): void {
   trackedTabIds.add(tabId)
 }
 
-export function isTrackedClaudeInChromeTabId(tabId: number): boolean {
-  return trackedTabIds.has(tabId)
-}
-
 export async function openInChrome(url: string): Promise<boolean> {
   const currentPlatform = getPlatform()
 

@@ -605,14 +605,6 @@ export class Node {
   getComputedHeight(): number {
     return this.layout.height
   }
-  getComputedRight(): number {
-    const p = this.parent
-    return p ? p.layout.width - this.layout.left - this.layout.width : 0
-  }
-  getComputedBottom(): number {
-    const p = this.parent
-    return p ? p.layout.height - this.layout.top - this.layout.height : 0
-  }
 
   getComputedBorder(edge: Edge): number {
     return this.layout.border[physicalEdge(edge)]!

@@ -153,12 +153,6 @@ export async function checkSecurityRestrictionGate(
   return getFeatureValueInternal(gate, false)
 }
 
-export async function checkGate_CACHED_OR_BLOCKING(
-  gate: string,
-): Promise<boolean> {
-  return getFeatureValueInternal(gate, false)
-}
-
 export async function getDynamicConfig_BLOCKS_ON_INIT<T>(
   configName: string,
   defaultValue: T,

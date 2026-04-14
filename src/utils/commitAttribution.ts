@@ -1,17 +1,15 @@
 import { createHash, randomUUID } from 'crypto'
 // Widen UUID to plain string to avoid template-literal mismatches
 type UUID = string
-import { isAbsolute, join, relative, sep } from 'path'
+import { isAbsolute, relative, sep } from 'path'
 import { getOriginalCwd } from '../bootstrap/state.js'
 import type {
   AttributionSnapshotMessage,
   FileAttributionState,
 } from '../types/logs.js'
 import { getCwd } from './cwd.js'
-import { logForDebugging } from './debug.js'
-import { execFileNoThrowWithCwd } from './execFileNoThrow.js'
 import { getFsImplementation } from './fsOperations.js'
-import { findGitRoot, gitExe } from './git.js'
+import { findGitRoot } from './git.js'
 import { logError } from './log.js'
 
 /**
@@ -47,38 +45,6 @@ export type AttributionState = {
   // ESC press tracking (user cancelled permission prompt)
   escapeCount: number
   escapeCountAtLastCommit: number
-}
-
-/**
- * Summary of Claude's contribution for a commit.
- */
-export type AttributionSummary = {
-  claudePercent: number
-  claudeChars: number
-  humanChars: number
-  surfaces: string[]
-}
-
-/**
- * Per-file attribution details for git notes.
- */
-export type FileAttribution = {
-  claudeChars: number
-  humanChars: number
-  percent: number
-  surface: string
-}
-
-/**
- * Full attribution data for git notes JSON.
- */
-export type AttributionData = {
-  version: 1
-  summary: AttributionSummary
-  files: Record<string, FileAttribution>
-  surfaceBreakdown: Record<string, { claudeChars: number; percent: number }>
-  excludedGenerated: string[]
-  sessions: string[]
 }
 
 /**
@@ -138,16 +104,6 @@ export function normalizeFilePath(filePath: string): string {
   }
 
   return filePath
-}
-
-/**
- * Expand a relative path to absolute path.
- */
-export function expandFilePath(filePath: string): string {
-  if (isAbsolute(filePath)) {
-    return filePath
-  }
-  return join(getAttributionRepoRoot(), filePath)
 }
 
 /**
@@ -229,113 +185,7 @@ function computeFileModificationState(
   }
 }
 
-/**
- * Track a file modification by Claude.
- * Called after Edit/Write tool completes.
- */
-export function trackFileModification(
-  state: AttributionState,
-  filePath: string,
-  oldContent: string,
-  newContent: string,
-  _userModified: boolean,
-  mtime: number = Date.now(),
-): AttributionState {
-  const normalizedPath = normalizeFilePath(filePath)
-  const newFileState = computeFileModificationState(
-    state.fileStates,
-    filePath,
-    oldContent,
-    newContent,
-    mtime,
-  )
-  if (!newFileState) {
-    return state
-  }
-
-  const newFileStates = new Map(state.fileStates)
-  newFileStates.set(normalizedPath, newFileState)
-
-  logForDebugging(
-    `Attribution: Tracked ${newFileState.claudeContribution} chars for ${normalizedPath}`,
-  )
-
-  return {
-    ...state,
-    fileStates: newFileStates,
-  }
-}
-
 // --
-
-/**
- * Get the size of changes for a file from git diff.
- * Returns the number of characters added/removed (absolute difference).
- * For new files, returns the total file size.
- * For deleted files, returns the size of the deleted content.
- */
-export async function getGitDiffSize(filePath: string): Promise<number> {
-  const cwd = getAttributionRepoRoot()
-
-  try {
-    // Use git diff --stat to get a summary of changes
-    const result = await execFileNoThrowWithCwd(
-      gitExe(),
-      ['diff', '--cached', '--stat', '--', filePath],
-      { cwd, timeout: 5000 },
-    )
-
-    if (result.code !== 0 || !result.stdout) {
-      return 0
-    }
-
-    // Parse the stat output to extract additions and deletions
-    // Format: " file | 5 ++---" or " file | 10 +"
-    const lines = result.stdout.split('\n').filter(Boolean)
-    let totalChanges = 0
-
-    for (const line of lines) {
-      // Skip the summary line (e.g., "1 file changed, 3 insertions(+), 2 deletions(-)")
-      if (line.includes('file changed') || line.includes('files changed')) {
-        const insertMatch = line.match(/(\d+) insertions?/)
-        const deleteMatch = line.match(/(\d+) deletions?/)
-
-        // Use line-based changes and approximate chars per line (~40 chars average)
-        const insertions = insertMatch ? parseInt(insertMatch[1]!, 10) : 0
-        const deletions = deleteMatch ? parseInt(deleteMatch[1]!, 10) : 0
-        totalChanges += (insertions + deletions) * 40
-      }
-    }
-
-    return totalChanges
-  } catch {
-    return 0
-  }
-}
-
-/**
- * Check if a file was deleted in the staged changes.
- */
-export async function isFileDeleted(filePath: string): Promise<boolean> {
-  const cwd = getAttributionRepoRoot()
-
-  try {
-    const result = await execFileNoThrowWithCwd(
-      gitExe(),
-      ['diff', '--cached', '--name-status', '--', filePath],
-      { cwd, timeout: 5000 },
-    )
-
-    if (result.code === 0 && result.stdout) {
-      // Format: "D\tfilename" for deleted files
-      return result.stdout.trim().startsWith('D\t')
-    }
-  } catch {
-    // Ignore errors
-  }
-
-  return false
-}
 
 // formatAttributionTrailer moved to attributionTrailer.ts for tree-shaking
 // (contains excluded strings that should not be in external builds)

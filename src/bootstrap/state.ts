@@ -410,10 +410,6 @@ export function regenerateSessionId(
   return STATE.sessionId
 }
 
-export function getParentSessionId(): SessionId | undefined {
-  return STATE.parentSessionId
-}
-
 /**
  * Atomically switch the active session. `sessionId` and `sessionProjectDir`
  * always change together — there is no separate setter for either, so they
@@ -938,9 +934,6 @@ export function getMeterProvider(): MeterProvider | null {
   return STATE.meterProvider
 }
 
-export function setMeterProvider(provider: MeterProvider | null): void {
-  STATE.meterProvider = provider
-}
 export function getTracerProvider(): BasicTracerProvider | null {
   return STATE.tracerProvider
 }
@@ -1044,10 +1037,6 @@ export function setLastAPIRequestMessages(
 }
 export function setLastClassifierRequests(requests: unknown[] | null): void {
   STATE.lastClassifierRequests = requests
-}
-
-export function getLastClassifierRequests(): unknown[] | null {
-  return STATE.lastClassifierRequests
 }
 
 export function setCachedClaudeMdContent(content: string | null): void {
@@ -1287,11 +1276,6 @@ export function clearRegisteredPluginHooks(): void {
   }
 
   STATE.registeredHooks = Object.keys(filtered).length > 0 ? filtered : null
-}
-
-export function resetSdkInitState(): void {
-  STATE.initJsonSchema = null
-  STATE.registeredHooks = null
 }
 
 export function getPlanSlugCache(): Map<string, string> {

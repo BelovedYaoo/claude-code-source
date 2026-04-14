@@ -1,12 +1,10 @@
 import type { StructuredPatchHunk } from 'diff'
 import { access, readFile } from 'fs/promises'
-import { dirname, join, relative, sep } from 'path'
+import { join } from 'path'
 import { getCwd } from './cwd.js'
-import { getCachedRepository } from './detectRepository.js'
 import { execFileNoThrow, execFileNoThrowWithCwd } from './execFileNoThrow.js'
 import { isFileWithinReadSizeLimit } from './file.js'
 import {
-  findGitRoot,
   getDefaultBranch,
   getGitDir,
   getIsGit,
@@ -392,52 +390,6 @@ export type ToolUseDiff = {
   patch: string
   /** GitHub "owner/repo" when available (null for non-github.com or unknown repos) */
   repository: string | null
-}
-
-/**
- * Fetch a structured diff for a single file against the merge base with the
- * default branch. This produces a PR-like diff showing all changes since
- * the branch diverged. Falls back to diffing against HEAD if the merge base
- * cannot be determined (e.g., on the default branch itself).
- * For untracked files, generates a synthetic diff showing all additions.
- * Returns null if not in a git repo or if git commands fail.
- */
-export async function fetchSingleFileGitDiff(
-  absoluteFilePath: string,
-): Promise<ToolUseDiff | null> {
-  const gitRoot = findGitRoot(dirname(absoluteFilePath))
-  if (!gitRoot) return null
-
-  const gitPath = relative(gitRoot, absoluteFilePath).split(sep).join('/')
-  const repository = getCachedRepository()
-
-  // Check if the file is tracked by git
-  const { code: lsFilesCode } = await execFileNoThrowWithCwd(
-    gitExe(),
-    ['--no-optional-locks', 'ls-files', '--error-unmatch', gitPath],
-    { cwd: gitRoot, timeout: SINGLE_FILE_DIFF_TIMEOUT_MS },
-  )
-
-  if (lsFilesCode === 0) {
-    // File is tracked - diff against merge base for PR-like view
-    const diffRef = await getDiffRef(gitRoot)
-    const { stdout, code } = await execFileNoThrowWithCwd(
-      gitExe(),
-      ['--no-optional-locks', 'diff', diffRef, '--', gitPath],
-      { cwd: gitRoot, timeout: SINGLE_FILE_DIFF_TIMEOUT_MS },
-    )
-    if (code !== 0) return null
-    if (!stdout) return null
-    return {
-      ...parseRawDiffToToolUseDiff(gitPath, stdout, 'modified'),
-      repository,
-    }
-  }
-
-  // File is untracked - generate synthetic diff
-  const syntheticDiff = await generateSyntheticDiff(gitPath, absoluteFilePath)
-  if (!syntheticDiff) return null
-  return { ...syntheticDiff, repository }
 }
 
 /**

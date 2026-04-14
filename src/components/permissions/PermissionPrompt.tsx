@@ -1,25 +1,11 @@
 import { c as _c } from "react/compiler-runtime";
-import React, { type ReactNode, useState } from 'react';
+import React, { useState } from 'react';
 import { Box, Text } from '../../ink.js';
-import type { KeybindingAction } from '../../keybindings/types.js';
 import { useKeybindings } from '../../keybindings/useKeybinding.js';
 import { type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS } from '../../services/analytics/metadata.js';
 import { useSetAppState } from '../../state/AppState.js';
 import { Select } from '../CustomSelect/select.js';
 export type FeedbackType = 'accept' | 'reject';
-export type PermissionPromptOption<T extends string> = {
-  value: T;
-  label: ReactNode;
-  feedbackConfig?: {
-    type: FeedbackType;
-    placeholder?: string;
-  };
-  keybinding?: KeybindingAction;
-};
-export type ToolAnalyticsContext = {
-  toolName: string;
-  isMcp: boolean;
-};
 const DEFAULT_PLACEHOLDERS: Record<FeedbackType, string> = {
   accept: 'tell Claude what to do next',
   reject: 'tell Claude what to do differently'

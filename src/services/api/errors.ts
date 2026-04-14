@@ -104,27 +104,6 @@ export function getPromptTooLongTokenGap(
   return gap > 0 ? gap : undefined
 }
 
-/**
- * Is this raw API error text a media-size rejection that stripImagesFromMessages
- * can fix? Reactive compact's summarize retry uses this to decide whether to
- * strip and retry (media error) or bail (anything else).
- *
- * Patterns MUST stay in sync with the getAssistantMessageFromError branches
- * that populate errorDetails (~L523 PDF, ~L560 image, ~L573 many-image) and
- * the classifyAPIError branches (~L929-946). The closed loop: errorDetails is
- * only set after those branches already matched these same substrings, so
- * isMediaSizeError(errorDetails) is tautologically true for that path. API
- * wording drift causes graceful degradation (errorDetails stays undefined,
- * caller short-circuits), not a false negative.
- */
-export function isMediaSizeError(raw: string): boolean {
-  return (
-    (raw.includes('image exceeds') && raw.includes('maximum')) ||
-    (raw.includes('image dimensions exceed') && raw.includes('many-image')) ||
-    /maximum of \d+ PDF pages/.test(raw)
-  )
-}
-
 export const CREDIT_BALANCE_TOO_LOW_ERROR_MESSAGE = 'Credit balance is too low'
 export const INVALID_API_KEY_ERROR_MESSAGE =
   'Authentication required · Set ANTHROPIC_API_KEY or configure apiKeyHelper'

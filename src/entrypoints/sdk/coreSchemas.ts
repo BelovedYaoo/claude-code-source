@@ -33,11 +33,11 @@ export const ModelUsageSchema = lazySchema(() =>
 
 export const OutputFormatTypeSchema = lazySchema(() => z.literal('json_schema'))
 
-export const BaseOutputFormatSchema = lazySchema(() =>
+lazySchema(() =>
   z.object({
     type: OutputFormatTypeSchema(),
   }),
-)
+);
 
 export const JsonSchemaOutputFormatSchema = lazySchema(() =>
   z.object({
@@ -46,9 +46,9 @@ export const JsonSchemaOutputFormatSchema = lazySchema(() =>
   }),
 )
 
-export const OutputFormatSchema = lazySchema(() =>
+lazySchema(() =>
   JsonSchemaOutputFormatSchema(),
-)
+);
 
 // ============================================================================
 // Config Types
@@ -62,9 +62,9 @@ export const ConfigScopeSchema = lazySchema(() =>
   z.enum(['local', 'user', 'project']).describe('Config scope for settings.'),
 )
 
-export const SdkBetaSchema = lazySchema(() =>
+lazySchema(() =>
   z.literal('context-1m-2025-08-07'),
-)
+);
 
 export const ThinkingAdaptiveSchema = lazySchema(() =>
   z
@@ -219,7 +219,7 @@ export const McpServerStatusSchema = lazySchema(() =>
     .describe('Status information for an MCP server connection.'),
 )
 
-export const McpSetServersResultSchema = lazySchema(() =>
+lazySchema(() =>
   z
     .object({
       added: z.array(z.string()).describe('Names of servers that were added'),
@@ -233,7 +233,7 @@ export const McpSetServersResultSchema = lazySchema(() =>
         ),
     })
     .describe('Result of a setMcpServers operation.'),
-)
+);
 
 // ============================================================================
 // Permission Types
@@ -986,7 +986,7 @@ export const PromptRequestOptionSchema = lazySchema(() =>
   }),
 )
 
-export const PromptRequestSchema = lazySchema(() =>
+lazySchema(() =>
   z.object({
     prompt: z
       .string()
@@ -998,16 +998,16 @@ export const PromptRequestSchema = lazySchema(() =>
       .array(PromptRequestOptionSchema())
       .describe('Available options for the user to choose from'),
   }),
-)
+);
 
-export const PromptResponseSchema = lazySchema(() =>
+lazySchema(() =>
   z.object({
     prompt_response: z
       .string()
       .describe('The request ID from the corresponding prompt request'),
     selected: z.string().describe('The key of the selected option'),
   }),
-)
+);
 
 // ============================================================================
 // Skill/Command Types
@@ -1197,7 +1197,7 @@ export const SettingSourceSchema = lazySchema(() =>
     ),
 )
 
-export const SdkPluginConfigSchema = lazySchema(() =>
+lazySchema(() =>
   z
     .object({
       type: z
@@ -1208,7 +1208,7 @@ export const SdkPluginConfigSchema = lazySchema(() =>
         .describe('Absolute or relative path to the plugin directory'),
     })
     .describe('Configuration for loading a plugin.'),
-)
+);
 
 // ============================================================================
 // Rewind Types
@@ -1809,7 +1809,7 @@ export const SDKPromptSuggestionMessageSchema = lazySchema(() =>
 // Session Listing Types
 // ============================================================================
 
-export const SDKSessionInfoSchema = lazySchema(() =>
+lazySchema(() =>
   z
     .object({
       sessionId: z.string().describe('Unique session identifier (UUID).'),
@@ -1849,7 +1849,7 @@ export const SDKSessionInfoSchema = lazySchema(() =>
         ),
     })
     .describe('Session metadata returned by listSessions and getSessionInfo.'),
-)
+);
 
 export const SDKMessageSchema = lazySchema(() =>
   z.union([

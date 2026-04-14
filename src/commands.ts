@@ -21,7 +21,6 @@ import debugToolCall from './commands/debug-tool-call/index.js'
 import diff from './commands/diff/index.js'
 import doctor from './commands/doctor/index.js'
 import effort from './commands/effort/index.js'
-import env from './commands/env/index.js'
 import exit from './commands/exit/index.js'
 import exportCommand from './commands/export/index.js'
 import fast from './commands/fast/index.js'
@@ -166,7 +165,6 @@ export const INTERNAL_ONLY_COMMANDS = [
   share,
   summary,
   perfIssue,
-  env,
   debugToolCall,
   agentsPlatform,
   autofixPr,

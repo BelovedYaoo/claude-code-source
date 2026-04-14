@@ -37,7 +37,6 @@ import initVerifiers from './commands/init-verifiers.js'
 import keybindings from './commands/keybindings/index.js'
 import installGitHubApp from './commands/install-github-app/index.js'
 import installSlackApp from './commands/install-slack-app/index.js'
-import breakCache from './commands/break-cache/index.js'
 import mcp from './commands/mcp/index.js'
 import mcpAnt from './commands/mcp-ant/index.js'
 import memory from './commands/memory/index.js'
@@ -154,7 +153,6 @@ export { getCommandName, isCommandEnabled } from './types/command.js'
 // Commands that get eliminated from the external build
 export const INTERNAL_ONLY_COMMANDS = [
   backfillSessions,
-  breakCache,
   commit,
   commitPushPr,
   goodClaude,

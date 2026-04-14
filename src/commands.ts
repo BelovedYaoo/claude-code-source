@@ -2,7 +2,6 @@
 import addDir from './commands/add-dir/index.js'
 import agents from './commands/agents/index.js'
 import advisor from './commands/advisor.js'
-import antTrace from './commands/ant-trace/index.js'
 import autofixPr from './commands/autofix-pr/index.js'
 import backfillSessions from './commands/backfill-sessions/index.js'
 import branch from './commands/branch/index.js'
@@ -166,7 +165,6 @@ export const INTERNAL_ONLY_COMMANDS = [
   onboarding,
   share,
   summary,
-  antTrace,
   perfIssue,
   env,
   debugToolCall,

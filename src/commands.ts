@@ -56,7 +56,6 @@ import tag from './commands/tag/index.js'
 import tasks from './commands/tasks/index.js'
 import terminalSetup from './commands/terminalSetup/index.js'
 import theme from './commands/theme/index.js'
-import version from './commands/version.js'
 import vim from './commands/vim/index.js'
 import workflowsCommand from './commands/workflows/index.js'
 import plugin from './commands/plugin/index.js'
@@ -140,7 +139,6 @@ export const INTERNAL_ONLY_COMMANDS = [
   commitPushPr,
   initVerifiers,
   ...(forceSnip ? [forceSnip] : []),
-  version,
   agentsPlatform,
 ].filter(Boolean)
 
@@ -211,9 +209,7 @@ const COMMANDS = memoize((): Command[] => [
   tasks,
   ...(workflowsCmd ? [workflowsCmd] : []),
   ...(torch ? [torch] : []),
-  ...(process.env.USER_TYPE === 'ant' && !process.env.IS_DEMO
-    ? INTERNAL_ONLY_COMMANDS
-    : []),
+  ...(INTERNAL_ONLY_COMMANDS),
 ])
 
 export const builtInCommandNames = memoize(

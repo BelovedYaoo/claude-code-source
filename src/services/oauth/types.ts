@@ -4,21 +4,6 @@ export type RateLimitTier = string | null
 
 export type BillingType = string | null
 
-export type OAuthTokenExchangeResponse = {
-  access_token: string
-  refresh_token: string
-  expires_in: number
-  token_type: string
-  scope?: string
-  account?: {
-    uuid: string
-    email_address: string
-  }
-  organization?: {
-    uuid: string
-  }
-}
-
 export type OAuthTokens = {
   accessToken: string
   refreshToken: string
@@ -51,12 +36,6 @@ export type OAuthProfileResponse = {
   }
 }
 
-export type UserRolesResponse = {
-  organization_role?: string
-  workspace_role?: string
-  organization_name?: string
-}
-
 export type ReferralCampaign = 'claude_code_guest_pass' | string
 
 export type ReferrerRewardInfo = {
@@ -87,10 +66,3 @@ export type ReferralRedemptionsResponse = {
   total_count: number
 }
 
-export type OrgValidationResult =
-  | { valid: true }
-  | { valid: false; message: string }
-
-export type ImportTokenResult = { success: boolean }
-
-export type ImportTokenError = string

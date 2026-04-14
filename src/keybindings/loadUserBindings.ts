@@ -14,7 +14,6 @@ import { readFileSync } from 'fs'
 import { readFile, stat } from 'fs/promises'
 import { dirname, join } from 'path'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../services/analytics/growthbook.js'
-import { logEvent } from '../services/analytics/index.js'
 import { registerCleanup } from '../utils/cleanupRegistry.js'
 import { logForDebugging } from '../utils/debug.js'
 import { getClaudeConfigHomeDir } from '../utils/envUtils.js'
@@ -77,16 +76,13 @@ const keybindingsChanged = createSignal<[result: KeybindingsLoadResult]>()
 let lastCustomBindingsLogDate: string | null = null
 
 /**
- * Log a telemetry event when custom keybindings are loaded, at most once per day.
- * This lets us estimate the percentage of users who customize their keybindings.
+ * 在自定义快捷键加载时记录一次本地状态，每天最多一次。
+ * 这样可以避免重复执行这段一次性逻辑。
  */
 function logCustomBindingsLoadedOncePerDay(userBindingCount: number): void {
   const today = new Date().toISOString().slice(0, 10)
   if (lastCustomBindingsLogDate === today) return
   lastCustomBindingsLogDate = today
-  logEvent('tengu_custom_keybindings_loaded', {
-    user_binding_count: userBindingCount,
-  })
 }
 
 /**
@@ -455,18 +451,3 @@ export function getCachedKeybindingWarnings(): KeybindingWarning[] {
   return cachedWarnings
 }
 
-/**
- * Reset internal state for testing.
- */
-export function resetKeybindingLoaderForTesting(): void {
-  initialized = false
-  disposed = false
-  cachedBindings = null
-  cachedWarnings = []
-  lastCustomBindingsLogDate = null
-  if (watcher) {
-    void watcher.close()
-    watcher = null
-  }
-  keybindingsChanged.clear()
-}

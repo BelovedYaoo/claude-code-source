@@ -702,14 +702,7 @@ export const CMDLET_ALLOWLIST: Record<string, CommandConfig> = Object.assign(
       // `ipconfig /all` (read-only display) allowed. Windows ipconfig only uses
       // /flags (display), macOS ipconfig uses subcommands (get/set/waitall).
       safeFlags: ['/all', '/displaydns', '/allcompartments'],
-      additionalCommandIsDangerousCallback: (
-        _cmd: string,
-        element?: ParsedCommandElement,
-      ) => {
-        return (element?.args ?? []).some(
-          a => !a.startsWith('/') && !a.startsWith('-'),
-        )
-      },
+
     },
     netstat: {
       safeFlags: [
@@ -746,13 +739,7 @@ export const CMDLET_ALLOWLIST: Record<string, CommandConfig> = Object.assign(
       // system config). `hostname -F FILE` / `--file=FILE` also sets from file.
       // Only allow bare `hostname` and known read-only flags.
       safeFlags: ['-a', '-d', '-f', '-i', '-I', '-s', '-y', '-A'],
-      additionalCommandIsDangerousCallback: (
-        _cmd: string,
-        element?: ParsedCommandElement,
-      ) => {
-        // Reject any positional (non-flag) argument — sets hostname.
-        return (element?.args ?? []).some(a => !a.startsWith('-'))
-      },
+
     },
     whoami: {
       safeFlags: [
@@ -774,21 +761,7 @@ export const CMDLET_ALLOWLIST: Record<string, CommandConfig> = Object.assign(
     },
     route: {
       safeFlags: ['print', 'PRINT', '-4', '-6'],
-      additionalCommandIsDangerousCallback: (
-        _cmd: string,
-        element?: ParsedCommandElement,
-      ) => {
-        // SECURITY: route.exe syntax is `route [-f] [-p] [-4|-6] VERB [args...]`.
-        // The first non-flag positional is the verb. `route add 10.0.0.0 mask
-        // 255.0.0.0 192.168.1.1 print` adds a route (print is a trailing display
-        // modifier). The old check used args.some('print') which matched 'print'
-        // anywhere — position-insensitive.
-        if (!element) {
-          return true
-        }
-        const verb = element.args.find(a => !a.startsWith('-'))
-        return verb?.toLowerCase() !== 'print'
-      },
+
     },
     // netsh: intentionally NOT allowlisted. Three rounds of denylist gaps in PR
     // #22060 (verb position → dash flags → slash flags → more verbs) proved

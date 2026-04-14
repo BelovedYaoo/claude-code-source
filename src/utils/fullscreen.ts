@@ -99,11 +99,6 @@ export function isTmuxControlMode(): boolean {
   return tmuxControlModeProbed ?? false
 }
 
-export function _resetTmuxControlModeProbeForTesting(): void {
-  tmuxControlModeProbed = undefined
-  loggedTmuxCcDisable = false
-}
-
 /**
  * Runtime env-var check only. Ants default to on (CLAUDE_CODE_NO_FLICKER=0
  * to opt out); external users default to off (CLAUDE_CODE_NO_FLICKER=1 to
@@ -195,8 +190,3 @@ export async function maybeGetTmuxMouseHint(): Promise<string | null> {
   return "tmux detected · scroll with PgUp/PgDn · or add 'set -g mouse on' to ~/.tmux.conf for wheel scroll"
 }
 
-/** Test-only: reset module-level once-per-session flags. */
-export function _resetForTesting(): void {
-  loggedTmuxCcDisable = false
-  checkedTmuxMouseHint = false
-}

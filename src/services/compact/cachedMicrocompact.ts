@@ -7,10 +7,6 @@ export interface CacheEditsBlock {
   [key: string]: any
 }
 
-export interface PinnedCacheEdits {
-  [key: string]: any
-}
-
 export function createCachedMCState(): CachedMCState {
   return {}
 }

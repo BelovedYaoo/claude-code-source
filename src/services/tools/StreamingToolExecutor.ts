@@ -510,12 +510,6 @@ export class StreamingToolExecutor {
     return this.tools.some(t => t.status !== 'yielded')
   }
 
-  /**
-   * Get the current tool use context (may have been modified by context modifiers)
-   */
-  getUpdatedContext(): ToolUseContext {
-    return this.toolUseContext
-  }
 }
 
 function markToolUseAsComplete(

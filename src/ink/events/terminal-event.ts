@@ -44,10 +44,6 @@ export class TerminalEvent extends Event {
     return this._currentTarget
   }
 
-  get eventPhase(): EventPhase {
-    return this._eventPhase
-  }
-
   get defaultPrevented(): boolean {
     return this._defaultPrevented
   }

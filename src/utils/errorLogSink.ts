@@ -61,27 +61,6 @@ function createJsonlWriter(options: {
 // Buffered writers for JSONL log files, keyed by path
 const logWriters = new Map<string, JsonlWriter>()
 
-/**
- * Flush all buffered log writers. Used for testing.
- * @internal
- */
-export function _flushLogWritersForTesting(): void {
-  for (const writer of logWriters.values()) {
-    writer.flush()
-  }
-}
-
-/**
- * Clear all buffered log writers. Used for testing.
- * @internal
- */
-export function _clearLogWritersForTesting(): void {
-  for (const writer of logWriters.values()) {
-    writer.dispose()
-  }
-  logWriters.clear()
-}
-
 function getLogWriter(path: string): JsonlWriter {
   let writer = logWriters.get(path)
   if (!writer) {
@@ -218,7 +197,7 @@ function logMCPDebugImpl(serverName: string, message: string): void {
  * Call this during app startup to attach the error logging backend.
  * Any errors logged before this is called will be queued and drained.
  *
- * Should be called BEFORE initializeAnalyticsSink() in the startup sequence.
+ * Should be called during startup before components begin logging errors.
  *
  * Idempotent: safe to call multiple times (subsequent calls are no-ops).
  */

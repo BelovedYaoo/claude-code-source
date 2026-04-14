@@ -28,9 +28,6 @@ import type {
 // Control Request Types
 // ============================================================================
 
-/** The inner request payload (discriminated union on `subtype`). */
-export type SDKControlRequestInner = z.infer<ReturnType<typeof SDKControlRequestInnerSchema>>
-
 /** A control request envelope with type, request_id, and inner request. */
 export type SDKControlRequest = z.infer<ReturnType<typeof SDKControlRequestSchema>>
 
@@ -43,23 +40,11 @@ export type SDKControlInitializeRequest = z.infer<ReturnType<typeof SDKControlIn
 /** Response from session initialization. */
 export type SDKControlInitializeResponse = z.infer<ReturnType<typeof SDKControlInitializeResponseSchema>>
 
-/** A cancel request for an outstanding control request. */
-export type SDKControlCancelRequest = z.infer<ReturnType<typeof SDKControlCancelRequestSchema>>
-
-/** Permission request (subtype: 'can_use_tool'). */
-export type SDKControlPermissionRequest = z.infer<ReturnType<typeof SDKControlPermissionRequestSchema>>
-
 /** Response from mcp_set_servers control request. */
 export type SDKControlMcpSetServersResponse = z.infer<ReturnType<typeof SDKControlMcpSetServersResponseSchema>>
 
 /** Response from reload_plugins control request. */
 export type SDKControlReloadPluginsResponse = z.infer<ReturnType<typeof SDKControlReloadPluginsResponseSchema>>
-
-/** Elicitation request from the CLI to SDK consumer. */
-export type SDKControlElicitationRequest = z.infer<ReturnType<typeof SDKControlElicitationRequestSchema>>
-
-/** Elicitation response from SDK consumer back to CLI. */
-export type SDKControlElicitationResponse = z.infer<ReturnType<typeof SDKControlElicitationResponseSchema>>
 
 // ============================================================================
 // Aggregate Message Types
@@ -77,5 +62,3 @@ export type StdinMessage = z.infer<ReturnType<typeof StdinMessageSchema>>
 
 import type { SDKPartialAssistantMessageSchema } from './coreSchemas.js'
 
-/** Streaming partial assistant message. */
-export type SDKPartialAssistantMessage = z.infer<ReturnType<typeof SDKPartialAssistantMessageSchema>>

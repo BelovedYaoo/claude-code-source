@@ -1537,17 +1537,6 @@ export default class Ink {
     });
     return this.exitPromise;
   }
-  resetLineCount(): void {
-    if (this.options.stdout.isTTY) {
-      // Swap so old front becomes back (for screen reuse), then reset front
-      this.backFrame = this.frontFrame;
-      this.frontFrame = emptyFrame(this.frontFrame.viewport.height, this.frontFrame.viewport.width, this.stylePool, this.charPool, this.hyperlinkPool);
-      this.log.reset();
-      // frontFrame is reset, so frame.cursor on the next render is (0,0).
-      // Clear displayCursor so the preamble doesn't compute a stale delta.
-      this.displayCursor = null;
-    }
-  }
 
   /**
    * Replace char/hyperlink pools with fresh instances to prevent unbounded

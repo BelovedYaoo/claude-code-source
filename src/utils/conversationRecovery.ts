@@ -1,3 +1,4 @@
+import { feature } from 'bun:bundle'
 // Widen UUID to plain string to avoid template-literal mismatches
 type UUID = string
 import { relative } from 'path'
@@ -48,6 +49,7 @@ import {
   removeExtraFields,
 } from './sessionStorage.js'
 import type { ContentReplacementRecord } from './toolResultStorage.js'
+import { listAllLiveSessions } from "src/utils/concurrentSessions";
 
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -411,10 +413,24 @@ export async function loadConversationForResume(
     let sessionId: UUID | undefined
 
     if (source === undefined) {
-      // --continue: most recent session, skipping live --bg/daemon sessions
+      // --continue: most recent session, skipping live non-interactive sessions
       // that are actively writing their own transcript.
       const logsPromise = loadMessageLogs()
       let skip = new Set<string>()
+      if (feature('BG_SESSIONS')) {
+        try {
+          const live = await listAllLiveSessions()
+          skip = new Set(
+            live.flatMap(s =>
+              s.kind && s.kind !== 'interactive' && s.sessionId
+                ? [s.sessionId]
+                : [],
+            ),
+          )
+        } catch {
+          // UDS unavailable — treat all sessions as continuable
+        }
+      }
       const logs = await logsPromise
       log =
         logs.find(l => {

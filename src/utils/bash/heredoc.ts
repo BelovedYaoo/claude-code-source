@@ -719,15 +719,3 @@ export function restoreHeredocs(
   return parts.map(part => restoreHeredocsInString(part, heredocs))
 }
 
-/**
- * Checks if a command contains heredoc syntax.
- *
- * This is a quick check that doesn't validate the heredoc is well-formed,
- * just that the pattern exists.
- *
- * @param command - The shell command string
- * @returns true if the command appears to contain heredoc syntax
- */
-export function containsHeredoc(command: string): boolean {
-  return HEREDOC_START_PATTERN.test(command)
-}

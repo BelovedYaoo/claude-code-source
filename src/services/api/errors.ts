@@ -35,10 +35,6 @@ import { formatFileSize } from '../../utils/format.js'
 import { ImageResizeError } from '../../utils/imageResizer.js'
 import { ImageSizeError } from '../../utils/imageValidation.js'
 import {
-  type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-  logEvent,
-} from '../analytics/index.js'
-import {
   type ClaudeAILimits,
   getRateLimitErrorMessage,
   type OverageDisabledReason,
@@ -130,19 +126,6 @@ export function isMediaSizeError(raw: string): boolean {
   )
 }
 
-/**
- * Message-level predicate: is this assistant message a media-size rejection?
- * Parallel to isPromptTooLongMessage. Checks errorDetails (the raw API error
- * string populated by the getAssistantMessageFromError branches at ~L523/560/573)
- * rather than content text, since media errors have per-variant content strings.
- */
-export function isMediaSizeErrorMessage(msg: AssistantMessage): boolean {
-  return (
-    msg.isApiErrorMessage === true &&
-    msg.errorDetails !== undefined &&
-    isMediaSizeError(msg.errorDetails)
-  )
-}
 export const CREDIT_BALANCE_TOO_LOW_ERROR_MESSAGE = 'Credit balance is too low'
 export const INVALID_API_KEY_ERROR_MESSAGE =
   'Authentication required · Set ANTHROPIC_API_KEY or configure apiKeyHelper'
@@ -344,41 +327,9 @@ function logToolUseToolResultMismatch(
           break
       }
     }
-
-    // Log to Statsig
-    logEvent('tengu_tool_use_tool_result_mismatch_error', {
-      toolUseId:
-        toolUseId as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-      normalizedSequence: normalizedSeq.join(
-        ', ',
-      ) as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-      preNormalizedSequence: preNormalizedSeq.join(
-        ', ',
-      ) as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-      normalizedMessageCount: messagesForAPI.length,
-      originalMessageCount: messages.length,
-      normalizedToolUseIndex: normalizedIndex,
-      originalToolUseIndex: originalIndex,
-    })
   } catch (_) {
     // Ignore errors in debug logging
   }
-}
-
-/**
- * Type guard to check if a value is a valid Message response from the API
- */
-export function isValidAPIMessage(value: unknown): value is BetaMessage {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'content' in value &&
-    'model' in value &&
-    'usage' in value &&
-    Array.isArray((value as BetaMessage).content) &&
-    typeof (value as BetaMessage).model === 'string' &&
-    typeof (value as BetaMessage).usage === 'object'
-  )
 }
 
 /** Lower-level error that AWS can return. */
@@ -387,23 +338,6 @@ type AmazonError = {
     __type?: string
   }
   Version?: string
-}
-
-/**
- * Given a response that doesn't look quite right, see if it contains any known error types we can extract.
- */
-export function extractUnknownErrorFormat(value: unknown): string | undefined {
-  // Check if value is a valid object first
-  if (!value || typeof value !== 'object') {
-    return undefined
-  }
-
-  // Amazon Bedrock routing errors
-  if ((value as AmazonError).Output?.__type) {
-    return (value as AmazonError).Output!.__type
-  }
-
-  return undefined
 }
 
 export function getAssistantMessageFromError(
@@ -694,7 +628,6 @@ export function getAssistantMessageFromError(
     error.status === 400 &&
     error.message.includes('unexpected `tool_use_id` found in `tool_result`')
   ) {
-    logEvent('tengu_unexpected_tool_result', {})
   }
 
   // Duplicate tool_use IDs (CC-1212). ensureToolResultPairing strips these
@@ -705,7 +638,6 @@ export function getAssistantMessageFromError(
     error.status === 400 &&
     error.message.includes('`tool_use` ids must be unique')
   ) {
-    logEvent('tengu_duplicate_tool_use_id', {})
     const rewindInstruction = getIsNonInteractiveSession()
       ? ''
       : ' Run /rewind to recover the conversation.'
@@ -1138,8 +1070,6 @@ export function getErrorMessageIfRefusal(
   if (stopReason !== 'refusal') {
     return
   }
-
-  logEvent('tengu_refusal_api_response', {})
 
   const baseMessage = getIsNonInteractiveSession()
     ? `${API_ERROR_MESSAGE_PREFIX}: Claude Code is unable to respond to this request, which appears to violate our Usage Policy (https://www.anthropic.com/legal/aup). Try rephrasing the request or attempting a different approach.`

@@ -21,21 +21,6 @@ import { updateSettingsForSource } from '../utils/settings/settings.js'
 import type { AppState } from './AppStateStore.js'
 
 // Inverse of the push below — restore on worker restart.
-export function externalMetadataToAppState(
-  metadata: SessionExternalMetadata,
-): (prev: AppState) => AppState {
-  return prev => ({
-    ...prev,
-    ...(typeof metadata.permission_mode === 'string'
-      ? {
-          toolPermissionContext: {
-            ...prev.toolPermissionContext,
-            mode: permissionModeFromString(metadata.permission_mode),
-          },
-        }
-      : {}),
-  })
-}
 
 export function onChangeAppState({
   newState,

@@ -9,13 +9,3 @@ type Props = {
   ) => void
 }
 
-export function Passes(_props: Props): React.ReactNode {
-  return (
-    <Box flexDirection="column" gap={1}>
-      <Text>Guest passes are unavailable in API-only mode.</Text>
-      <Text dimColor={true}>
-        Use `ANTHROPIC_API_KEY`, `apiKeyHelper`, or a configured third-party provider instead.
-      </Text>
-    </Box>
-  )
-}

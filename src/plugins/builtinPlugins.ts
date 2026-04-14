@@ -23,15 +23,6 @@ const BUILTIN_PLUGINS: Map<string, BuiltinPluginDefinition> = new Map()
 export const BUILTIN_MARKETPLACE_NAME = 'builtin'
 
 /**
- * Register a built-in plugin. Call this from initBuiltinPlugins() at startup.
- */
-export function registerBuiltinPlugin(
-  definition: BuiltinPluginDefinition,
-): void {
-  BUILTIN_PLUGINS.set(definition.name, definition)
-}
-
-/**
  * Check if a plugin ID represents a built-in plugin (ends with @builtin).
  */
 export function isBuiltinPluginId(pluginId: string): boolean {
@@ -118,13 +109,6 @@ export function getBuiltinPluginSkillCommands(): Command[] {
   }
 
   return commands
-}
-
-/**
- * Clear built-in plugins registry (for testing).
- */
-export function clearBuiltinPlugins(): void {
-  BUILTIN_PLUGINS.clear()
 }
 
 // --

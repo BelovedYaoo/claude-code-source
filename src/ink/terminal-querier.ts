@@ -44,15 +44,6 @@ type XtversionResponse = Extract<TerminalResponse, { type: 'xtversion' }>
 
 // -- Query builders --
 
-/** DECRQM: request DEC private mode status (CSI ? mode $ p).
- *  Terminal replies with DECRPM (CSI ? mode ; status $ y) or ignores. */
-export function decrqm(mode: number): TerminalQuery<DecrpmResponse> {
-  return {
-    request: csi(`?${mode}$p`),
-    match: (r): r is DecrpmResponse => r.type === 'decrpm' && r.mode === mode,
-  }
-}
-
 /** Primary Device Attributes query (CSI c). Every terminal answers this —
  *  used internally by flush() as a universal sentinel. Call directly if
  *  you want the DA1 params. */
@@ -88,15 +79,6 @@ export function cursorPosition(): TerminalQuery<CursorPosResponse> {
   return {
     request: csi('?6n'),
     match: (r): r is CursorPosResponse => r.type === 'cursorPosition',
-  }
-}
-
-/** OSC dynamic color query (e.g. OSC 11 for bg color, OSC 10 for fg).
- *  The `?` data slot asks the terminal to reply with the current value. */
-export function oscColor(code: number): TerminalQuery<OscResponse> {
-  return {
-    request: osc(code, '?'),
-    match: (r): r is OscResponse => r.type === 'osc' && r.code === code,
   }
 }
 

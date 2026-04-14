@@ -156,36 +156,6 @@ async function extractPrefixFromElement(
 }
 
 /**
- * Extract a prefix suggestion for a PowerShell command.
- *
- * Parses the command, takes the first CommandAst, returns a prefix suitable
- * for the permission dialog's "don't ask again for: ___" editable input.
- * Returns null when no safe prefix can be extracted (parse failure, shell
- * invocation, path-like name, bare subcommand-aware command).
- */
-export async function getCommandPrefixStatic(
-  command: string,
-): Promise<{ commandPrefix: string | null } | null> {
-  const parsed = await parsePowerShellCommand(command)
-  if (!parsed.valid) {
-    return null
-  }
-
-  // Find the first actual command (CommandAst). getAllCommands iterates
-  // both statement.commands and statement.nestedCommands (for &&/||/if/for).
-  // Skip synthetic CommandExpressionAst entries (expression pipeline sources,
-  // non-PipelineAst statement placeholders).
-  const firstCommand = getAllCommands(parsed).find(
-    cmd => cmd.elementType === 'CommandAst',
-  )
-  if (!firstCommand) {
-    return { commandPrefix: null }
-  }
-
-  return { commandPrefix: await extractPrefixFromElement(firstCommand) }
-}
-
-/**
  * Extract prefixes for all subcommands in a compound PowerShell command.
  *
  * For `Get-Process; git status && npm test`, returns per-subcommand prefixes.

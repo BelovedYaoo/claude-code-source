@@ -13,10 +13,6 @@ import {
   removeSessionCronTasks,
   setScheduledTasksEnabled,
 } from '../bootstrap/state.js'
-import {
-  type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-  logEvent,
-} from '../services/analytics/index.js'
 import { cronToHuman } from './cron.js'
 import {
   type CronJitterConfig,
@@ -75,13 +71,13 @@ type CronSchedulerOptions = {
   assistantMode?: boolean
   /**
    * When provided, receives the full CronTask on normal fires (and onFire is
-   * NOT called for that fire). Lets daemon callers see the task id/cron/etc
+   * NOT called for that fire). Lets non-REPL callers see the task id/cron/etc
    * instead of just the prompt string.
    */
   onFireTask?: (task: CronTask) => void
   /**
    * When provided, receives the missed one-shot tasks on initial load (and
-   * onFire is NOT called with the pre-formatted notification). Daemon decides
+   * onFire is NOT called with the pre-formatted notification). Caller decides
    * how to surface them.
    */
   onMissed?: (tasks: CronTask[]) => void
@@ -89,12 +85,12 @@ type CronSchedulerOptions = {
    * Directory containing .claude/scheduled_tasks.json. When provided, the
    * scheduler never touches bootstrap state: getProjectRoot/getSessionId are
    * not read, and the getScheduledTasksEnabled() poll is skipped (enable()
-   * runs immediately on start). Required for Agent SDK daemon callers.
+   * runs immediately on start). Required for non-REPL callers.
    */
   dir?: string
   /**
    * Owner key written into the lock file. Defaults to getSessionId().
-   * Daemon callers must pass a stable per-process UUID since they have no
+   * Non-REPL callers must pass a stable per-process UUID since they have no
    * session. PID remains the liveness probe regardless.
    */
   lockIdentity?: string
@@ -103,8 +99,8 @@ type CronSchedulerOptions = {
    * check() cycle. REPL callers pass a GrowthBook-backed implementation
    * (see cronJitterConfig.ts) for live tuning — ops can widen the jitter
    * window mid-session during a :00 load spike without restarting clients.
-   * Agent SDK daemon callers omit this and get DEFAULT_CRON_JITTER_CONFIG,
-   * which is safe since daemons restart on config change anyway, and the
+   * Non-REPL callers omit this and get DEFAULT_CRON_JITTER_CONFIG,
+   * which is safe since scheduler hosts restart on config change anyway, and the
    * growthbook.ts → config.ts → commands.ts → REPL chain stays out of
    * sdk.mjs.
    */
@@ -121,8 +117,8 @@ type CronSchedulerOptions = {
    * Per-task gate applied before any side effect. Tasks returning false are
    * invisible to this scheduler: never fired, never stamped with
    * `lastFiredAt`, never deleted, never surfaced as missed, absent from
-   * `getNextFireTime()`. The daemon cron worker uses `t => t.permanent` so
-   * non-permanent tasks in the same scheduled_tasks.json are untouched.
+   * `getNextFireTime()`. Internal scheduler hosts can use `t => t.permanent`
+   * so non-permanent tasks in the same scheduled_tasks.json are untouched.
    */
   filter?: (t: CronTask) => boolean
 }
@@ -133,7 +129,7 @@ export type CronScheduler = {
   /**
    * Epoch ms of the soonest scheduled fire across all loaded tasks, or null
    * if nothing is scheduled (no tasks, or all tasks already in-flight).
-   * Daemon callers use this to decide whether to tear down an idle agent
+   * Non-REPL callers use this to decide whether to tear down an idle
    * subprocess or keep it warm for an imminent fire.
    */
   getNextFireTime: () => number | null
@@ -202,14 +198,6 @@ export function createCronScheduler(
         // removeCronTasks + chokidar reload chain is in progress.
         nextFireAt.set(t.id, Infinity)
       }
-      logEvent('tengu_scheduled_task_missed', {
-        count: missed.length,
-        taskIds: missed
-          .map(t => t.id)
-          .join(
-            ',',
-          ) as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-      })
       if (onMissed) {
         onMissed(missed)
       } else {
@@ -237,9 +225,9 @@ export function createCronScheduler(
     // tasks excluded — they die with the process, no point persisting.
     const firedFileRecurring: string[] = []
     // Read once per tick. REPL callers pass getJitterConfig backed by
-    // GrowthBook so a config push takes effect without restart. Daemon and
-    // SDK callers omit it and get DEFAULT_CRON_JITTER_CONFIG (safe — jitter
-    // is an ops lever for REPL fleet load-shedding, not a daemon concern).
+    // GrowthBook so a config push takes effect without restart. Non-REPL
+    // callers omit it and get DEFAULT_CRON_JITTER_CONFIG (safe — jitter
+    // is an ops lever for REPL fleet load-shedding, not a scheduler-host concern).
     const jitterCfg = getJitterConfig?.() ?? DEFAULT_CRON_JITTER_CONFIG
 
     // Shared loop body. `isSession` routes the one-shot cleanup path:
@@ -258,7 +246,7 @@ export function createCronScheduler(
         // next-year for pinned crons (`30 14 27 2 *`). Fired-before tasks
         // use lastFiredAt: the reschedule below writes `now` back to disk,
         // so on next process spawn first-sight computes the SAME newNext we
-        // set in-memory here. Without this, a daemon child despawning on
+        // set in-memory here. Without this, a non-REPL scheduler process
         // idle loses nextFireAt and the next spawn re-anchors from 10-day-
         // old createdAt → fires every task every cycle.
         next = t.recurring
@@ -285,11 +273,6 @@ export function createCronScheduler(
       logForDebugging(
         `[ScheduledTasks] firing ${t.id}${t.recurring ? ' (recurring)' : ''}`,
       )
-      logEvent('tengu_scheduled_task_fire', {
-        recurring: t.recurring ?? false,
-        taskId:
-          t.id as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-      })
       if (onFireTask) {
         onFireTask(t)
       } else {
@@ -305,11 +288,6 @@ export function createCronScheduler(
         logForDebugging(
           `[ScheduledTasks] recurring task ${t.id} aged out (${ageHours}h since creation), deleting after final fire`,
         )
-        logEvent('tengu_scheduled_task_expired', {
-          taskId:
-            t.id as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-          ageHours,
-        })
       }
 
       if (t.recurring && !aged) {
@@ -371,7 +349,7 @@ export function createCronScheduler(
     // Session-only tasks: process-private, the lock does not apply — the
     // other session cannot see them and there is no double-fire risk. Read
     // fresh from bootstrap state every tick (no chokidar, no load()). This
-    // is skipped on the daemon path (`dir !== undefined`) which never
+    // is skipped on the non-REPL path (`dir !== undefined`) which never
     // touches bootstrap state.
     if (dir === undefined) {
       for (const t of getSessionCronTasks()) process(t, true)
@@ -381,7 +359,7 @@ export function createCronScheduler(
       // No live tasks this tick — clear the whole schedule so
       // getNextFireTime() returns null. The eviction loop below is
       // unreachable here (seen is empty), so stale entries would
-      // otherwise survive indefinitely and keep the daemon agent warm.
+      // otherwise survive indefinitely and keep the scheduler host warm.
       nextFireAt.clear()
       return
     }
@@ -464,7 +442,7 @@ export function createCronScheduler(
       stopped = false
       // Daemon path (dir explicitly given): don't touch bootstrap state —
       // getScheduledTasksEnabled() would read a never-initialized flag. The
-      // daemon is asking to schedule; just enable.
+      // caller is asking to schedule; just enable.
       if (dir !== undefined) {
         logForDebugging(
           `[ScheduledTasks] scheduler start() — dir=${dir}, hasTasks=${hasCronTasksSync(dir)}`,

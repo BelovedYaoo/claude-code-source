@@ -1,25 +1,20 @@
 import { c as _c } from "react/compiler-runtime";
 import type { Base64ImageSource, ImageBlockParam } from '@anthropic-ai/sdk/resources/messages.mjs';
-import React, { Suspense, use, useCallback, useMemo, useRef, useState } from 'react';
+import React, { Suspense, use, useRef, useState } from 'react';
 import { useSettings } from '../../../hooks/useSettings.js';
 import { useTerminalSize } from '../../../hooks/useTerminalSize.js';
 import { stringWidth } from '../../../ink/stringWidth.js';
 import { useTheme } from '../../../ink.js';
 import { useKeybindings } from '../../../keybindings/useKeybinding.js';
-import { type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS, logEvent } from '../../../services/analytics/index.js';
 import { useAppState } from '../../../state/AppState.js';
-import type { Question } from '../../../tools/AskUserQuestionTool/AskUserQuestionTool.js';
 import { AskUserQuestionTool } from '../../../tools/AskUserQuestionTool/AskUserQuestionTool.js';
-import { type CliHighlight, getCliHighlightPromise } from '../../../utils/cliHighlight.js';
+import { getCliHighlightPromise } from '../../../utils/cliHighlight.js';
 import type { PastedContent } from '../../../utils/config.js';
-import type { ImageDimensions } from '../../../utils/imageResizer.js';
 import { maybeResizeAndDownsampleImageBlock } from '../../../utils/imageResizer.js';
 import { cacheImagePath, storeImage } from '../../../utils/imageStore.js';
 import { logError } from '../../../utils/log.js';
 import { applyMarkdown } from '../../../utils/markdown.js';
-import { isPlanModeInterviewPhaseEnabled } from '../../../utils/planModeV2.js';
 import { getPlanFilePath } from '../../../utils/plans.js';
-import type { PermissionRequestProps } from '../PermissionRequest.js';
 import { QuestionView } from './QuestionView.js';
 import { SubmitQuestionsView } from './SubmitQuestionsView.js';
 import { useMultipleChoiceState } from './use-multiple-choice-state.js';
@@ -266,12 +261,6 @@ function AskUserQuestionPermissionRequestBody(t0) {
   if ($[25] !== isInPlanMode || $[26] !== metadataSource || $[27] !== onDone || $[28] !== onReject || $[29] !== questions.length || $[30] !== toolUseConfirm) {
     t12 = () => {
       if (metadataSource) {
-        logEvent("tengu_ask_user_question_rejected", {
-          source: metadataSource as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-          questionCount: questions.length,
-          isInPlanMode,
-          interviewPhaseEnabled: isInPlanMode && isPlanModeInterviewPhaseEnabled()
-        });
       }
       onDone();
       onReject();
@@ -305,12 +294,6 @@ function AskUserQuestionPermissionRequestBody(t0) {
 
     Questions asked:\n${questionsWithAnswers}`;
       if (metadataSource) {
-        logEvent("tengu_ask_user_question_respond_to_claude", {
-          source: metadataSource as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-          questionCount: questions.length,
-          isInPlanMode,
-          interviewPhaseEnabled: isInPlanMode && isPlanModeInterviewPhaseEnabled()
-        });
       }
       const imageBlocks = await convertImagesToBlocks(allImageAttachments);
       onDone();
@@ -343,12 +326,6 @@ Stop asking clarifying questions and proceed to finish the plan with the informa
 
 Questions asked and answers provided:\n${questionsWithAnswers_0}`;
       if (metadataSource) {
-        logEvent("tengu_ask_user_question_finish_plan_interview", {
-          source: metadataSource as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-          questionCount: questions.length,
-          isInPlanMode,
-          interviewPhaseEnabled: isInPlanMode && isPlanModeInterviewPhaseEnabled()
-        });
       }
       const imageBlocks_0 = await convertImagesToBlocks(allImageAttachments);
       onDone();
@@ -370,13 +347,6 @@ Questions asked and answers provided:\n${questionsWithAnswers_0}`;
   if ($[48] !== allImageAttachments || $[49] !== isInPlanMode || $[50] !== metadataSource || $[51] !== onDone || $[52] !== questionStates || $[53] !== questions || $[54] !== toolUseConfirm) {
     t15 = async answersToSubmit => {
       if (metadataSource) {
-        logEvent("tengu_ask_user_question_accepted", {
-          source: metadataSource as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-          questionCount: questions.length,
-          answerCount: Object.keys(answersToSubmit).length,
-          isInPlanMode,
-          interviewPhaseEnabled: isInPlanMode && isPlanModeInterviewPhaseEnabled()
-        });
       }
       const annotations = {};
       for (const q_3 of questions) {

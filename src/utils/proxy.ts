@@ -30,10 +30,6 @@ export function disableKeepAlive(): void {
   keepAliveDisabled = true
 }
 
-export function _resetKeepAliveForTesting(): void {
-  keepAliveDisabled = false
-}
-
 /**
  * Convert dns.LookupOptions.family to a numeric address family value
  * Handles: 0 | 4 | 6 | 'IPv4' | 'IPv6' | undefined
@@ -158,37 +154,6 @@ function createHttpsProxyAgent(
   }
 
   return new HttpsProxyAgent(proxyUrl, { ...agentOptions, ...extra })
-}
-
-/**
- * Axios instance with its own proxy agent. Same NO_PROXY/mTLS/CA
- * resolution as the global interceptor, but agent options stay
- * scoped to this instance.
- */
-export function createAxiosInstance(
-  extra: HttpsProxyAgentOptions<string> = {},
-): AxiosInstance {
-  const proxyUrl = getProxyUrl()
-  const mtlsAgent = getMTLSAgent()
-  const instance = axios.create({ proxy: false })
-
-  if (!proxyUrl) {
-    if (mtlsAgent) instance.defaults.httpsAgent = mtlsAgent
-    return instance
-  }
-
-  const proxyAgent = createHttpsProxyAgent(proxyUrl, extra)
-  instance.interceptors.request.use(config => {
-    if (config.url && shouldBypassProxy(config.url)) {
-      config.httpsAgent = mtlsAgent
-      config.httpAgent = mtlsAgent
-    } else {
-      config.httpsAgent = proxyAgent
-      config.httpAgent = proxyAgent
-    }
-    return config
-  })
-  return instance
 }
 
 /**

@@ -17,10 +17,6 @@ import {
 import memoize from 'lodash-es/memoize.js'
 import { basename, dirname, join } from 'path'
 import {
-  type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-  logEvent,
-} from 'src/services/analytics/index.js'
-import {
   getOriginalCwd,
   getPlanSlugCache,
   getPromptId,
@@ -219,7 +215,7 @@ export function getTranscriptPathForSession(sessionId: string): string {
 
 // 50 MB — session JSONL can grow to multiple GB (inc-3930). Callers that
 // read the raw transcript must bail out above this threshold to avoid OOM.
-export const MAX_TRANSCRIPT_READ_BYTES = 50 * 1024 * 1024
+
 
 // In-memory map of agentId → subdirectory for grouping related subagent
 // transcripts (e.g. workflow runs write to subagents/workflows/<runId>/).
@@ -360,27 +356,6 @@ function getProject(): Project {
     }
   }
   return project
-}
-
-/**
- * Reset the Project singleton's flush state for testing.
- * This ensures tests don't interfere with each other via shared counter state.
- */
-export function resetProjectFlushStateForTesting(): void {
-  project?._resetFlushState()
-}
-
-/**
- * Reset the entire Project singleton for testing.
- * This ensures tests with different CLAUDE_CONFIG_DIR values
- * don't share stale sessionFile paths.
- */
-export function resetProjectForTesting(): void {
-  project = null
-}
-
-export function setSessionFileForTesting(path: string): void {
-  getProject().sessionFile = path
 }
 
 
@@ -1292,53 +1267,6 @@ export function adoptResumedSessionFile(): void {
   project.reAppendSessionMetadata(true)
 }
 
-/**
- * Append a context-collapse commit entry to the transcript. One entry per
- * commit, in commit order. On resume these are collected into an ordered
- * array and handed to restoreFromEntries() which rebuilds the commit log.
- */
-export async function recordContextCollapseCommit(commit: {
-  collapseId: string
-  summaryUuid: string
-  summaryContent: string
-  summary: string
-  firstArchivedUuid: string
-  lastArchivedUuid: string
-}): Promise<void> {
-  const sessionId = getSessionId() as UUID
-  if (!sessionId) return
-  await getProject().appendEntry({
-    type: 'marble-origami-commit',
-    sessionId,
-    ...commit,
-  })
-}
-
-/**
- * Snapshot the staged queue + spawn state. Written after each ctx-agent
- * spawn resolves (when staged contents may have changed). Last-wins on
- * restore — the loader keeps only the most recent snapshot entry.
- */
-export async function recordContextCollapseSnapshot(snapshot: {
-  staged: Array<{
-    startUuid: string
-    endUuid: string
-    summary: string
-    risk: number
-    stagedAt: number
-  }>
-  armed: boolean
-  lastSpawnTokens: number
-}): Promise<void> {
-  const sessionId = getSessionId() as UUID
-  if (!sessionId) return
-  await getProject().appendEntry({
-    type: 'marble-origami-snapshot',
-    sessionId,
-    ...snapshot,
-  })
-}
-
 export async function flushSessionStorage(): Promise<void> {
   await getProject().flush()
 }
@@ -1515,18 +1443,6 @@ function applyPreservedSegmentRelinks(
       cur = cur.parentUuid ? messages.get(cur.parentUuid) : undefined
     }
     if (!reachedHead) {
-      // tail→head walk broke — a UUID in the preserved segment isn't in the
-      // transcript. Returning here skips the prune below, so resume loads
-      // the full pre-compact history. Known cause: mid-turn-yielded
-      // attachment pushed to mutableMessages but never recordTranscript'd
-      // (SDK subprocess restarted before next turn's qe:420 flush).
-      logEvent('tengu_relink_walk_broken', {
-        tailInTranscript: messages.has(lastSeg.tailUuid),
-        headInTranscript: messages.has(lastSeg.headUuid),
-        anchorInTranscript: messages.has(lastSeg.anchorUuid),
-        walkSteps: walkSeen.size,
-        transcriptSize: messages.size,
-      })
       return
     }
   }
@@ -1660,11 +1576,6 @@ function applySnipRemovals(messages: Map<UUID, TranscriptMessage>): void {
     messages.set(uuid, { ...msg, parentUuid: resolve(msg.parentUuid) })
     relinkedCount++
   }
-
-  logEvent('tengu_snip_resume_filtered', {
-    removed_count: removedCount,
-    relinked_count: relinkedCount,
-  })
 }
 
 /**
@@ -1709,7 +1620,6 @@ export function buildConversationChain(
           `Cycle detected in parentUuid chain at message ${currentMsg.uuid}. Returning partial transcript.`,
         ),
       )
-      logEvent('tengu_chain_parent_cycle', {})
       break
     }
     seen.add(currentMsg.uuid)
@@ -1821,9 +1731,6 @@ function recoverOrphanedParallelToolResults(
   }
 
   if (recoveredCount === 0) return chain
-  logEvent('tengu_chain_parallel_tr_recovered', {
-    recovered_count: recoveredCount,
-  })
 
   const result: TranscriptMessage[] = []
   for (const m of chain) {
@@ -1860,13 +1767,6 @@ export function checkResumeConsistency(chain: Message[]): void {
     // The checkpoint was appended AFTER messageCount messages, so its own
     // position should be messageCount (i.e., i === expected).
     const actual = i
-    logEvent('tengu_resume_consistency_delta', {
-      expected,
-      actual,
-      delta: actual - expected,
-      chain_length: chain.length,
-      checkpoint_age_entries: chain.length - 1 - i,
-    })
     return
   }
 }
@@ -2175,14 +2075,6 @@ async function trackSessionBranchingAnalytics(
   const branchCounts = Array.from(sessionIdCounts.values()).filter(c => c > 1)
   const sessionsWithBranches = branchCounts.length
   const totalBranches = branchCounts.reduce((sum, count) => sum + count, 0)
-
-  logEvent('tengu_session_forked_branches_fetched', {
-    total_sessions: sessionIdCounts.size,
-    sessions_with_branches: sessionsWithBranches,
-    max_branches_per_session: Math.max(...branchCounts),
-    avg_branches_per_session: Math.round(totalBranches / sessionsWithBranches),
-    total_transcript_count: logs.length,
-  })
 }
 
 export async function fetchLogs(limit?: number): Promise<LogOption[]> {
@@ -2260,10 +2152,6 @@ export async function saveCustomTitle(
   if (sessionId === getSessionId()) {
     getProject().currentSessionTitle = customTitle
   }
-  logEvent('tengu_session_renamed', {
-    source:
-      source as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-  })
 }
 
 /**
@@ -2301,21 +2189,6 @@ export function saveAiGeneratedTitle(sessionId: UUID, aiTitle: string): void {
   })
 }
 
-/**
- * Append a periodic task summary for `claude ps`. Unlike ai-title this is
- * not re-appended by reAppendSessionMetadata — it's a rolling snapshot of
- * what the agent is doing *now*, so staleness is fine; ps reads the most
- * recent one from the tail.
- */
-export function saveTaskSummary(sessionId: UUID, summary: string): void {
-  appendEntryToFile(getTranscriptPathForSession(sessionId), {
-    type: 'task-summary',
-    summary,
-    sessionId,
-    timestamp: new Date().toISOString(),
-  })
-}
-
 export async function saveTag(sessionId: UUID, tag: string, fullPath?: string) {
   // Fall back to computed path if fullPath is not provided
   const resolvedPath = fullPath ?? getTranscriptPathForSession(sessionId)
@@ -2324,7 +2197,6 @@ export async function saveTag(sessionId: UUID, tag: string, fullPath?: string) {
   if (sessionId === getSessionId()) {
     getProject().currentSessionTag = tag
   }
-  logEvent('tengu_session_tagged', {})
 }
 
 /**
@@ -2354,7 +2226,6 @@ export async function linkSessionToPR(
     project.currentSessionPrUrl = prUrl
     project.currentSessionPrRepository = prRepository
   }
-  logEvent('tengu_session_linked_to_pr', { prNumber })
 }
 
 export function getCurrentSessionTag(sessionId: UUID): string | undefined {
@@ -2458,10 +2329,6 @@ export async function saveAgentName(
     getProject().currentSessionAgentName = agentName
     void updateSessionName(agentName)
   }
-  logEvent('tengu_agent_name_set', {
-    source:
-      source as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-  })
 }
 
 export async function saveAgentColor(
@@ -2479,7 +2346,6 @@ export async function saveAgentColor(
   if (sessionId === getSessionId()) {
     getProject().currentSessionAgentColor = agentColor
   }
-  logEvent('tengu_agent_color_set', {})
 }
 
 /**
@@ -3415,7 +3281,6 @@ export async function loadTranscriptFile(
   }
 
   if (hasCycle) {
-    logEvent('tengu_transcript_parent_cycle', {})
   }
 
   return {
@@ -3865,62 +3730,6 @@ export async function getAgentTranscript(agentId: AgentId): Promise<{
 }
 
 /**
- * Extract agent IDs from progress messages in the conversation.
- * Agent/skill progress messages have type 'progress' with data.type
- * 'agent_progress' or 'skill_progress' and data.agentId.
- * This captures sync agents that emit progress messages during execution.
- */
-export function extractAgentIdsFromMessages(messages: Message[]): string[] {
-  const agentIds: string[] = []
-
-  for (const message of messages) {
-    if (
-      message.type === 'progress' &&
-      message.data &&
-      typeof message.data === 'object' &&
-      'type' in message.data &&
-      (message.data.type === 'agent_progress' ||
-        message.data.type === 'skill_progress') &&
-      'agentId' in message.data &&
-      typeof message.data.agentId === 'string'
-    ) {
-      agentIds.push(message.data.agentId)
-    }
-  }
-
-  return uniq(agentIds)
-}
-
-/**
- * Extract teammate transcripts directly from AppState tasks.
- * In-process teammates store their messages in task.messages,
- * which is more reliable than loading from disk since each teammate turn
- * uses a random agentId for transcript storage.
- */
-export function extractTeammateTranscriptsFromTasks(tasks: {
-  [taskId: string]: {
-    type: string
-    identity?: { agentId: string }
-    messages?: Message[]
-  }
-}): { [agentId: string]: Message[] } {
-  const transcripts: { [agentId: string]: Message[] } = {}
-
-  for (const task of Object.values(tasks)) {
-    if (
-      task.type === 'in_process_teammate' &&
-      task.identity?.agentId &&
-      task.messages &&
-      task.messages.length > 0
-    ) {
-      transcripts[task.identity.agentId] = task.messages
-    }
-  }
-
-  return transcripts
-}
-
-/**
  * Load subagent transcripts for the given agent IDs
  */
 export async function loadSubagentTranscripts(
@@ -3951,29 +3760,6 @@ export async function loadSubagentTranscripts(
 }
 
 // Globs the session's subagents dir directly — unlike AppState.tasks, this survives task eviction.
-export async function loadAllSubagentTranscriptsFromDisk(): Promise<{
-  [agentId: string]: Message[]
-}> {
-  const subagentsDir = join(
-    getSessionProjectDir() ?? getProjectDir(getOriginalCwd()),
-    getSessionId(),
-    'subagents',
-  )
-  let entries: Dirent[]
-  try {
-    entries = await readdir(subagentsDir, { withFileTypes: true })
-  } catch {
-    return {}
-  }
-  // Filename format is the inverse of getAgentTranscriptPath() — keep in sync.
-  const agentIds = entries
-    .filter(
-      d =>
-        d.isFile() && d.name.startsWith('agent-') && d.name.endsWith('.jsonl'),
-    )
-    .map(d => d.name.slice('agent-'.length, -'.jsonl'.length))
-  return loadSubagentTranscripts(agentIds)
-}
 
 // Exported so useLogMessages can sync-compute the last loggable uuid
 // without awaiting recordTranscript's return value (race-free hint tracking).
@@ -4087,16 +3873,6 @@ export function cleanMessagesForLogging(
         collectReplIds(allMessages),
       )
     : filtered
-}
-
-/**
- * Gets a log by its index
- * @param index Index in the sorted list of logs (0-based)
- * @returns Log data or null if not found
- */
-export async function getLogByIndex(index: number): Promise<LogOption | null> {
-  const logs = await loadMessageLogs()
-  return logs[index] || null
 }
 
 /**

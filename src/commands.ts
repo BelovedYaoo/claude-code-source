@@ -9,7 +9,6 @@ import branch from './commands/branch/index.js'
 import btw from './commands/btw/index.js'
 import goodClaude from './commands/good-claude/index.js'
 import issue from './commands/issue/index.js'
-import feedback from './commands/feedback/index.js'
 import clear from './commands/clear/index.js'
 import color from './commands/color/index.js'
 import commit from './commands/commit.js'
@@ -40,6 +39,7 @@ import installGitHubApp from './commands/install-github-app/index.js'
 import installSlackApp from './commands/install-slack-app/index.js'
 import breakCache from './commands/break-cache/index.js'
 import mcp from './commands/mcp/index.js'
+import mcpAnt from './commands/mcp-ant/index.js'
 import memory from './commands/memory/index.js'
 import mobile from './commands/mobile/index.js'
 import model from './commands/model/index.js'
@@ -206,6 +206,7 @@ const COMMANDS = memoize((): Command[] => [
   installGitHubApp,
   installSlackApp,
   mcp,
+  mcpAnt,
   memory,
   mobile,
   model,
@@ -223,7 +224,6 @@ const COMMANDS = memoize((): Command[] => [
   stickers,
   tag,
   theme,
-  feedback,
   review,
   rewind,
   securityReview,

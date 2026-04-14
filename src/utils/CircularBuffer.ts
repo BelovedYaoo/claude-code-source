@@ -24,15 +24,6 @@ export class CircularBuffer<T> {
   }
 
   /**
-   * Add multiple items to the buffer at once.
-   */
-  addAll(items: T[]): void {
-    for (const item of items) {
-      this.add(item)
-    }
-  }
-
-  /**
    * Get the most recent N items from the buffer.
    * Returns fewer items if the buffer contains less than N items.
    */

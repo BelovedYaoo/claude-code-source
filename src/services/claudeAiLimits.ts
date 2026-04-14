@@ -7,8 +7,6 @@ import { getGlobalConfig, saveGlobalConfig } from '../utils/config.js'
 import { logError } from '../utils/log.js'
 import { getSmallFastModel } from '../utils/model/model.js'
 import { isEssentialTrafficOnly } from '../utils/privacyLevel.js'
-import type { AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS } from './analytics/index.js'
-import { logEvent } from './analytics/index.js'
 import { getAPIMetadata } from './api/claude.js'
 import { getAnthropicClient } from './api/client.js'
 import {
@@ -74,19 +72,6 @@ const EARLY_WARNING_CLAIM_MAP: Record<string, RateLimitType> = {
   '7d': 'seven_day',
   overage: 'overage',
 }
-
-const RATE_LIMIT_DISPLAY_NAMES: Record<RateLimitType, string> = {
-  five_hour: 'session limit',
-  seven_day: 'weekly limit',
-  seven_day_opus: 'Opus limit',
-  seven_day_sonnet: 'Sonnet limit',
-  overage: 'extra usage limit',
-}
-
-export function getRateLimitDisplayName(type: RateLimitType): string {
-  return RATE_LIMIT_DISPLAY_NAMES[type] || type
-}
-
 /**
  * Calculate what fraction of a time window has elapsed.
  * Used for time-relative early warning fallback.
@@ -183,16 +168,9 @@ export const statusListeners: Set<StatusChangeListener> = new Set()
 export function emitStatusChange(limits: ClaudeAILimits) {
   currentLimits = limits
   statusListeners.forEach(listener => listener(limits))
-  const hoursTillReset = Math.round(
+  Math.round(
     (limits.resetsAt ? limits.resetsAt - Date.now() / 1000 : 0) / (60 * 60),
-  )
-
-  logEvent('tengu_claudeai_limits_status_changed', {
-    status:
-      limits.status as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-    unifiedRateLimitFallbackAvailable: limits.unifiedRateLimitFallbackAvailable,
-    hoursTillReset,
-  })
+  );
 }
 
 async function makeTestQuery() {

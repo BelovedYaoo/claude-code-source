@@ -887,49 +887,6 @@ export function setModelStrings(modelStrings: ModelStrings): void {
 
 // Test utility function to reset model strings for re-initialization.
 // Separate from setModelStrings because we only want to accept 'null' in tests.
-export function setMeter(
-  meter: Meter,
-  createCounter: (name: string, options: MetricOptions) => AttributedCounter,
-): void {
-  STATE.meter = meter
-
-  // Initialize all counters using the provided factory
-  STATE.sessionCounter = createCounter('claude_code.session.count', {
-    description: 'Count of CLI sessions started',
-  })
-  STATE.locCounter = createCounter('claude_code.lines_of_code.count', {
-    description:
-      "Count of lines of code modified, with the 'type' attribute indicating whether lines were added or removed",
-  })
-  STATE.prCounter = createCounter('claude_code.pull_request.count', {
-    description: 'Number of pull requests created',
-  })
-  STATE.commitCounter = createCounter('claude_code.commit.count', {
-    description: 'Number of git commits created',
-  })
-  STATE.costCounter = createCounter('claude_code.cost.usage', {
-    description: 'Cost of the Claude Code session',
-    unit: 'USD',
-  })
-  STATE.tokenCounter = createCounter('claude_code.token.usage', {
-    description: 'Number of tokens used',
-    unit: 'tokens',
-  })
-  STATE.codeEditToolDecisionCounter = createCounter(
-    'claude_code.code_edit_tool.decision',
-    {
-      description:
-        'Count of code editing tool permission decisions (accept/reject) for Edit, Write, and NotebookEdit tools',
-    },
-  )
-  STATE.activeTimeCounter = createCounter('claude_code.active_time.total', {
-    description: 'Total active time in seconds',
-    unit: 's',
-  })
-}
-export function getSessionCounter(): AttributedCounter | null {
-  return STATE.sessionCounter
-}
 
 export function getLocCounter(): AttributedCounter | null {
   return STATE.locCounter
@@ -1001,10 +958,6 @@ export function getIsInteractive(): boolean {
 
 export function setIsInteractive(value: boolean): void {
   STATE.isInteractive = value
-}
-
-export function getClientType(): string {
-  return STATE.clientType
 }
 
 export function setClientType(type: string): void {
@@ -1082,13 +1035,6 @@ export function setLastAPIRequest(
   params: Omit<BetaMessageStreamParams, 'messages'> | null,
 ): void {
   STATE.lastAPIRequest = params
-}
-
-export function getLastAPIRequest(): Omit<
-  BetaMessageStreamParams,
-  'messages'
-> | null {
-  return STATE.lastAPIRequest
 }
 
 export function setLastAPIRequestMessages(

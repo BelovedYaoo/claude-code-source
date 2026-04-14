@@ -19,10 +19,3 @@ export function setMockBillingAccessOverride(value: boolean | null): void {
   mockBillingAccessOverride = value
 }
 
-export function hasClaudeAiBillingAccess(): boolean {
-  if (mockBillingAccessOverride !== null) {
-    return mockBillingAccessOverride
-  }
-
-  return false
-}

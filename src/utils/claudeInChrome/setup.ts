@@ -36,37 +36,6 @@ const CHROME_EXTENSION_RECONNECT_URL = 'https://clau.de/chrome/reconnect'
 const NATIVE_HOST_IDENTIFIER = 'com.anthropic.claude_code_browser_extension'
 const NATIVE_HOST_MANIFEST_NAME = `${NATIVE_HOST_IDENTIFIER}.json`
 
-export function shouldEnableClaudeInChrome(chromeFlag?: boolean): boolean {
-  // Disable by default in non-interactive sessions (e.g., SDK, CI)
-  if (getIsNonInteractiveSession() && chromeFlag !== true) {
-    return false
-  }
-
-  // Check CLI flags
-  if (chromeFlag === true) {
-    return true
-  }
-  if (chromeFlag === false) {
-    return false
-  }
-
-  // Check environment variables
-  if (isEnvTruthy(process.env.CLAUDE_CODE_ENABLE_CFC)) {
-    return true
-  }
-  if (isEnvDefinedFalsy(process.env.CLAUDE_CODE_ENABLE_CFC)) {
-    return false
-  }
-
-  // Check default config settings
-  const config = getGlobalConfig()
-  if (config.claudeInChromeDefaultEnabled !== undefined) {
-    return config.claudeInChromeDefaultEnabled
-  }
-
-  return false
-}
-
 let shouldAutoEnable: boolean | undefined = undefined
 
 export function shouldAutoEnableClaudeInChrome(): boolean {

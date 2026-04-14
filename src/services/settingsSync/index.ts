@@ -31,7 +31,6 @@ import { resetSettingsCache } from '../../utils/settings/settingsCache.js'
 import { sleep } from '../../utils/sleep.js'
 import { getClaudeCodeUserAgent } from '../../utils/userAgent.js'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../analytics/growthbook.js'
-import { logEvent } from '../analytics/index.js'
 import { getRetryDelay } from '../api/withRetry.js'
 import {
   type SettingsSyncFetchResult,
@@ -61,7 +60,6 @@ export async function uploadUserSettingsInBackground(): Promise<void> {
       !hasSettingsSyncAuth()
     ) {
       logForDiagnosticsNoPII('info', 'settings_sync_upload_skipped')
-      logEvent('tengu_settings_sync_upload_skipped_ineligible', {})
       return
     }
 
@@ -69,7 +67,6 @@ export async function uploadUserSettingsInBackground(): Promise<void> {
     const result = await fetchUserSettings()
     if (!result.success) {
       logForDiagnosticsNoPII('warn', 'settings_sync_upload_fetch_failed')
-      logEvent('tengu_settings_sync_upload_fetch_failed', {})
       return
     }
 
@@ -84,17 +81,14 @@ export async function uploadUserSettingsInBackground(): Promise<void> {
     const entryCount = Object.keys(changedEntries).length
     if (entryCount === 0) {
       logForDiagnosticsNoPII('info', 'settings_sync_upload_no_changes')
-      logEvent('tengu_settings_sync_upload_skipped', {})
       return
     }
 
     const uploadResult = await uploadUserSettings(changedEntries)
     if (uploadResult.success) {
       logForDiagnosticsNoPII('info', 'settings_sync_upload_success')
-      logEvent('tengu_settings_sync_upload_success', { entryCount })
     } else {
       logForDiagnosticsNoPII('warn', 'settings_sync_upload_failed')
-      logEvent('tengu_settings_sync_upload_failed', { entryCount })
     }
   } catch {
     // Fail-open: log unexpected errors but don't block startup
@@ -106,46 +100,6 @@ export async function uploadUserSettingsInBackground(): Promise<void> {
 // installPluginsAndApplyMcpInBackground share one fetch.
 let downloadPromise: Promise<boolean> | null = null
 
-/** Test-only: clear the cached download promise between tests. */
-export function _resetDownloadPromiseForTesting(): void {
-  downloadPromise = null
-}
-
-/**
- * Download settings from remote for CCR mode.
- * Fired fire-and-forget at the top of print.ts runHeadless(); awaited in
- * installPluginsAndApplyMcpInBackground before plugin install. First call
- * starts the fetch; subsequent calls join it.
- * Returns true if settings were applied, false otherwise.
- */
-export function downloadUserSettings(): Promise<boolean> {
-  if (downloadPromise) {
-    return downloadPromise
-  }
-  downloadPromise = doDownloadUserSettings()
-  return downloadPromise
-}
-
-/**
- * Force a fresh download, bypassing the cached startup promise.
- * Called by /reload-plugins in CCR so mid-session settings changes
- * (enabledPlugins, extraKnownMarketplaces) pushed from the user's local
- * CLI are picked up before the plugin-cache sweep.
- *
- * No retries: user-initiated command, one attempt + fail-open. The user
- * can re-run /reload-plugins to retry. Startup path keeps DEFAULT_MAX_RETRIES.
- *
- * Caller is responsible for firing settingsChangeDetector.notifyChange
- * when this returns true — applyRemoteEntriesToLocal uses markInternalWrite
- * to suppress detection (correct for startup, but mid-session needs
- * applySettingsChange to run). Kept out of this module to avoid the
- * settingsSync → changeDetector cycle edge.
- */
-export function redownloadUserSettings(): Promise<boolean> {
-  downloadPromise = doDownloadUserSettings(0)
-  return downloadPromise
-}
-
 async function doDownloadUserSettings(
   maxRetries = DEFAULT_MAX_RETRIES,
 ): Promise<boolean> {
@@ -156,7 +110,6 @@ async function doDownloadUserSettings(
         !hasSettingsSyncAuth()
       ) {
         logForDiagnosticsNoPII('info', 'settings_sync_download_skipped')
-        logEvent('tengu_settings_sync_download_skipped', {})
         return false
       }
 
@@ -164,13 +117,11 @@ async function doDownloadUserSettings(
       const result = await fetchUserSettings(maxRetries)
       if (!result.success) {
         logForDiagnosticsNoPII('warn', 'settings_sync_download_fetch_failed')
-        logEvent('tengu_settings_sync_download_fetch_failed', {})
         return false
       }
 
       if (result.isEmpty) {
         logForDiagnosticsNoPII('info', 'settings_sync_download_empty')
-        logEvent('tengu_settings_sync_download_empty', {})
         return false
       }
 
@@ -181,12 +132,10 @@ async function doDownloadUserSettings(
         entryCount,
       })
       await applyRemoteEntriesToLocal(entries, projectId)
-      logEvent('tengu_settings_sync_download_success', { entryCount })
       return true
     } catch {
       // Fail-open: log error but don't block CCR startup
       logForDiagnosticsNoPII('error', 'settings_sync_download_error')
-      logEvent('tengu_settings_sync_download_error', {})
       return false
     }
   }

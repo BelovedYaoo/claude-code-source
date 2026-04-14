@@ -1,8 +1,4 @@
 import { posix, win32 } from 'path'
-import {
-  type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-  logEvent,
-} from 'src/services/analytics/index.js'
 import { logForDebugging } from './debug.js'
 import { isEnvTruthy } from './envUtils.js'
 import { getPlatform } from './platform.js'
@@ -49,13 +45,6 @@ function isInternalWarning(warning: Error): boolean {
 let warningHandler: ((warning: Error) => void) | null = null
 
 // For testing only - allows resetting the warning handler state
-export function resetWarningHandler(): void {
-  if (warningHandler) {
-    process.removeListener('warning', warningHandler)
-  }
-  warningHandler = null
-  warningCounts.clear()
-}
 
 export function initializeWarningHandler(): void {
   // Only set up handler once - check if our handler is already installed
@@ -91,19 +80,6 @@ export function initializeWarningHandler(): void {
       }
 
       const isInternal = isInternalWarning(warning)
-
-      // Always log to Statsig for monitoring
-      // Include full details for ant users only, since they may contain code or filepaths
-      logEvent('tengu_node_warning', {
-        is_internal: isInternal ? 1 : 0,
-        occurrence_count: count + 1,
-        classname:
-          warning.name as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-        ...(process.env.USER_TYPE === 'ant' && {
-          message:
-            warning.message as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-        }),
-      })
 
       // In debug mode, show all warnings with context
       if (isEnvTruthy(process.env.CLAUDE_DEBUG)) {

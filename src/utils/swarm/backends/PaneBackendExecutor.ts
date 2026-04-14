@@ -56,14 +56,6 @@ export class PaneBackendExecutor implements TeammateExecutor {
   }
 
   /**
-   * Sets the ToolUseContext for this executor.
-   * Must be called before spawn() to provide access to AppState and permissions.
-   */
-  setContext(context: ToolUseContext): void {
-    this.context = context
-  }
-
-  /**
    * Checks if the underlying pane backend is available.
    */
   async isAvailable(): Promise<boolean> {

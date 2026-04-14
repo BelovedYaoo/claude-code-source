@@ -71,10 +71,6 @@ export class FileStateCache {
     return this.cache.maxSize
   }
 
-  get calculatedSize(): number {
-    return this.cache.calculatedSize
-  }
-
   keys(): Generator<string> {
     return this.cache.keys()
   }

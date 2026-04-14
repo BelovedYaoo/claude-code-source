@@ -12,11 +12,6 @@
 
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../../services/analytics/growthbook.js'
 import {
-  type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-  type AnalyticsMetadata_I_VERIFIED_THIS_IS_PII_TAGGED,
-  logEvent,
-} from '../../services/analytics/index.js'
-import {
   type ClaudeCodeHint,
   hasShownHintThisSession,
   setPendingHint,
@@ -90,11 +85,6 @@ export function maybeRecordPluginHint(hint: ClaudeCodeHint): void {
 
 const triedThisSession = new Set<string>()
 
-/** Test-only reset. */
-export function _resetHintRecommendationForTesting(): void {
-  triedThisSession.clear()
-}
-
 /**
  * Resolve the pending hint to a renderable recommendation. Runs the async
  * marketplace lookup that the sync pre-store gate skipped. Returns null if
@@ -107,16 +97,6 @@ export async function resolvePluginHint(
   const { name, marketplace } = parsePluginIdentifier(pluginId)
 
   const pluginData = await getPluginById(pluginId)
-
-  logEvent('tengu_plugin_hint_detected', {
-    _PROTO_plugin_name: (name ??
-      '') as AnalyticsMetadata_I_VERIFIED_THIS_IS_PII_TAGGED,
-    _PROTO_marketplace_name: (marketplace ??
-      '') as AnalyticsMetadata_I_VERIFIED_THIS_IS_PII_TAGGED,
-    result: (pluginData
-      ? 'passed'
-      : 'not_in_cache') as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-  })
 
   if (!pluginData) {
     logForDebugging(

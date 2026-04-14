@@ -10,7 +10,6 @@ import instances from '../ink/instances.js';
 import { useKeybinding } from '../keybindings/useKeybinding.js';
 import type { Screen } from '../screens/REPL.js';
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../services/analytics/growthbook.js';
-import { logEvent } from '../services/analytics/index.js';
 import { useAppState, useSetAppState } from '../state/AppState.js';
 import { getAllInProcessTeammateTasks } from '../tasks/InProcessTeammateTask/InProcessTeammateTask.js';
 import { count } from '../utils/array.js';
@@ -50,9 +49,6 @@ export function GlobalKeybindingHandlers({
 
   // Toggle todo list (ctrl+t) - cycles through views
   const handleToggleTodos = useCallback(() => {
-    logEvent('tengu_toggle_todos', {
-      is_expanded: expandedView === 'tasks'
-    });
     setAppState(prev => {
       const hasTeammates = count(getAllInProcessTeammateTasks(prev.tasks), t => t.status === 'running') > 0;
       if (hasTeammates) {
@@ -85,11 +81,6 @@ export function GlobalKeybindingHandlers({
 
   const handleToggleTranscript = useCallback(() => {
     const isEnteringTranscript = screen !== 'transcript';
-    logEvent('tengu_toggle_transcript', {
-      is_entering: isEnteringTranscript,
-      show_all: showAllInTranscript,
-      message_count: messageCount
-    });
     setScreen(s_1 => s_1 === 'transcript' ? 'prompt' : 'transcript');
     setShowAllInTranscript(false);
     if (isEnteringTranscript && onEnterTranscript) {
@@ -102,19 +93,11 @@ export function GlobalKeybindingHandlers({
 
   // Toggle showing all messages in transcript mode (ctrl+e)
   const handleToggleShowAll = useCallback(() => {
-    logEvent('tengu_transcript_toggle_show_all', {
-      is_expanding: !showAllInTranscript,
-      message_count: messageCount
-    });
     setShowAllInTranscript(prev_1 => !prev_1);
   }, [showAllInTranscript, setShowAllInTranscript, messageCount]);
 
   // Exit transcript mode (ctrl+c or escape)
   const handleExitTranscript = useCallback(() => {
-    logEvent('tengu_transcript_exit', {
-      show_all: showAllInTranscript,
-      message_count: messageCount
-    });
     setScreen('prompt');
     setShowAllInTranscript(false);
     if (onExitTranscript) {

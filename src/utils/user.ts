@@ -72,10 +72,6 @@ export const getCoreUserData = memoize(
   },
 )
 
-export function getUserForGrowthBook(): CoreUserData {
-  return getCoreUserData(true)
-}
-
 function getEmail(): string | undefined {
   if (cachedEmail !== null) {
     return cachedEmail

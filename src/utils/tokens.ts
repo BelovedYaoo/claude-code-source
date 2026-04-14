@@ -111,30 +111,6 @@ export function finalContextTokensFromLastResponse(
   return 0
 }
 
-/**
- * Get only the output_tokens from the last API response.
- * This excludes input context (system prompt, tools, prior messages).
- *
- * WARNING: Do NOT use this for threshold comparisons (autocompact, session memory).
- * Use tokenCountWithEstimation() instead, which measures full context size.
- * This function is only useful for measuring how many tokens Claude generated
- * in a single response, not how full the context window is.
- */
-export function messageTokenCountFromLastAPIResponse(
-  messages: Message[],
-): number {
-  let i = messages.length - 1
-  while (i >= 0) {
-    const message = messages[i]
-    const usage = message ? getTokenUsage(message) : undefined
-    if (usage) {
-      return usage.output_tokens
-    }
-    i--
-  }
-  return 0
-}
-
 export function getCurrentUsage(messages: Message[]): {
   input_tokens: number
   output_tokens: number

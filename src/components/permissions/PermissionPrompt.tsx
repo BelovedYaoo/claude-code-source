@@ -1,11 +1,11 @@
 import { c as _c } from "react/compiler-runtime";
-import React, { type ReactNode, useCallback, useMemo, useState } from 'react';
+import React, { type ReactNode, useState } from 'react';
 import { Box, Text } from '../../ink.js';
 import type { KeybindingAction } from '../../keybindings/types.js';
 import { useKeybindings } from '../../keybindings/useKeybinding.js';
-import { type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS, logEvent } from '../../services/analytics/index.js';
+import { type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS } from '../../services/analytics/metadata.js';
 import { useSetAppState } from '../../state/AppState.js';
-import { type OptionWithDescription, Select } from '../CustomSelect/select.js';
+import { Select } from '../CustomSelect/select.js';
 export type FeedbackType = 'accept' | 'reject';
 export type PermissionPromptOption<T extends string> = {
   value: T;
@@ -19,13 +19,6 @@ export type PermissionPromptOption<T extends string> = {
 export type ToolAnalyticsContext = {
   toolName: string;
   isMcp: boolean;
-};
-export type PermissionPromptProps<T extends string> = {
-  options: PermissionPromptOption<T>[];
-  onSelect: (value: T, feedback?: string) => void;
-  onCancel?: () => void;
-  question?: string | ReactNode;
-  toolAnalyticsContext?: ToolAnalyticsContext;
 };
 const DEFAULT_PLACEHOLDERS: Record<FeedbackType, string> = {
   accept: 'tell Claude what to do next',
@@ -150,21 +143,17 @@ export function PermissionPrompt(t0) {
       if (type_0 === "accept") {
         if (acceptInputMode) {
           setAcceptInputMode(false);
-          logEvent("tengu_accept_feedback_mode_collapsed", analyticsProps);
         } else {
           setAcceptInputMode(true);
           setAcceptFeedbackModeEntered(true);
-          logEvent("tengu_accept_feedback_mode_entered", analyticsProps);
         }
       } else {
         if (type_0 === "reject") {
           if (rejectInputMode) {
             setRejectInputMode(false);
-            logEvent("tengu_reject_feedback_mode_collapsed", analyticsProps);
           } else {
             setRejectInputMode(true);
             setRejectFeedbackModeEntered(true);
-            logEvent("tengu_reject_feedback_mode_entered", analyticsProps);
           }
         }
       }
@@ -201,10 +190,8 @@ export function PermissionPrompt(t0) {
           entered_feedback_mode: option_0.feedbackConfig.type === "accept" ? acceptFeedbackModeEntered : rejectFeedbackModeEntered
         };
         if (option_0.feedbackConfig.type === "accept") {
-          logEvent("tengu_accept_submitted", analyticsProps_0);
         } else {
           if (option_0.feedbackConfig.type === "reject") {
-            logEvent("tengu_reject_submitted", analyticsProps_0);
           }
         }
       }
@@ -251,7 +238,6 @@ export function PermissionPrompt(t0) {
   let t7;
   if ($[31] !== onCancel || $[32] !== setAppState) {
     t7 = () => {
-      logEvent("tengu_permission_request_escape", {});
       setAppState(_temp);
       onCancel?.();
     };

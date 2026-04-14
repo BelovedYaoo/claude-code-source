@@ -3,7 +3,6 @@ import { execFile, spawn } from 'child_process'
 import memoize from 'lodash-es/memoize.js'
 import { homedir } from 'os'
 import * as path from 'path'
-import { logEvent } from 'src/services/analytics/index.js'
 import { fileURLToPath } from 'url'
 import { isInBundledMode } from './bundledMode.js'
 import { logForDebugging } from './debug.js'
@@ -98,7 +97,7 @@ function isEagainError(stderr: string): boolean {
 export class RipgrepTimeoutError extends Error {
   constructor(
     message: string,
-    public readonly partialResults: string[],
+
   ) {
     super(message)
     this.name = 'RipgrepTimeoutError'
@@ -395,7 +394,6 @@ export async function ripGrep(
         logForDebugging(
           `rg EAGAIN error detected, retrying with single-threaded mode (-j 1)`,
         )
-        logEvent('tengu_ripgrep_eagain_retry', {})
         ripGrepRaw(
           args,
           target,
@@ -447,7 +445,7 @@ export async function ripGrep(
         reject(
           new RipgrepTimeoutError(
             `Ripgrep search timed out after ${getPlatform() === 'wsl' ? 60 : 20} seconds. The search may have matched files but did not complete in time. Try searching a more specific path or pattern.`,
-            lines,
+
           ),
         )
         return
@@ -606,12 +604,6 @@ const testRipgrepOnFirstUse = memoize(async (): Promise<void> => {
         { level: 'warn' },
       )
     }
-
-    // Log telemetry for actual ripgrep availability
-    logEvent('tengu_ripgrep_availability', {
-      working: working ? 1 : 0,
-      using_system: config.mode === 'system' ? 1 : 0,
-    })
   } catch (error) {
     ripgrepStatus = {
       working: false,

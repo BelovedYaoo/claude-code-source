@@ -1,4 +1,3 @@
-import { feature } from 'bun:bundle'
 import { useMemo } from 'react'
 import { useCommandQueue } from 'src/hooks/useCommandQueue.js'
 import { useAppState } from 'src/state/AppState.js'

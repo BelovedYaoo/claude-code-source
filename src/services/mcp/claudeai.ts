@@ -21,17 +21,6 @@ export function clearClaudeAIMcpConfigsCache(): void {
   clearMcpAuthCache()
 }
 
-/**
- * Record that a managed connector successfully connected. Idempotent.
- */
-export function markClaudeAiMcpConnected(name: string): void {
-  saveGlobalConfig(current => {
-    const seen = current.claudeAiMcpEverConnected ?? []
-    if (seen.includes(name)) return current
-    return { ...current, claudeAiMcpEverConnected: [...seen, name] }
-  })
-}
-
 export function hasClaudeAiMcpEverConnected(name: string): boolean {
   return (getGlobalConfig().claudeAiMcpEverConnected ?? []).includes(name)
 }

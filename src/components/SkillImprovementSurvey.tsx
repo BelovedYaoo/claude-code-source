@@ -4,13 +4,12 @@ import { BLACK_CIRCLE, BULLET_OPERATOR } from '../constants/figures.js';
 import { Box, Text } from '../ink.js';
 import type { SkillUpdate } from '../utils/hooks/skillImprovement.js';
 import { normalizeFullWidthDigits } from '../utils/stringUtils.js';
-import { isValidResponseInput } from './FeedbackSurvey/FeedbackSurveyView.js';
-import type { FeedbackSurveyResponse } from './FeedbackSurvey/utils.js';
+type SkillImprovementResponse = 'good' | 'dismissed';
 type Props = {
   isOpen: boolean;
   skillName: string;
   updates: SkillUpdate[];
-  handleSelect: (selected: FeedbackSurveyResponse) => void;
+  handleSelect: (selected: SkillImprovementResponse) => void;
   inputValue: string;
   setInputValue: (value: string) => void;
 };
@@ -27,7 +26,7 @@ export function SkillImprovementSurvey(t0: Props) {
   if (!isOpen) {
     return null;
   }
-  if (inputValue && !isValidResponseInput(inputValue)) {
+  if (inputValue && !isValidSkillImprovementInput(inputValue)) {
     return null;
   }
   let t1;
@@ -47,14 +46,14 @@ export function SkillImprovementSurvey(t0: Props) {
 type ViewProps = {
   skillName: string;
   updates: SkillUpdate[];
-  onSelect: (option: FeedbackSurveyResponse) => void;
+  onSelect: (option: SkillImprovementResponse) => void;
   inputValue: string;
   setInputValue: (value: string) => void;
 };
 
 // Only 1 (apply) and 0 (dismiss) are valid for this survey
 const VALID_INPUTS = ['0', '1'] as const;
-function isValidInput(input: string): boolean {
+function isValidSkillImprovementInput(input: string): boolean {
   return (VALID_INPUTS as readonly string[]).includes(input);
 }
 function SkillImprovementSurveyView(t0) {
@@ -73,7 +72,7 @@ function SkillImprovementSurveyView(t0) {
     t1 = () => {
       if (inputValue !== initialInputValue.current) {
         const lastChar = normalizeFullWidthDigits(inputValue.slice(-1));
-        if (isValidInput(lastChar)) {
+        if (isValidSkillImprovementInput(lastChar)) {
           setInputValue(inputValue.slice(0, -1));
           onSelect(lastChar === "1" ? "good" : "dismissed");
         }

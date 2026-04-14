@@ -66,16 +66,6 @@ const GHA_SUBPROCESS_SCRUB = [
 // upstreamproxy module graph (upstreamproxy.ts + relay.ts) via a static import.
 let _getUpstreamProxyEnv: (() => Record<string, string>) | undefined
 
-/**
- * Called from init.ts to wire up the proxy env function after the upstreamproxy
- * module has been lazily loaded. Must be called before any subprocess is spawned.
- */
-export function registerUpstreamProxyEnvFn(
-  fn: () => Record<string, string>,
-): void {
-  _getUpstreamProxyEnv = fn
-}
-
 export function subprocessEnv(): NodeJS.ProcessEnv {
   // CCR upstreamproxy: inject HTTPS_PROXY + CA bundle vars so curl/gh/python
   // in agent subprocesses route through the local relay. Returns {} when the

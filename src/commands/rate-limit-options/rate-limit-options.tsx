@@ -3,7 +3,6 @@ import type { CommandResultDisplay, LocalJSXCommandContext } from '../../command
 import { type OptionWithDescription, Select } from '../../components/CustomSelect/select.js';
 import { Dialog } from '../../components/design-system/Dialog.js';
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../../services/analytics/growthbook.js';
-import { logEvent } from '../../services/analytics/index.js';
 import type { ToolUseContext } from '../../Tool.js';
 import type { LocalJSXCommandOnDone } from '../../types/command.js';
 import { call as extraUsageCall } from '../extra-usage/extra-usage.js';
@@ -49,13 +48,11 @@ function RateLimitOptionsMenu({
     : [cancelOption, ...actionOptions];
 
   function handleCancel(): void {
-    logEvent('tengu_rate_limit_options_menu_cancel', {});
     onDone(undefined, { display: 'skip' });
   }
 
   function handleSelect(value: RateLimitOptionsMenuOptionType): void {
     if (value === 'extra-usage') {
-      logEvent('tengu_rate_limit_options_menu_select_extra_usage', {});
       void extraUsageCall(onDone, context).then(jsx => {
         if (jsx) {
           setSubCommandJSX(jsx);

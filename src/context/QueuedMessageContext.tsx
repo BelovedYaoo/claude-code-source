@@ -8,9 +8,6 @@ type QueuedMessageContextValue = {
   paddingWidth: number;
 };
 const QueuedMessageContext = React.createContext<QueuedMessageContextValue | undefined>(undefined);
-export function useQueuedMessage() {
-  return React.useContext(QueuedMessageContext);
-}
 const PADDING_X = 2;
 type Props = {
   isFirst: boolean;

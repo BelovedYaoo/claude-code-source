@@ -20,10 +20,6 @@ import { logForDebugging } from '../../utils/debug.js'
 import { errorMessage } from '../../utils/errors.js'
 import { getGithubRepo } from '../../utils/git.js'
 import {
-  type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-  logEvent,
-} from '../analytics/index.js'
-import {
   createSyncState,
   isTeamMemorySyncAvailable,
   pullTeamMemory,
@@ -109,11 +105,6 @@ async function executePush(): Promise<void> {
           `team-memory-watcher: suppressing retry until next unlink or session restart (${pushSuppressedReason})`,
           { level: 'warn' },
         )
-        logEvent('tengu_team_mem_push_suppressed', {
-          reason:
-            pushSuppressedReason as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-          ...(result.httpStatus && { status: result.httpStatus }),
-        })
       }
     }
   } catch (e) {
@@ -294,14 +285,6 @@ export async function startTeamMemoryWatcher(): Promise<void> {
   // and the alternative (lazy start on notifyTeamMemoryWrite) creates
   // a bootstrap dead zone for fresh repos.
   await startFileWatcher(getTeamMemPath())
-
-  logEvent('tengu_team_mem_sync_started', {
-    initial_pull_success: initialPullSuccess,
-    initial_files_pulled: initialFilesPulled,
-    // Kept for dashboard continuity; now always true when this event fires.
-    watcher_started: true,
-    server_has_content: serverHasContent,
-  })
 }
 
 /**
@@ -351,37 +334,3 @@ export async function stopTeamMemoryWatcher(): Promise<void> {
   }
 }
 
-/**
- * Test-only: reset module state and optionally seed syncState.
- * The feature('TEAMMEM') gate at the top of startTeamMemoryWatcher() is
- * always false in bun test, so tests can't set syncState through the normal
- * path. This helper lets tests drive notifyTeamMemoryWrite() /
- * stopTeamMemoryWatcher() directly.
- *
- * `skipWatcher: true` marks the watcher as already-started without actually
- * starting it. Tests that only exercise the schedulePush/flush path don't
- * need a real watcher.
- */
-export function _resetWatcherStateForTesting(opts?: {
-  syncState?: SyncState
-  skipWatcher?: boolean
-  pushSuppressedReason?: string | null
-}): void {
-  watcher = null
-  debounceTimer = null
-  pushInProgress = false
-  hasPendingChanges = false
-  currentPushPromise = null
-  watcherStarted = opts?.skipWatcher ?? false
-  pushSuppressedReason = opts?.pushSuppressedReason ?? null
-  syncState = opts?.syncState ?? null
-}
-
-/**
- * Test-only: start the real fs.watch on a specified directory.
- * Used by the fd-count regression test — startTeamMemoryWatcher() is gated
- * by feature('TEAMMEM') which is false under bun test.
- */
-export function _startFileWatcherForTesting(dir: string): Promise<void> {
-  return startFileWatcher(dir)
-}

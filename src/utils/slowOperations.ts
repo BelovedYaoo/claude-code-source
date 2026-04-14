@@ -224,19 +224,6 @@ export function clone<T>(value: T, options?: StructuredSerializeOptions): T {
 }
 
 /**
- * Wrapped cloneDeep with slow operation logging.
- * Use this instead of lodash cloneDeep directly to detect performance issues.
- *
- * @example
- * import { cloneDeep } from './slowOperations.js'
- * const copy = cloneDeep(originalObject)
- */
-export function cloneDeep<T>(value: T): T {
-  using _ = slowLogging`cloneDeep(${value})`
-  return lodashCloneDeep(value)
-}
-
-/**
  * Wrapper around fs.writeFileSync with slow operation logging.
  * Supports flush option to ensure data is written to disk before returning.
  * @param filePath The path to the file to write to

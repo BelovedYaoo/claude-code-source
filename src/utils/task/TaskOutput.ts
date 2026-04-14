@@ -333,10 +333,6 @@ export class TaskOutput {
     return this.#stderrBuffer
   }
 
-  get isOverflowed(): boolean {
-    return this.#disk !== null
-  }
-
   get totalLines(): number {
     return this.#totalLines
   }

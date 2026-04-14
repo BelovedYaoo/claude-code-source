@@ -268,11 +268,6 @@ export function getCanonicalName(fullModelName: ModelName): ModelShortName {
 }
 
 // @[MODEL LAUNCH]: Update the default model description strings shown to users.
-export function getClaudeAiUserDefaultModelDescription(
-  _fastMode = false,
-): string {
-  return 'Sonnet 4.6 · Best for everyday tasks'
-}
 
 export function renderDefaultModelSetting(
   setting: ModelName | ModelAlias,
@@ -375,22 +370,6 @@ export function renderModelName(model: ModelName): string {
     return resolved
   }
   return model
-}
-
-/**
- * Returns a safe author name for public display (e.g., in git commit trailers).
- * Returns "Claude {ModelName}" for publicly known models, or "Claude ({model})"
- * for unknown/internal models so the exact model name is preserved.
- *
- * @param model The full model name
- * @returns "Claude {ModelName}" for public models, or "Claude ({model})" for non-public models
- */
-export function getPublicModelName(model: ModelName): string {
-  const publicName = getPublicModelDisplayName(model)
-  if (publicName) {
-    return `Claude ${publicName}`
-  }
-  return `Claude (${model})`
 }
 
 /**

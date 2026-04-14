@@ -2,7 +2,6 @@
  * HTTP utility constants and helpers
  */
 
-import axios from 'axios'
 import { getAnthropicApiKey } from './auth.js'
 import { getClaudeCodeUserAgent } from './userAgent.js'
 import { getWorkload } from './workloadContext.js'
@@ -77,9 +76,3 @@ export function getAuthHeaders(): AuthHeaders {
   }
 }
 
-export async function withOAuth401Retry<T>(
-  request: () => Promise<T>,
-  _opts?: { also403Revoked?: boolean },
-): Promise<T> {
-  return await request()
-}

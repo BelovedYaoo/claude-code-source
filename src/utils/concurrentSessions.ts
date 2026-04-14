@@ -15,23 +15,38 @@ import { getPlatform } from './platform.js'
 import { jsonParse, jsonStringify } from './slowOperations.js'
 import { getAgentId } from './teammate.js'
 
-export type SessionKind = 'interactive' | 'bg' | 'daemon' | 'daemon-worker'
+export type SessionKind = 'interactive' | 'bg'
 export type SessionStatus = 'busy' | 'idle' | 'waiting'
+
+export type LiveSessionInfo = {
+  pid: number
+  sessionId?: string
+  cwd?: string
+  startedAt?: number
+  kind?: SessionKind
+  entrypoint?: string
+  name?: string
+  logPath?: string
+  agent?: string
+  updatedAt?: number
+  status?: SessionStatus
+  waitingFor?: string
+}
 
 function getSessionsDir(): string {
   return join(getClaudeConfigHomeDir(), 'sessions')
 }
 
 /**
- * Kind override from env. Set by the spawner (`claude --bg`, daemon
- * supervisor) so the child can register without the parent having to
- * write the file for it — cleanup-on-exit wiring then works for free.
+ * Kind override from env. Set by the spawner (`claude --bg`) so the child can
+ * register without the parent having to write the file for it — cleanup-on-exit
+ * wiring then works for free.
  * Gated so the env-var string is DCE'd from external builds.
  */
 function envSessionKind(): SessionKind | undefined {
   if (feature('BG_SESSIONS')) {
     const k = process.env.CLAUDE_CODE_SESSION_KIND
-    if (k === 'bg' || k === 'daemon' || k === 'daemon-worker') return k
+    if (k === 'bg') return k
   }
   return undefined
 }
@@ -49,7 +64,7 @@ export function isBgSession(): boolean {
  * Write a PID file for this session and register cleanup.
  *
  * Registers all top-level sessions — interactive CLI, SDK (vscode, desktop,
- * typescript, python, -p), bg/daemon spawns — so `claude ps` sees everything
+ * typescript, python, -p), and bg spawns — so `claude ps` sees everything
  * the user might be running. Skips only teammates/subagents, which would
  * conflate swarm usage with genuine concurrency and pollute ps with noise.
  *
@@ -149,7 +164,7 @@ export async function updateSessionActivity(patch: {
  * Filters out stale PID files (crashed sessions) and deletes them.
  * Returns 0 on any error (conservative).
  */
-export async function countConcurrentSessions(): Promise<number> {
+export async function listAllLiveSessions(): Promise<LiveSessionInfo[]> {
   const dir = getSessionsDir()
   let files: string[]
   try {
@@ -158,31 +173,61 @@ export async function countConcurrentSessions(): Promise<number> {
     if (!isFsInaccessible(e)) {
       logForDebugging(`[concurrentSessions] readdir failed: ${errorMessage(e)}`)
     }
-    return 0
+    return []
   }
 
-  let count = 0
+  const sessions: LiveSessionInfo[] = []
   for (const file of files) {
-    // Strict filename guard: only `<pid>.json` is a candidate. parseInt's
-    // lenient prefix-parsing means `2026-03-14_notes.md` would otherwise
-    // parse as PID 2026 and get swept as stale — silent user data loss.
-    // See anthropics/claude-code#34210.
     if (!/^\d+\.json$/.test(file)) continue
     const pid = parseInt(file.slice(0, -5), 10)
-    if (pid === process.pid) {
-      count++
+    if (pid !== process.pid && !isProcessRunning(pid)) {
+      if (getPlatform() !== 'wsl') {
+        void unlink(join(dir, file)).catch(() => {})
+      }
       continue
     }
-    if (isProcessRunning(pid)) {
-      count++
-    } else if (getPlatform() !== 'wsl') {
-      // Stale file from a crashed session — sweep it. Skip on WSL: if
-      // ~/.claude/sessions/ is shared with Windows-native Claude (symlink
-      // or CLAUDE_CONFIG_DIR), a Windows PID won't be probeable from WSL
-      // and we'd falsely delete a live session's file. This is just
-      // telemetry so conservative undercount is acceptable.
-      void unlink(join(dir, file)).catch(() => {})
+    try {
+      const raw = jsonParse(await readFile(join(dir, file), 'utf8')) as Record<
+        string,
+        unknown
+      >
+      sessions.push({
+        pid,
+        sessionId:
+          typeof raw.sessionId === 'string' ? raw.sessionId : undefined,
+        cwd: typeof raw.cwd === 'string' ? raw.cwd : undefined,
+        startedAt:
+          typeof raw.startedAt === 'number' ? raw.startedAt : undefined,
+        kind:
+          raw.kind === 'interactive' || raw.kind === 'bg'
+            ? raw.kind
+            : undefined,
+        entrypoint:
+          typeof raw.entrypoint === 'string' ? raw.entrypoint : undefined,
+        name: typeof raw.name === 'string' ? raw.name : undefined,
+        logPath: typeof raw.logPath === 'string' ? raw.logPath : undefined,
+        agent: typeof raw.agent === 'string' ? raw.agent : undefined,
+        updatedAt:
+          typeof raw.updatedAt === 'number' ? raw.updatedAt : undefined,
+        status:
+          raw.status === 'busy' ||
+          raw.status === 'idle' ||
+          raw.status === 'waiting'
+            ? raw.status
+            : undefined,
+        waitingFor:
+          typeof raw.waitingFor === 'string' ? raw.waitingFor : undefined,
+      })
+    } catch (e) {
+      logForDebugging(
+        `[concurrentSessions] read session file failed: ${errorMessage(e)}`,
+      )
     }
   }
-  return count
+  return sessions
+}
+
+export async function countConcurrentSessions(): Promise<number> {
+  const sessions = await listAllLiveSessions()
+  return sessions.length
 }

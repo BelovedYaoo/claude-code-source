@@ -19,10 +19,6 @@ import { permissionUpdateSchema } from 'src/utils/permissions/PermissionUpdateSc
 import type { AppState } from '../state/AppState.js'
 import type { AttributionState } from '../utils/commitAttribution.js'
 
-export function isHookEvent(value: string): value is HookEvent {
-  return HOOK_EVENTS.includes(value as HookEvent)
-}
-
 // Prompt elicitation protocol types. The `prompt` key acts as discriminator
 // (mirroring the {async:true} pattern), with the id as its value.
 export const promptRequestSchema = lazySchema(() =>
@@ -257,34 +253,3 @@ export type PermissionRequestResult =
       interrupt?: boolean
     }
 
-export type HookResult = {
-  message?: Message
-  systemMessage?: Message
-  blockingError?: HookBlockingError
-  outcome: 'success' | 'blocking' | 'non_blocking_error' | 'cancelled'
-  preventContinuation?: boolean
-  stopReason?: string
-  permissionBehavior?: 'ask' | 'deny' | 'allow' | 'passthrough'
-  hookPermissionDecisionReason?: string
-  additionalContext?: string
-  initialUserMessage?: string
-  updatedInput?: Record<string, unknown>
-  updatedMCPToolOutput?: unknown
-  permissionRequestResult?: PermissionRequestResult
-  retry?: boolean
-}
-
-export type AggregatedHookResult = {
-  message?: Message
-  blockingErrors?: HookBlockingError[]
-  preventContinuation?: boolean
-  stopReason?: string
-  hookPermissionDecisionReason?: string
-  permissionBehavior?: PermissionResult['behavior']
-  additionalContexts?: string[]
-  initialUserMessage?: string
-  updatedInput?: Record<string, unknown>
-  updatedMCPToolOutput?: unknown
-  permissionRequestResult?: PermissionRequestResult
-  retry?: boolean
-}

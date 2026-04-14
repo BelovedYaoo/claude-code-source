@@ -109,32 +109,3 @@ export function getSessionIngressAuthToken(): string | null {
   return getTokenFromFileDescriptor()
 }
 
-/**
- * Build auth headers for the current session token.
- * Session keys (sk-ant-sid) use Cookie auth + X-Organization-Uuid;
- * JWTs use Bearer auth.
- */
-export function getSessionIngressAuthHeaders(): Record<string, string> {
-  const token = getSessionIngressAuthToken()
-  if (!token) return {}
-  if (token.startsWith('sk-ant-sid')) {
-    const headers: Record<string, string> = {
-      Cookie: `sessionKey=${token}`,
-    }
-    const orgUuid = process.env.CLAUDE_CODE_ORGANIZATION_UUID
-    if (orgUuid) {
-      headers['X-Organization-Uuid'] = orgUuid
-    }
-    return headers
-  }
-  return { Authorization: `Bearer ${token}` }
-}
-
-/**
- * Update the session ingress auth token in-process by setting the env var.
- * Used by the REPL bridge to inject a fresh token after reconnection
- * without restarting the process.
- */
-export function updateSessionIngressAuthToken(token: string): void {
-  process.env.CLAUDE_CODE_SESSION_ACCESS_TOKEN = token
-}

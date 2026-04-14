@@ -17,10 +17,6 @@ import { logForDebugging } from '../../utils/debug.js'
 import { errorMessage } from '../../utils/errors.js'
 import { logError } from '../../utils/log.js'
 import { sleep } from '../../utils/sleep.js'
-import {
-  type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-  logEvent,
-} from '../analytics/index.js'
 
 // Files API is currently in beta. oauth-2025-04-20 enables Bearer OAuth
 // on public-api routes (auth.py: "oauth_auth" not in beta_versions → 404).
@@ -397,10 +393,6 @@ export async function uploadFile(
   try {
     content = await fs.readFile(filePath)
   } catch (error) {
-    logEvent('tengu_file_upload_failed', {
-      error_type:
-        'file_read' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-    })
     return {
       path: relativePath,
       error: errorMessage(error),
@@ -411,10 +403,6 @@ export async function uploadFile(
   const fileSize = content.length
 
   if (fileSize > MAX_FILE_SIZE_BYTES) {
-    logEvent('tengu_file_upload_failed', {
-      error_type:
-        'file_too_large' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-    })
     return {
       path: relativePath,
       error: `File exceeds maximum size of ${MAX_FILE_SIZE_BYTES} bytes (actual: ${fileSize})`,
@@ -490,28 +478,16 @@ export async function uploadFile(
 
         // Non-retriable errors - throw to exit retry loop
         if (response.status === 401) {
-          logEvent('tengu_file_upload_failed', {
-            error_type:
-              'auth' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-          })
           throw new UploadNonRetriableError(
             'Authentication failed: invalid or missing API key',
           )
         }
 
         if (response.status === 403) {
-          logEvent('tengu_file_upload_failed', {
-            error_type:
-              'forbidden' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-          })
           throw new UploadNonRetriableError('Access denied for upload')
         }
 
         if (response.status === 413) {
-          logEvent('tengu_file_upload_failed', {
-            error_type:
-              'size' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-          })
           throw new UploadNonRetriableError('File too large for upload')
         }
 
@@ -539,10 +515,6 @@ export async function uploadFile(
         success: false,
       }
     }
-    logEvent('tengu_file_upload_failed', {
-      error_type:
-        'network' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-    })
     return {
       path: relativePath,
       error: errorMessage(error),
@@ -603,109 +575,6 @@ export type FileMetadata = {
   filename: string
   fileId: string
   size: number
-}
-
-/**
- * List files created after a given timestamp (1P/Cloud mode).
- * Uses the public GET /v1/files endpoint with after_created_at query param.
- * Handles pagination via after_id cursor when has_more is true.
- *
- * @param afterCreatedAt - ISO 8601 timestamp to filter files created after
- * @param config - Files API configuration
- * @returns Array of file metadata for files created after the timestamp
- */
-export async function listFilesCreatedAfter(
-  afterCreatedAt: string,
-  config: FilesApiConfig,
-): Promise<FileMetadata[]> {
-  const baseUrl = config.baseUrl || getDefaultApiBaseUrl()
-  const headers = {
-    Authorization: `Bearer ${config.oauthToken}`,
-    'anthropic-version': ANTHROPIC_VERSION,
-    'anthropic-beta': FILES_API_BETA_HEADER,
-  }
-
-  logDebug(`Listing files created after ${afterCreatedAt}`)
-
-  const allFiles: FileMetadata[] = []
-  let afterId: string | undefined
-
-  // Paginate through results
-  while (true) {
-    const params: Record<string, string> = {
-      after_created_at: afterCreatedAt,
-    }
-    if (afterId) {
-      params.after_id = afterId
-    }
-
-    const page = await retryWithBackoff(
-      `List files after ${afterCreatedAt}`,
-      async () => {
-        try {
-          const response = await axios.get(`${baseUrl}/v1/files`, {
-            headers,
-            params,
-            timeout: 60000,
-            validateStatus: status => status < 500,
-          })
-
-          if (response.status === 200) {
-            return { done: true, value: response.data }
-          }
-
-          if (response.status === 401) {
-            logEvent('tengu_file_list_failed', {
-              error_type:
-                'auth' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-            })
-            throw new Error('Authentication failed: invalid or missing API key')
-          }
-          if (response.status === 403) {
-            logEvent('tengu_file_list_failed', {
-              error_type:
-                'forbidden' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-            })
-            throw new Error('Access denied to list files')
-          }
-
-          return { done: false, error: `status ${response.status}` }
-        } catch (error) {
-          if (!axios.isAxiosError(error)) {
-            throw error
-          }
-          logEvent('tengu_file_list_failed', {
-            error_type:
-              'network' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-          })
-          return { done: false, error: error.message }
-        }
-      },
-    )
-
-    const files = page.data || []
-    for (const f of files) {
-      allFiles.push({
-        filename: f.filename,
-        fileId: f.id,
-        size: f.size_bytes,
-      })
-    }
-
-    if (!page.has_more) {
-      break
-    }
-
-    // Use the last file's ID as cursor for next page
-    const lastFile = files.at(-1)
-    if (!lastFile?.id) {
-      break
-    }
-    afterId = lastFile.id
-  }
-
-  logDebug(`Listed ${allFiles.length} files created after ${afterCreatedAt}`)
-  return allFiles
 }
 
 // ============================================================================

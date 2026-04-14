@@ -52,11 +52,4 @@ export const HOOK_EVENTS = [
   'FileChanged',
 ] as const
 
-export const EXIT_REASONS = [
-  'clear',
-  'resume',
-  'logout',
-  'prompt_input_exit',
-  'other',
-  'bypass_permissions_disabled',
-] as const
+

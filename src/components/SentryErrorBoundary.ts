@@ -14,10 +14,6 @@ export class SentryErrorBoundary extends React.Component<Props, State> {
     this.state = { hasError: false }
   }
 
-  static getDerivedStateFromError(): State {
-    return { hasError: true }
-  }
-
   render(): React.ReactNode {
     if (this.state.hasError) {
       return null

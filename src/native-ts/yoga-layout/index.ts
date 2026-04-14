@@ -530,9 +530,7 @@ export class Node {
       this.markDirty()
     }
   }
-  getChild(index: number): Node {
-    return this.children[index]!
-  }
+
   getChildCount(): number {
     return this.children.length
   }
@@ -581,10 +579,6 @@ export class Node {
   isDirty(): boolean {
     return this.isDirty_
   }
-  hasNewLayout(): boolean {
-    return true
-  }
-  markLayoutSeen(): void {}
 
   // -- Measure function
 
@@ -619,31 +613,12 @@ export class Node {
     const p = this.parent
     return p ? p.layout.height - this.layout.top - this.layout.height : 0
   }
-  getComputedLayout(): {
-    left: number
-    top: number
-    right: number
-    bottom: number
-    width: number
-    height: number
-  } {
-    return {
-      left: this.layout.left,
-      top: this.layout.top,
-      right: this.getComputedRight(),
-      bottom: this.getComputedBottom(),
-      width: this.layout.width,
-      height: this.layout.height,
-    }
-  }
+
   getComputedBorder(edge: Edge): number {
     return this.layout.border[physicalEdge(edge)]!
   }
   getComputedPadding(edge: Edge): number {
     return this.layout.padding[physicalEdge(edge)]!
-  }
-  getComputedMargin(edge: Edge): number {
-    return this.layout.margin[physicalEdge(edge)]!
   }
 
   // -- Style setters: dimensions
@@ -719,23 +694,7 @@ export class Node {
     this.style.flexShrink = v ?? 0
     this.markDirty()
   }
-  setFlex(v: number | undefined): void {
-    if (v === undefined || isNaN(v)) {
-      this.style.flexGrow = 0
-      this.style.flexShrink = 0
-    } else if (v > 0) {
-      this.style.flexGrow = v
-      this.style.flexShrink = 1
-      this.style.flexBasis = pointValue(0)
-    } else if (v < 0) {
-      this.style.flexGrow = 0
-      this.style.flexShrink = -v
-    } else {
-      this.style.flexGrow = 0
-      this.style.flexShrink = 0
-    }
-    this.markDirty()
-  }
+
   setFlexBasis(v: number | 'auto' | string | undefined): void {
     this.style.flexBasis = parseDimension(v)
     this.markDirty()
@@ -744,10 +703,7 @@ export class Node {
     this.style.flexBasis = percentValue(v)
     this.markDirty()
   }
-  setFlexBasisAuto(): void {
-    this.style.flexBasis = AUTO_VALUE
-    this.markDirty()
-  }
+
   setFlexWrap(wrap: Wrap): void {
     this.style.flexWrap = wrap
     this.markDirty()
@@ -763,10 +719,7 @@ export class Node {
     this.style.alignSelf = a
     this.markDirty()
   }
-  setAlignContent(a: Align): void {
-    this.style.alignContent = a
-    this.markDirty()
-  }
+
   setJustifyContent(j: Justify): void {
     this.style.justifyContent = j
     this.markDirty()
@@ -795,21 +748,10 @@ export class Node {
     this._hasPosition = true
     this.markDirty()
   }
-  setPositionAuto(edge: Edge): void {
-    this.style.position[edge] = AUTO_VALUE
-    this._hasPosition = true
-    this.markDirty()
-  }
+
   setOverflow(o: Overflow): void {
     this.style.overflow = o
     this.markDirty()
-  }
-  setDirection(d: Direction): void {
-    this.style.direction = d
-    this.markDirty()
-  }
-  setBoxSizing(_: BoxSizing): void {
-    // Not implemented — Ink doesn't use content-box
   }
 
   // -- Style setters: spacing
@@ -823,28 +765,13 @@ export class Node {
       this._hasAutoMargin || hasAnyDefinedEdge(this.style.margin)
     this.markDirty()
   }
-  setMarginPercent(edge: Edge, v: number): void {
-    this.style.margin[edge] = percentValue(v)
-    this._hasAutoMargin = hasAnyAutoEdge(this.style.margin)
-    this._hasMargin = true
-    this.markDirty()
-  }
-  setMarginAuto(edge: Edge): void {
-    this.style.margin[edge] = AUTO_VALUE
-    this._hasAutoMargin = true
-    this._hasMargin = true
-    this.markDirty()
-  }
+
   setPadding(edge: Edge, v: number | string | undefined): void {
     this.style.padding[edge] = parseDimension(v)
     this._hasPadding = hasAnyDefinedEdge(this.style.padding)
     this.markDirty()
   }
-  setPaddingPercent(edge: Edge, v: number): void {
-    this.style.padding[edge] = percentValue(v)
-    this._hasPadding = true
-    this.markDirty()
-  }
+
   setBorder(edge: Edge, v: number | undefined): void {
     this.style.border[edge] = v === undefined ? UNDEFINED_VALUE : pointValue(v)
     this._hasBorder = hasAnyDefinedEdge(this.style.border)
@@ -854,73 +781,10 @@ export class Node {
     this.style.gap[gutter] = parseDimension(v)
     this.markDirty()
   }
-  setGapPercent(gutter: Gutter, v: number): void {
-    this.style.gap[gutter] = percentValue(v)
-    this.markDirty()
-  }
 
   // -- Style getters (partial — only what tests need)
 
-  getFlexDirection(): FlexDirection {
-    return this.style.flexDirection
-  }
-  getJustifyContent(): Justify {
-    return this.style.justifyContent
-  }
-  getAlignItems(): Align {
-    return this.style.alignItems
-  }
-  getAlignSelf(): Align {
-    return this.style.alignSelf
-  }
-  getAlignContent(): Align {
-    return this.style.alignContent
-  }
-  getFlexGrow(): number {
-    return this.style.flexGrow
-  }
-  getFlexShrink(): number {
-    return this.style.flexShrink
-  }
-  getFlexBasis(): Value {
-    return this.style.flexBasis
-  }
-  getFlexWrap(): Wrap {
-    return this.style.flexWrap
-  }
-  getWidth(): Value {
-    return this.style.width
-  }
-  getHeight(): Value {
-    return this.style.height
-  }
-  getOverflow(): Overflow {
-    return this.style.overflow
-  }
-  getPositionType(): PositionType {
-    return this.style.positionType
-  }
-  getDirection(): Direction {
-    return this.style.direction
-  }
-
   // -- Unused API stubs (present for API parity)
-
-  copyStyle(_: Node): void {}
-  setDirtiedFunc(_: unknown): void {}
-  unsetDirtiedFunc(): void {}
-  setIsReferenceBaseline(v: boolean): void {
-    this.isReferenceBaseline_ = v
-    this.markDirty()
-  }
-  isReferenceBaseline(): boolean {
-    return this.isReferenceBaseline_
-  }
-  setAspectRatio(_: number | undefined): void {}
-  getAspectRatio(): number {
-    return NaN
-  }
-  setAlwaysFormsContainingBlock(_: boolean): void {}
 
   // -- Layout entry point
 
@@ -2569,10 +2433,6 @@ const YOGA_INSTANCE: Yoga = {
     createWithConfig: (config: Config) => new Node(config),
     destroy() {},
   },
-}
-
-export function loadYoga(): Promise<Yoga> {
-  return Promise.resolve(YOGA_INSTANCE)
 }
 
 export default YOGA_INSTANCE

@@ -21,10 +21,6 @@ export function getCachedOverageCreditGrant(): OverageCreditGrantInfo | null {
   return null
 }
 
-export function invalidateOverageCreditGrantCache(): void {
-  return
-}
-
 export async function refreshOverageCreditGrantCache(): Promise<void> {
   if (isEssentialTrafficOnly()) {
     return

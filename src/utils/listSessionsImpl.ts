@@ -422,33 +422,3 @@ async function gatherAllCandidates(doStat: boolean): Promise<Candidate[]> {
   return perProject.flat()
 }
 
-/**
- * Lists sessions with metadata extracted from stat + head/tail reads.
- *
- * When `dir` is provided, returns sessions for that project directory
- * and its git worktrees. When omitted, returns sessions across all
- * projects.
- *
- * Pagination via `limit`/`offset` operates on the filtered, sorted result
- * set. When either is set, a cheap stat-only pass sorts candidates before
- * expensive head/tail reads — so `limit: 20` on a directory with 1000
- * sessions does ~1000 stats + ~20 content reads, not 1000 content reads.
- * When neither is set, stat is skipped (read-all-then-sort, same I/O cost
- * as the original implementation).
- */
-export async function listSessionsImpl(
-  options?: ListSessionsOptions,
-): Promise<SessionInfo[]> {
-  const { dir, limit, offset, includeWorktrees } = options ?? {}
-  const off = offset ?? 0
-  // Only stat when we need to sort before reading (won't read all anyway).
-  // limit: 0 means "no limit" (see applySortAndLimit), so treat it as unset.
-  const doStat = (limit !== undefined && limit > 0) || off > 0
-
-  const candidates = dir
-    ? await gatherProjectCandidates(dir, includeWorktrees ?? true, doStat)
-    : await gatherAllCandidates(doStat)
-
-  if (!doStat) return readAllAndSort(candidates)
-  return applySortAndLimit(candidates, limit, off)
-}

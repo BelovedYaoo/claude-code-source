@@ -33,7 +33,7 @@ export function fileSuffixForOauthConfig(): string {
 export const CLAUDE_AI_INFERENCE_SCOPE = 'user:inference' as const
 export const CLAUDE_AI_PROFILE_SCOPE = 'user:profile' as const
 const CONSOLE_SCOPE = 'org:create_api_key' as const
-export const OAUTH_BETA_HEADER = 'oauth-2025-04-20' as const
+
 
 // Console OAuth scopes - for API key creation via Console
 export const CONSOLE_OAUTH_SCOPES = [
@@ -53,9 +53,9 @@ export const CLAUDE_AI_OAUTH_SCOPES = [
 // All OAuth scopes - union of all scopes used in Claude CLI
 // When logging in, request all scopes in order to handle both Console -> Claude.ai redirect
 // Ensure that `OAuthConsentPage` in apps repo is kept in sync with this list.
-export const ALL_OAUTH_SCOPES = Array.from(
+Array.from(
   new Set([...CONSOLE_OAUTH_SCOPES, ...CLAUDE_AI_OAUTH_SCOPES]),
-)
+);
 
 type OauthConfig = {
   BASE_API_URL: string

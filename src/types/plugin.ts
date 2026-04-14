@@ -41,10 +41,6 @@ export type PluginRepository = {
   commitSha?: string
 }
 
-export type PluginConfig = {
-  repositories: Record<string, PluginRepository>
-}
-
 export type LoadedPlugin = {
   name: string
   manifest: PluginManifest

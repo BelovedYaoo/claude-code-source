@@ -52,26 +52,6 @@ export function getLastKill(): string {
   return killRing[0] ?? ''
 }
 
-export function getKillRingItem(index: number): string {
-  if (killRing.length === 0) return ''
-  const normalizedIndex =
-    ((index % killRing.length) + killRing.length) % killRing.length
-  return killRing[normalizedIndex] ?? ''
-}
-
-export function getKillRingSize(): number {
-  return killRing.length
-}
-
-export function clearKillRing(): void {
-  killRing = []
-  killRingIndex = 0
-  lastActionWasKill = false
-  lastActionWasYank = false
-  lastYankStart = 0
-  lastYankLength = 0
-}
-
 export function resetKillAccumulation(): void {
   lastActionWasKill = false
 }
@@ -82,10 +62,6 @@ export function recordYank(start: number, length: number): void {
   lastYankLength = length
   lastActionWasYank = true
   killRingIndex = 0
-}
-
-export function canYankPop(): boolean {
-  return lastActionWasYank && killRing.length > 1
 }
 
 export function yankPop(): {
@@ -441,17 +417,6 @@ export class Cursor {
     return this.startOfCurrentLine()
   }
 
-  firstNonBlankInLine(): Cursor {
-    const { line } = this.getPosition()
-    const lineText = this.measuredText.getWrappedText()[line] || ''
-
-    const match = lineText.match(/^\s*\S/)
-    const column = match?.index ? match.index + match[0].length - 1 : 0
-    const offset = this.getOffset({ line, column })
-
-    return new Cursor(this.measuredText, offset, 0)
-  }
-
   endOfLine(): Cursor {
     const { line } = this.getPosition()
     const column = this.measuredText.getLineLength(line)
@@ -575,46 +540,6 @@ export class Cursor {
 
     // If no next word found, go to end
     return new Cursor(this.measuredText, this.text.length)
-  }
-
-  endOfWord(): Cursor {
-    if (this.isAtEnd()) {
-      return this
-    }
-
-    // Use Intl.Segmenter for proper word boundary detection (including CJK)
-    const wordBoundaries = this.measuredText.getWordBoundaries()
-
-    // Find the current word boundary we're in
-    for (const boundary of wordBoundaries) {
-      if (!boundary.isWordLike) continue
-
-      // If we're inside this word but NOT at the last character
-      if (this.offset >= boundary.start && this.offset < boundary.end - 1) {
-        // Move to end of this word (last character position)
-        return new Cursor(this.measuredText, boundary.end - 1)
-      }
-
-      // If we're at the last character of a word (end - 1), find the next word's end
-      if (this.offset === boundary.end - 1) {
-        // Find next word
-        for (const nextBoundary of wordBoundaries) {
-          if (nextBoundary.isWordLike && nextBoundary.start > this.offset) {
-            return new Cursor(this.measuredText, nextBoundary.end - 1)
-          }
-        }
-        return this
-      }
-    }
-
-    // If not in a word, find the next word and go to its end
-    for (const boundary of wordBoundaries) {
-      if (boundary.isWordLike && boundary.start > this.offset) {
-        return new Cursor(this.measuredText, boundary.end - 1)
-      }
-    }
-
-    return this
   }
 
   prevWord(): Cursor {
@@ -904,15 +829,6 @@ export class Cursor {
     return { cursor: this.modifyText(endCursor), killed }
   }
 
-  deleteToLogicalLineEnd(): Cursor {
-    // If cursor is on a newline character, delete just that character
-    if (this.text[this.offset] === '\n') {
-      return this.modifyText(this.right())
-    }
-
-    return this.modifyText(this.endOfLogicalLine())
-  }
-
   deleteWordBefore(): { cursor: Cursor; killed: string } {
     if (this.isAtStart()) {
       return { cursor: this, killed: '' }
@@ -1029,10 +945,6 @@ export class Cursor {
       offset += (lines[i]?.length ?? 0) + 1 // +1 for newline
     }
     return new Cursor(this.measuredText, offset, 0)
-  }
-
-  endOfFile(): Cursor {
-    return new Cursor(this.measuredText, this.text.length, 0)
   }
 
   public get text(): string {

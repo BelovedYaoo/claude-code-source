@@ -327,15 +327,6 @@ export type PermissionDecisionReason =
 // Bash Classifier Types
 // ============================================================================
 
-export type ClassifierResult = {
-  matches: boolean
-  matchedDescription?: string
-  confidence: 'high' | 'medium' | 'low'
-  reason: string
-}
-
-export type ClassifierBehavior = 'deny' | 'ask' | 'allow'
-
 export type ClassifierUsage = {
   inputTokens: number
   outputTokens: number
@@ -401,13 +392,6 @@ export type YoloClassifierResult = {
 // ============================================================================
 
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH'
-
-export type PermissionExplanation = {
-  riskLevel: RiskLevel
-  explanation: string
-  reasoning: string
-  risk: string
-}
 
 // ============================================================================
 // Tool Permission Context

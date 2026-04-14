@@ -210,12 +210,6 @@ const DANGEROUS_TYPES = new Set([
  * 0 = unknown/other, -1 = ERROR (parse failure), -2 = pre-check.
  */
 const DANGEROUS_TYPE_IDS = [...DANGEROUS_TYPES]
-export function nodeTypeId(nodeType: string | undefined): number {
-  if (!nodeType) return -2
-  if (nodeType === 'ERROR') return -1
-  const i = DANGEROUS_TYPE_IDS.indexOf(nodeType)
-  return i >= 0 ? i + 1 : 0
-}
 
 /**
  * Redirect operator tokens → canonical operator. tree-sitter produces these

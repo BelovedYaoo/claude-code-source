@@ -2,24 +2,20 @@ import chalk from 'chalk'
 import { exec } from 'child_process'
 import { execa } from 'execa'
 import memoize from 'lodash-es/memoize.js'
-import {
-  type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-  logEvent,
-} from 'src/services/analytics/index.js'
 import { getModelStrings } from 'src/utils/model/modelStrings.js'
 import { getAPIProvider } from 'src/utils/model/providers.js'
 import {
   getIsNonInteractiveSession,
   preferThirdPartyAuthentication,
 } from '../bootstrap/state.js'
-import type { OAuthTokens, SubscriptionType } from '../services/oauth/types.js'
+import type { OAuthTokens } from '../services/oauth/types.js'
 import {
   getApiKeyFromFileDescriptor,
   getOAuthTokenFromFileDescriptor,
 } from './authFileDescriptor.js'
 import {
   maybeRemoveApiKeyFromMacOSKeychainThrows,
-  normalizeApiKeyForConfig,
+
 } from './authPortable.js'
 import {
   checkStsCallerIdentity,
@@ -27,23 +23,19 @@ import {
   isValidAwsStsOutput,
 } from './aws.js'
 import { AwsAuthStatusManager } from './awsAuthStatusManager.js'
-import { clearBetasCaches } from './betas.js'
 import {
-  type AccountInfo,
   checkHasTrustDialogAccepted,
   getGlobalConfig,
   saveGlobalConfig,
 } from './config.js'
 import { logAntError, logForDebugging } from './debug.js'
 import {
-  getClaudeConfigHomeDir,
   isBareMode,
   isEnvTruthy,
   isRunningOnHomespace,
 } from './envUtils.js'
 import { errorMessage } from './errors.js'
 import { execSyncWithDefaults_DEPRECATED } from './execFileNoThrow.js'
-import * as lockfile from './lockfile.js'
 import { logError } from './log.js'
 import { memoizeWithTTLAsync } from './memoize.js'
 import { getSecureStorage } from './secureStorage/index.js'
@@ -52,9 +44,8 @@ import {
   getLegacyApiKeyPrefetchResult,
 } from './secureStorage/keychainPrefetch.js'
 import {
-  clearKeychainCache,
   getMacOsKeychainStorageServiceName,
-  getUsername,
+
 } from './secureStorage/macOsKeychainHelpers.js'
 import {
   getSettings_DEPRECATED,
@@ -62,7 +53,6 @@ import {
 } from './settings/settings.js'
 import { sleep } from './sleep.js'
 import { jsonParse } from './slowOperations.js'
-import { clearToolSchemaCache } from './toolSchemaCache.js'
 
 /** Default TTL for API key helper cache in milliseconds (5 minutes) */
 const DEFAULT_API_KEY_HELPER_TTL = 5 * 60 * 1000
@@ -194,14 +184,6 @@ export function getAnthropicApiKey(): null | string {
   const { key } = getAnthropicApiKeyWithSource()
   return key
 }
-
-export function hasAnthropicApiKeyAuth(): boolean {
-  const { key, source } = getAnthropicApiKeyWithSource({
-    skipRetrievingKeyFromApiKeyHelper: true,
-  })
-  return key !== null && source !== 'none'
-}
-
 export function getAnthropicApiKeyWithSource(
   opts: { skipRetrievingKeyFromApiKeyHelper?: boolean } = {},
 ): {
@@ -524,7 +506,6 @@ async function _executeApiKeyHelper(
         `Security: apiKeyHelper executed before workspace trust is confirmed. If you see this message, post in ${MACRO.FEEDBACK_CHANNEL}.`,
       )
       logAntError('apiKeyHelper invoked before trust check', error)
-      logEvent('tengu_apiKeyHelper_missing_trust11', {})
       return null
     }
   }
@@ -599,7 +580,6 @@ async function runAwsAuthRefresh(): Promise<boolean> {
         `Security: awsAuthRefresh executed before workspace trust is confirmed. If you see this message, post in ${MACRO.FEEDBACK_CHANNEL}.`,
       )
       logAntError('awsAuthRefresh invoked before trust check', error)
-      logEvent('tengu_awsAuthRefresh_missing_trust', {})
       return false
     }
   }
@@ -696,7 +676,6 @@ async function getAwsCredsFromCredentialExport(): Promise<{
         `Security: awsCredentialExport executed before workspace trust is confirmed. If you see this message, post in ${MACRO.FEEDBACK_CHANNEL}.`,
       )
       logAntError('awsCredentialExport invoked before trust check', error)
-      logEvent('tengu_awsCredentialExport_missing_trust', {})
       return null
     }
   }
@@ -863,7 +842,6 @@ async function runGcpAuthRefresh(): Promise<boolean> {
         `Security: gcpAuthRefresh executed before workspace trust is confirmed. If you see this message, post in ${MACRO.FEEDBACK_CHANNEL}.`,
       )
       logAntError('gcpAuthRefresh invoked before trust check', error)
-      logEvent('tengu_gcpAuthRefresh_missing_trust', {})
       return false
     }
   }
@@ -1059,88 +1037,6 @@ export const getApiKeyFromConfigOrMacOSKeychain = memoize(
     return { key: config.primaryApiKey, source: 'storedApiKey' }
   },
 )
-
-function isValidApiKey(apiKey: string): boolean {
-  // Only allow alphanumeric characters, dashes, and underscores
-  return /^[a-zA-Z0-9-_]+$/.test(apiKey)
-}
-
-export async function saveApiKey(apiKey: string): Promise<void> {
-  if (!isValidApiKey(apiKey)) {
-    throw new Error(
-      'Invalid API key format. API key must contain only alphanumeric characters, dashes, and underscores.',
-    )
-  }
-
-  // Store as primary API key
-  await maybeRemoveApiKeyFromMacOSKeychain()
-  let savedToKeychain = false
-  if (process.platform === 'darwin') {
-    try {
-      // TODO: migrate to SecureStorage
-      const storageServiceName = getMacOsKeychainStorageServiceName()
-      const username = getUsername()
-
-      // Convert to hexadecimal to avoid any escaping issues
-      const hexValue = Buffer.from(apiKey, 'utf-8').toString('hex')
-
-      // Use security's interactive mode (-i) with -X (hexadecimal) option
-      // This ensures credentials never appear in process command-line arguments
-      // Process monitors only see "security -i", not the password
-      const command = `add-generic-password -U -a "${username}" -s "${storageServiceName}" -X "${hexValue}"\n`
-
-      await execa('security', ['-i'], {
-        input: command,
-        reject: false,
-      })
-
-      logEvent('tengu_api_key_saved_to_keychain', {})
-      savedToKeychain = true
-    } catch (e) {
-      logError(e)
-      logEvent('tengu_api_key_keychain_error', {
-        error: errorMessage(
-          e,
-        ) as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-      })
-      logEvent('tengu_api_key_saved_to_config', {})
-    }
-  } else {
-    logEvent('tengu_api_key_saved_to_config', {})
-  }
-
-  const normalizedKey = normalizeApiKeyForConfig(apiKey)
-
-  // Save config with all updates
-  saveGlobalConfig(current => {
-    const approved = current.customApiKeyResponses?.approved ?? []
-    return {
-      ...current,
-      // Only save to config if keychain save failed or not on darwin
-      primaryApiKey: savedToKeychain ? current.primaryApiKey : apiKey,
-      customApiKeyResponses: {
-        ...current.customApiKeyResponses,
-        approved: approved.includes(normalizedKey)
-          ? approved
-          : [...approved, normalizedKey],
-        rejected: current.customApiKeyResponses?.rejected ?? [],
-      },
-    }
-  })
-
-  // Clear memo cache
-  getApiKeyFromConfigOrMacOSKeychain.cache.clear?.()
-  clearLegacyApiKeyPrefetch()
-}
-
-export function isCustomApiKeyApproved(apiKey: string): boolean {
-  const config = getGlobalConfig()
-  const normalizedKey = normalizeApiKeyForConfig(apiKey)
-  return (
-    config.customApiKeyResponses?.approved?.includes(normalizedKey) ?? false
-  )
-}
-
 export async function removeApiKey(): Promise<void> {
   await maybeRemoveApiKeyFromMacOSKeychain()
 
@@ -1165,13 +1061,6 @@ async function maybeRemoveApiKeyFromMacOSKeychain(): Promise<void> {
 }
 
 // Function to store OAuth tokens in secure storage
-export function saveOAuthTokensIfNeeded(_tokens: OAuthTokens): {
-  success: boolean
-  warning?: string
-} {
-  return { success: true }
-}
-
 export const getClaudeAIOAuthTokens = memoize((): OAuthTokens | null => {
   // --bare: API-key-only. No OAuth env tokens, no keychain, no credentials file.
   if (isBareMode()) return null
@@ -1218,78 +1107,9 @@ export const getClaudeAIOAuthTokens = memoize((): OAuthTokens | null => {
     return null
   }
 })
-
-/**
- * Clears all OAuth token caches. Call this on 401 errors to ensure
- * the next token read comes from secure storage, not stale in-memory caches.
- * This handles the case where the local expiration check disagrees with the
- * server (e.g., due to clock corrections after token was issued).
- */
-export function clearOAuthTokenCache(): void {
-  getClaudeAIOAuthTokens.cache?.clear?.()
-}
-
-export function handleOAuth401Error(
-  _failedAccessToken: string,
-): Promise<boolean> {
-  return Promise.resolve(false)
-}
-
-export async function getClaudeAIOAuthTokensAsync(): Promise<OAuthTokens | null> {
-  return getClaudeAIOAuthTokens()
-}
-
-export function checkAndRefreshOAuthTokenIfNeeded(
-  _retryCount = 0,
-  _force = false,
-): Promise<boolean> {
-  return Promise.resolve(false)
-}
-
-export function isClaudeAISubscriber(): boolean {
-  return false
-}
-
-/**
- * Check if the current OAuth token has the user:profile scope.
- *
- * Real /login tokens always include this scope. Env-var and file-descriptor
- * tokens (service keys) hardcode scopes to ['user:inference'] only. Use this
- * to gate calls to profile-scoped endpoints so service key sessions don't
- * generate 403 storms against /api/oauth/profile, bootstrap, etc.
- */
-export function hasProfileScope(): boolean {
-  return false
-}
-
 export function is1PApiCustomer(): boolean {
   return !isUsing3PServices()
 }
-
-/**
- * Gets OAuth account information when Anthropic auth is enabled.
- * Returns undefined when using external API keys or third-party services.
- */
-export function getOauthAccountInfo(): AccountInfo | undefined {
-  return undefined
-}
-
-/**
- * Checks if overage/extra usage provisioning is allowed for this organization.
- * This mirrors the logic in apps/claude-ai `useIsOverageProvisioningAllowed` hook as closely as possible.
- */
-export function getSubscriptionType(): SubscriptionType | null {
-  return null
-}
-
-export function getRateLimitTier(): string | null {
-  return null
-}
-
-export function getSubscriptionName(): string {
-  return 'Claude API'
-}
-
 /** Check if using third-party services (Bedrock or Vertex or Foundry) */
 export function isUsing3PServices(): boolean {
   return !!(
@@ -1421,12 +1241,5 @@ export function getAccountInformation() {
     apiKeySource,
   } satisfies UserAccountInfo
 }
-
-/**
- * Result of org validation — either success or a descriptive error.
- */
-export type OrgValidationResult =
-  | { valid: true }
-  | { valid: false; message: string }
 
 class GcpCredentialsTimeoutError extends Error {}

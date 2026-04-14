@@ -75,8 +75,8 @@ const CRON_FILE_REL = join('.claude', 'scheduled_tasks.json')
 
 /**
  * Path to the cron file. `dir` defaults to getProjectRoot() — pass it
- * explicitly from contexts that don't run through main.tsx (e.g. the Agent
- * SDK daemon, which has no bootstrap state).
+ * explicitly from contexts that don't run through main.tsx (e.g. internal
+ * scheduler hosts, which have no bootstrap state).
  */
 export function getCronFilePath(dir?: string): string {
   return join(dir ?? getProjectRoot(), CRON_FILE_REL)
@@ -282,7 +282,7 @@ export async function markCronTasksFired(
  * `durable: false` so callers can distinguish them. File tasks are
  * returned as-is (durable undefined → truthy).
  *
- * Only merges when `dir` is undefined — daemon callers (explicit `dir`)
+ * Only merges when `dir` is undefined — non-REPL callers (explicit `dir`)
  * have no session store to merge with.
  */
 export async function listAllCronTasks(dir?: string): Promise<CronTask[]> {

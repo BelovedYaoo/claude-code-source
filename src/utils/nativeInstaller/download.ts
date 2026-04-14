@@ -11,7 +11,6 @@ import axios from 'axios'
 import { createHash } from 'crypto'
 import { chmod, writeFile } from 'fs/promises'
 import { join } from 'path'
-import { logEvent } from 'src/services/analytics/index.js'
 import type { ReleaseChannel } from '../config.js'
 import { logForDebugging } from '../debug.js'
 import { toError } from '../errors.js'
@@ -50,20 +49,10 @@ export async function getLatestVersionFromArtifactory(
   const latencyMs = Date.now() - startTime
 
   if (code !== 0) {
-    logEvent('tengu_version_check_failure', {
-      latency_ms: latencyMs,
-      source_npm: true,
-      exit_code: code,
-    })
     const error = new Error(`npm view failed with code ${code}: ${stderr}`)
     logError(error)
     throw error
   }
-
-  logEvent('tengu_version_check_success', {
-    latency_ms: latencyMs,
-    source_npm: true,
-  })
   logForDebugging(
     `npm view ${MACRO.NATIVE_PACKAGE_URL}@${tag} version: ${stdout}`,
   )
@@ -84,9 +73,6 @@ export async function getLatestVersionFromBinaryRepo(
       ...authConfig,
     })
     const latencyMs = Date.now() - startTime
-    logEvent('tengu_version_check_success', {
-      latency_ms: latencyMs,
-    })
     return response.data.trim()
   } catch (error) {
     const latencyMs = Date.now() - startTime
@@ -95,12 +81,6 @@ export async function getLatestVersionFromBinaryRepo(
     if (axios.isAxiosError(error) && error.response) {
       httpStatus = error.response.status
     }
-
-    logEvent('tengu_version_check_failure', {
-      latency_ms: latencyMs,
-      http_status: httpStatus,
-      is_timeout: errorMessage.includes('timeout'),
-    })
     const fetchError = new Error(
       `Failed to fetch version from ${baseUrl}/${channel}: ${errorMessage}`,
     )
@@ -397,9 +377,6 @@ export async function downloadVersionFromBinaryRepo(
   const platform = getPlatform()
   const startTime = Date.now()
 
-  // Log download attempt start
-  logEvent('tengu_binary_download_attempt', {})
-
   // Fetch manifest to get checksum
   let manifest
   try {
@@ -419,12 +396,6 @@ export async function downloadVersionFromBinaryRepo(
     if (axios.isAxiosError(error) && error.response) {
       httpStatus = error.response.status
     }
-
-    logEvent('tengu_binary_manifest_fetch_failure', {
-      latency_ms: latencyMs,
-      http_status: httpStatus,
-      is_timeout: errorMessage.includes('timeout'),
-    })
     logError(
       new Error(
         `Failed to fetch manifest from ${baseUrl}/${version}/manifest.json: ${errorMessage}`,
@@ -436,7 +407,6 @@ export async function downloadVersionFromBinaryRepo(
   const platformInfo = manifest.platforms[platform]
 
   if (!platformInfo) {
-    logEvent('tengu_binary_platform_not_found', {})
     throw new Error(
       `Platform ${platform} not found in manifest for version ${version}`,
     )
@@ -460,9 +430,6 @@ export async function downloadVersionFromBinaryRepo(
       authConfig || {},
     )
     const latencyMs = Date.now() - startTime
-    logEvent('tengu_binary_download_success', {
-      latency_ms: latencyMs,
-    })
   } catch (error) {
     const latencyMs = Date.now() - startTime
     const errorMessage = error instanceof Error ? error.message : String(error)
@@ -470,13 +437,6 @@ export async function downloadVersionFromBinaryRepo(
     if (axios.isAxiosError(error) && error.response) {
       httpStatus = error.response.status
     }
-
-    logEvent('tengu_binary_download_failure', {
-      latency_ms: latencyMs,
-      http_status: httpStatus,
-      is_timeout: errorMessage.includes('timeout'),
-      is_checksum_mismatch: errorMessage.includes('Checksum mismatch'),
-    })
     logError(
       new Error(`Failed to download binary from ${binaryUrl}: ${errorMessage}`),
     )
@@ -519,5 +479,5 @@ export async function downloadVersion(
 
 // Exported for testing
 export { StallTimeoutError, MAX_DOWNLOAD_RETRIES }
-export const STALL_TIMEOUT_MS = DEFAULT_STALL_TIMEOUT_MS
-export const _downloadAndVerifyBinaryForTesting = downloadAndVerifyBinary
+
+

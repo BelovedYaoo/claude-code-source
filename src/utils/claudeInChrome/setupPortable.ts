@@ -3,7 +3,7 @@ import { homedir } from 'os'
 import { join } from 'path'
 import { isFsInaccessible } from '../errors.js'
 
-export const CHROME_EXTENSION_URL = 'https://claude.ai/chrome'
+
 
 // Production extension ID
 const PROD_EXTENSION_ID = 'fcoeoabgfenejglbffodgkkbkcdhcgfn'
@@ -223,11 +223,3 @@ export async function isChromeExtensionInstalledPortable(
   return result.isInstalled
 }
 
-/**
- * Convenience function that gets browser paths automatically.
- * Use this when you don't need to provide custom browser paths.
- */
-export function isChromeExtensionInstalled(log?: Logger): Promise<boolean> {
-  const browserPaths = getAllBrowserDataPathsPortable()
-  return isChromeExtensionInstalledPortable(browserPaths, log)
-}

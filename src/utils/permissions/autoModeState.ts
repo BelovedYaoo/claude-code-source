@@ -31,9 +31,3 @@ export function setAutoModeCircuitBroken(broken: boolean): void {
 export function isAutoModeCircuitBroken(): boolean {
   return autoModeCircuitBroken
 }
-
-export function _resetForTesting(): void {
-  autoModeActive = false
-  autoModeFlagCli = false
-  autoModeCircuitBroken = false
-}

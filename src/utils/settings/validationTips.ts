@@ -86,14 +86,6 @@ const TIP_MATCHERS: TipMatcher[] = [
     },
   },
   {
-    matches: (ctx): boolean =>
-      ctx.code === 'invalid_type' && ctx.expected === 'boolean',
-    tip: {
-      suggestion:
-        'Use true or false without quotes. Example: "includeCoAuthoredBy": true',
-    },
-  },
-  {
     matches: (ctx): boolean => ctx.code === 'unrecognized_keys',
     tip: {
       suggestion:

@@ -1,8 +1,7 @@
 import { c as _c } from "react/compiler-runtime";
 import React from 'react';
-import type { KeyboardEvent } from '../../ink/events/keyboard-event.js';
 import { Box } from '../../ink.js';
-import { type OptionWithDescription, Select } from '../CustomSelect/select.js';
+import { Select } from '../CustomSelect/select.js';
 export type TreeNode<T> = {
   id: string | number;
   value: T;
@@ -18,88 +17,6 @@ type FlattenedNode<T> = {
   isExpanded: boolean;
   hasChildren: boolean;
   parentId?: string | number;
-};
-export type TreeSelectProps<T> = {
-  /**
-   * Tree nodes to display.
-   */
-  readonly nodes: TreeNode<T>[];
-
-  /**
-   * Callback when a node is selected.
-   */
-  readonly onSelect: (node: TreeNode<T>) => void;
-
-  /**
-   * Callback when cancel is pressed.
-   */
-  readonly onCancel?: () => void;
-
-  /**
-   * Callback when focused node changes.
-   */
-  readonly onFocus?: (node: TreeNode<T>) => void;
-
-  /**
-   * Node to focus by ID.
-   */
-  readonly focusNodeId?: string | number;
-
-  /**
-   * Number of visible options.
-   */
-  readonly visibleOptionCount?: number;
-
-  /**
-   * Layout of the options.
-   */
-  readonly layout?: 'compact' | 'expanded' | 'compact-vertical';
-
-  /**
-   * When disabled, user input is ignored.
-   */
-  readonly isDisabled?: boolean;
-
-  /**
-   * When true, hides the numeric indexes next to each option.
-   */
-  readonly hideIndexes?: boolean;
-
-  /**
-   * Function to determine if a node should be initially expanded.
-   * If not provided, all nodes start collapsed.
-   */
-  readonly isNodeExpanded?: (nodeId: string | number) => boolean;
-
-  /**
-   * Callback when a node is expanded.
-   */
-  readonly onExpand?: (nodeId: string | number) => void;
-
-  /**
-   * Callback when a node is collapsed.
-   */
-  readonly onCollapse?: (nodeId: string | number) => void;
-
-  /**
-   * Custom prefix function for parent nodes
-   * @param isExpanded - Whether the parent node is currently expanded
-   * @returns The prefix string to display (default: '▼ ' when expanded, '▶ ' when collapsed)
-   */
-  readonly getParentPrefix?: (isExpanded: boolean) => string;
-
-  /**
-   * Custom prefix function for child nodes
-   * @param depth - The depth of the child node in the tree (0-indexed from parent)
-   * @returns The prefix string to display (default: '  ▸ ')
-   */
-  readonly getChildPrefix?: (depth: number) => string;
-
-  /**
-   * Callback when user presses up from the first item.
-   * If provided, navigation will not wrap to the last item.
-   */
-  readonly onUpFromFirstItem?: () => void;
 };
 
 /**

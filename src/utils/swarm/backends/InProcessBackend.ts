@@ -45,14 +45,6 @@ export class InProcessBackend implements TeammateExecutor {
   private context: ToolUseContext | null = null
 
   /**
-   * Sets the ToolUseContext for this backend.
-   * Called by TeammateTool before spawning to provide AppState access.
-   */
-  setContext(context: ToolUseContext): void {
-    this.context = context
-  }
-
-  /**
    * In-process backend is always available (no external dependencies).
    */
   async isAvailable(): Promise<boolean> {

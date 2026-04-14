@@ -2,7 +2,7 @@ import { getFeatureValue_CACHED_MAY_BE_STALE } from '../../../services/analytics
 import { getCwd } from '../../cwd.js'
 import { logForDebugging } from '../../debug.js'
 import { detectCurrentRepository } from '../../detectRepository.js'
-import { findGitRoot, getIsClean } from '../../git.js'
+import { findGitRoot } from '../../git.js'
 
 /**
  * API-only 模式下远程会话不可用。
@@ -29,15 +29,6 @@ export function checkIsInGitRepo(): boolean {
 }
 
 /**
- * Checks if current repository has a GitHub remote configured.
- * Returns false for local-only repos (git init with no `origin`).
- */
-export async function checkHasGitRemote(): Promise<boolean> {
-  const repository = await detectCurrentRepository()
-  return repository !== null
-}
-
-/**
  * Checks if GitHub app is installed on a specific repository
  * @param owner The repository owner (e.g., "anthropics")
  * @param repo The repository name (e.g., "claude-cli-internal")
@@ -61,24 +52,3 @@ export async function checkGithubTokenSynced(): Promise<boolean> {
 
 type RepoAccessMethod = 'github-app' | 'token-sync' | 'none'
 
-/**
- * Tiered check for whether a GitHub repo is accessible for remote operations.
- * 1. GitHub App installed on the repo
- * 2. GitHub token synced via the web auth flow
- * 3. Neither — caller should prompt user to set up access
- */
-export async function checkRepoForRemoteAccess(
-  owner: string,
-  repo: string,
-): Promise<{ hasAccess: boolean; method: RepoAccessMethod }> {
-  if (await checkGithubAppInstalled(owner, repo)) {
-    return { hasAccess: true, method: 'github-app' }
-  }
-  if (
-    getFeatureValue_CACHED_MAY_BE_STALE('tengu_cobalt_lantern', false) &&
-    (await checkGithubTokenSynced())
-  ) {
-    return { hasAccess: true, method: 'token-sync' }
-  }
-  return { hasAccess: false, method: 'none' }
-}

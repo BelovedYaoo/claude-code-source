@@ -34,6 +34,7 @@ import {
 } from './memoryFileDetection.js'
 import {
   appendTeamMemorySummaryParts,
+  isTeamMemFile,
   isTeamMemorySearch,
   isTeamMemoryWriteOrEdit,
 } from './teamMemoryOps.js'
@@ -860,7 +861,7 @@ export function collapseReadSearchGroups(
         const filePaths = getFilePathsFromReadMessage(msg)
         for (const filePath of filePaths) {
           currentGroup.readFilePaths.add(filePath)
-          if (feature('TEAMMEM') && teamMemOps?.isTeamMemFile(filePath)) {
+          if (feature('TEAMMEM') && isTeamMemFile(filePath)) {
             currentGroup.teamMemoryReadFilePaths?.add(filePath)
           } else if (isAutoManagedMemoryFile(filePath)) {
             currentGroup.memoryReadFilePaths.add(filePath)
@@ -1012,7 +1013,7 @@ export function getSearchReadSummaryText(
       )
     }
     // Team memory operations
-    if (feature('TEAMMEM') && teamMemOps) {
+    if (feature('TEAMMEM')) {
       appendTeamMemorySummaryParts(memoryCounts, isActive, parts)
     }
   }

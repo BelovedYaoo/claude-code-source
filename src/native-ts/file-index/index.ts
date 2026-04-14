@@ -51,25 +51,6 @@ export class FileIndex {
   private readyCount = 0
 
   /**
-   * Load paths from an array of strings.
-   * This is the main way to populate the index — ripgrep collects files, we just search them.
-   * Automatically deduplicates paths.
-   */
-  loadFromFileList(fileList: string[]): void {
-    // Deduplicate and filter empty strings (matches Rust HashSet behavior)
-    const seen = new Set<string>()
-    const paths: string[] = []
-    for (const line of fileList) {
-      if (line.length > 0 && !seen.has(line)) {
-        seen.add(line)
-        paths.push(line)
-      }
-    }
-
-    this.buildIndex(paths)
-  }
-
-  /**
    * Async variant: yields to the event loop every ~8–12k paths so large
    * indexes (270k+ files) don't block the main thread for >10ms at a time.
    * Identical result to loadFromFileList.

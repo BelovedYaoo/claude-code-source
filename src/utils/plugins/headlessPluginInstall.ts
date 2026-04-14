@@ -1,15 +1,4 @@
-/**
- * Plugin installation for headless/CCR mode.
- *
- * This module provides plugin installation without AppState updates,
- * suitable for non-interactive environments like CCR.
- *
- * When CLAUDE_CODE_PLUGIN_USE_ZIP_CACHE is enabled, plugins are stored as
- * ZIPs on a mounted volume. The storage layer (pluginLoader.ts) handles
- * ZIP creation on install and extraction on load transparently.
- */
 
-import { logEvent } from '../../services/analytics/index.js'
 import { registerCleanup } from '../cleanupRegistry.js'
 import { logForDebugging } from '../debug.js'
 import { withDiagnosticsTiming } from '../diagLogs.js'
@@ -169,6 +158,5 @@ export async function installPluginsForHeadless(): Promise<boolean> {
     logError(error)
     return false
   } finally {
-    logEvent('tengu_headless_plugin_install', metrics)
   }
 }

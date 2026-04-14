@@ -12,20 +12,6 @@ import {
 } from './preconditions.js'
 
 /**
- * 后台远程会话类型，用于管理远程会话。
- */
-export type BackgroundRemoteSession = {
-  id: string
-  command: string
-  startTime: number
-  status: 'starting' | 'running' | 'completed' | 'failed' | 'killed'
-  todoList: TodoList
-  title: string
-  type: 'remote_session'
-  log: SDKMessage[]
-}
-
-/**
  * Precondition failures for background remote sessions
  */
 export type BackgroundRemoteSessionPrecondition =
@@ -36,64 +22,3 @@ export type BackgroundRemoteSessionPrecondition =
   | { type: 'github_app_not_installed' }
   | { type: 'policy_blocked' }
 
-/**
- * Checks eligibility for creating a background remote session
- * Returns an array of failed preconditions (empty array means all checks passed)
- *
- * @returns Array of failed preconditions
- */
-export async function checkBackgroundRemoteSessionEligibility({
-  skipBundle = false,
-}: {
-  skipBundle?: boolean
-} = {}): Promise<BackgroundRemoteSessionPrecondition[]> {
-  const errors: BackgroundRemoteSessionPrecondition[] = []
-
-  // Check policy first - if blocked, no need to check other preconditions
-  if (!isPolicyAllowed('allow_remote_sessions')) {
-    errors.push({ type: 'policy_blocked' })
-    return errors
-  }
-
-  const [remoteUnavailable, hasRemoteEnv, repository] = await Promise.all([
-    checkRemoteUnavailableInApiMode(),
-    checkHasRemoteEnvironment(),
-    detectCurrentRepositoryWithHost(),
-  ])
-
-  if (remoteUnavailable) {
-    errors.push({ type: 'api_only_unavailable' })
-    return errors
-  }
-
-  if (!hasRemoteEnv) {
-    errors.push({ type: 'no_remote_environment' })
-  }
-
-  // When bundle seeding is on, in-git-repo is enough — CCR can seed from
-  // a local bundle. No GitHub remote or app needed. Same gate as
-  // 与旧远程创建逻辑相同的 bundle seed gate。
-  const bundleSeedGateOn =
-    !skipBundle &&
-    (isEnvTruthy(process.env.CCR_FORCE_BUNDLE) ||
-      isEnvTruthy(process.env.CCR_ENABLE_BUNDLE) ||
-      (await checkGate_CACHED_OR_BLOCKING('tengu_ccr_bundle_seed_enabled')))
-
-  if (!checkIsInGitRepo()) {
-    errors.push({ type: 'not_in_git_repo' })
-  } else if (bundleSeedGateOn) {
-    // has .git/, bundle will work — skip remote+app checks
-  } else if (repository === null) {
-    errors.push({ type: 'no_git_remote' })
-  } else if (repository.host === 'github.com') {
-    const hasGithubApp = await checkGithubAppInstalled(
-      repository.owner,
-      repository.name,
-    )
-    if (!hasGithubApp) {
-      errors.push({ type: 'github_app_not_installed' })
-    }
-  }
-
-  return errors
-}

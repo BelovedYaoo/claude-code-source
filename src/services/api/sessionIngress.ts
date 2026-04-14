@@ -184,60 +184,6 @@ async function appendSessionLogImpl(
   return false
 }
 
-/**
- * Append a log entry to the session using JWT token
- * Uses optimistic concurrency control with Last-Uuid header
- * Ensures sequential execution per session to prevent race conditions
- */
-export async function appendSessionLog(
-  sessionId: string,
-  entry: TranscriptMessage,
-  url: string,
-): Promise<boolean> {
-  const sessionToken = getSessionIngressAuthToken()
-  if (!sessionToken) {
-    logForDebugging('No session token available for session persistence')
-    logForDiagnosticsNoPII('error', 'session_persist_fail_jwt_no_token')
-    return false
-  }
-
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${sessionToken}`,
-    'Content-Type': 'application/json',
-  }
-
-  const sequentialAppend = getOrCreateSequentialAppend(sessionId)
-  return sequentialAppend(entry, url, headers)
-}
-
-/**
- * Get all session logs for hydration
- */
-export async function getSessionLogs(
-  sessionId: string,
-  url: string,
-): Promise<Entry[] | null> {
-  const sessionToken = getSessionIngressAuthToken()
-  if (!sessionToken) {
-    logForDebugging('No session token available for fetching session logs')
-    logForDiagnosticsNoPII('error', 'session_get_fail_no_token')
-    return null
-  }
-
-  const headers = { Authorization: `Bearer ${sessionToken}` }
-  const logs = await fetchSessionLogsFromUrl(sessionId, url, headers)
-
-  if (logs && logs.length > 0) {
-    // Update our lastUuid to the last entry's UUID
-    const lastEntry = logs.at(-1)
-    if (lastEntry && 'uuid' in lastEntry && lastEntry.uuid) {
-      lastUuidMap.set(sessionId, lastEntry.uuid)
-    }
-  }
-
-  return logs
-}
-
 
 /**
  * Shared implementation for fetching session logs from a URL
@@ -319,14 +265,6 @@ function findLastUuid(logs: Entry[] | null): UUID | undefined {
   }
   const entry = logs.findLast(e => 'uuid' in e && e.uuid)
   return entry && 'uuid' in entry ? (entry.uuid as UUID) : undefined
-}
-
-/**
- * Clear cached state for a session
- */
-export function clearSession(sessionId: string): void {
-  lastUuidMap.delete(sessionId)
-  sequentialAppendBySession.delete(sessionId)
 }
 
 /**

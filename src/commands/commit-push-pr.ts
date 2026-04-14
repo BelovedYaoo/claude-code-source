@@ -5,7 +5,6 @@ import {
 } from '../utils/attribution.js'
 import { getDefaultBranch } from '../utils/git.js'
 import { executeShellCommandsInPrompt } from '../utils/promptShellExecution.js'
-import { getUndercoverInstructions, isUndercover } from '../utils/undercover.js'
 
 const ALLOWED_TOOLS = [
   'Bash(git checkout --branch:*)',
@@ -29,32 +28,13 @@ function getPromptContent(
 ): string {
   const { commit: commitAttribution, pr: defaultPrAttribution } =
     getAttributionTexts()
-  // Use provided PR attribution or fall back to default
   const effectivePrAttribution = prAttribution ?? defaultPrAttribution
   const safeUser = process.env.SAFEUSER || ''
   const username = process.env.USER || ''
+  const reviewerArg = ' and `--reviewer anthropics/claude-code`'
+  const addReviewerArg = ' (and add `--add-reviewer anthropics/claude-code`)'
 
-  let prefix = ''
-  let reviewerArg = ' and `--reviewer anthropics/claude-code`'
-  let addReviewerArg = ' (and add `--add-reviewer anthropics/claude-code`)'
-  let changelogSection = `
-
-## Changelog
-<!-- CHANGELOG:START -->
-[If this PR contains user-facing changes, add a changelog entry here. Otherwise, remove this section.]
-<!-- CHANGELOG:END -->`
-  let slackStep = `
-
-5. After creating/updating the PR, check if the user's CLAUDE.md mentions posting to Slack channels. If it does, use ToolSearch to search for "slack send message" tools. If ToolSearch finds a Slack tool, ask the user if they'd like you to post the PR URL to the relevant Slack channel. Only post if the user confirms. If ToolSearch returns no results or errors, skip this step silently—do not mention the failure, do not attempt workarounds, and do not try alternative approaches.`
-  if (process.env.USER_TYPE === 'ant' && isUndercover()) {
-    prefix = getUndercoverInstructions() + '\n'
-    reviewerArg = ''
-    addReviewerArg = ''
-    changelogSection = ''
-    slackStep = ''
-  }
-
-  return `${prefix}## Context
+  return `## Context
 
 - \`SAFEUSER\`: ${safeUser}
 - \`whoami\`: ${username}
@@ -95,12 +75,19 @@ gh pr create --title "Short, descriptive title" --body "$(cat <<'EOF'
 <1-3 bullet points>
 
 ## Test plan
-[Bulleted markdown checklist of TODOs for testing the pull request...]${changelogSection}${effectivePrAttribution ? `\n\n${effectivePrAttribution}` : ''}
+[Bulleted markdown checklist of TODOs for testing the pull request...]
+
+## Changelog
+<!-- CHANGELOG:START -->
+[If this PR contains user-facing changes, add a changelog entry here. Otherwise, remove this section.]
+<!-- CHANGELOG:END -->${effectivePrAttribution ? `\n\n${effectivePrAttribution}` : ''}
 EOF
 )"
 \`\`\`
 
-You have the capability to call multiple tools in a single response. You MUST do all of the above in a single message.${slackStep}
+You have the capability to call multiple tools in a single response. You MUST do all of the above in a single message.
+
+5. After creating/updating the PR, check if the user's CLAUDE.md mentions posting to Slack channels. If it does, use ToolSearch to search for "slack send message" tools. If ToolSearch finds a Slack tool, ask the user if they'd like you to post the PR URL to the relevant Slack channel. Only post if the user confirms. If ToolSearch returns no results or errors, skip this step silently—do not mention the failure, do not attempt workarounds, and do not try alternative approaches.
 
 Return the PR URL when you're done, so the user can see it.`
 }

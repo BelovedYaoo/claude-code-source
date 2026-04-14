@@ -1,6 +1,4 @@
 import type { BetaUsage as Usage } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
-import type { AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS } from 'src/services/analytics/index.js'
-import { logEvent } from 'src/services/analytics/index.js'
 import { setHasUnknownModelCost } from '../bootstrap/state.js'
 import { isFastModeEnabled } from './fastMode.js'
 import {
@@ -164,11 +162,6 @@ export function getModelCosts(model: string, usage: Usage): ModelCosts {
 }
 
 function trackUnknownModelCost(model: string, shortName: ModelShortName): void {
-  logEvent('tengu_unknown_model_cost', {
-    model: model as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-    shortName:
-      shortName as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-  })
   setHasUnknownModelCost()
 }
 
@@ -218,14 +211,3 @@ export function formatModelPricing(costs: ModelCosts): string {
   return `${formatPrice(costs.inputTokens)}/${formatPrice(costs.outputTokens)} per Mtok`
 }
 
-/**
- * Get formatted pricing string for a model
- * Accepts either a short name or full model name
- * Returns undefined if model is not found
- */
-export function getModelPricingString(model: string): string | undefined {
-  const shortName = getCanonicalName(model)
-  const costs = MODEL_COSTS[shortName]
-  if (!costs) return undefined
-  return formatModelPricing(costs)
-}

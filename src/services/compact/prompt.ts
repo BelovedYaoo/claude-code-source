@@ -1,4 +1,3 @@
-import { feature } from 'bun:bundle'
 import type { PartialCompactDirection } from '../../types/message.js'
 
 // Aggressive no-tools preamble. The cache-sharing fork path inherits the

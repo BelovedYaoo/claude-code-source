@@ -32,10 +32,10 @@ const schedulerLockSchema = lazySchema(() =>
 type SchedulerLock = z.infer<ReturnType<typeof schedulerLockSchema>>
 
 /**
- * Options for out-of-REPL callers (Agent SDK daemon) that don't have
- * bootstrap state. When omitted, falls back to getProjectRoot() +
- * getSessionId() as before. lockIdentity should be stable for the lifetime
- * of one daemon process (e.g. a randomUUID() captured at startup).
+ * Options for out-of-REPL callers that don't have bootstrap state. When
+ * omitted, falls back to getProjectRoot() + getSessionId() as before.
+ * lockIdentity should be stable for the lifetime of one scheduler process
+ * (e.g. a randomUUID() captured at startup).
  */
 export type SchedulerLockOptions = {
   dir?: string
@@ -113,7 +113,7 @@ export async function tryAcquireSchedulerLock(
 ): Promise<boolean> {
   const dir = opts?.dir
   // "sessionId" in the lock file is really just a stable owner key. REPL
-  // uses getSessionId(); daemon callers supply their own UUID. PID remains
+  // uses getSessionId(); non-REPL callers supply their own UUID. PID remains
   // the liveness signal regardless.
   const sessionId = opts?.lockIdentity ?? getSessionId()
   const lock: SchedulerLock = {

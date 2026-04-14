@@ -97,38 +97,6 @@ export class DiagnosticTrackingService {
   }
 
   /**
-   * Ensure a file is opened in the IDE before processing.
-   * This is important for language services like diagnostics to work properly.
-   */
-  async ensureFileOpened(fileUri: string): Promise<void> {
-    if (
-      !this.initialized ||
-      !this.mcpClient ||
-      this.mcpClient.type !== 'connected'
-    ) {
-      return
-    }
-
-    try {
-      // Call the openFile tool to ensure the file is loaded
-      await callIdeRpc(
-        'openFile',
-        {
-          filePath: fileUri,
-          preview: false,
-          startText: '',
-          endText: '',
-          selectToEndOfLine: false,
-          makeFrontmost: false,
-        },
-        this.mcpClient,
-      )
-    } catch (error) {
-      logError(error as Error)
-    }
-  }
-
-  /**
    * Capture baseline diagnostics for a specific file before editing.
    * This is called before editing a file to ensure we have a baseline to compare against.
    */

@@ -234,14 +234,6 @@ class ChromeNativeHost {
     this.running = false
   }
 
-  async isRunning(): Promise<boolean> {
-    return this.running
-  }
-
-  async getClientCount(): Promise<number> {
-    return this.mcpClients.size
-  }
-
   async handleMessage(messageJson: string): Promise<void> {
     let rawMessage: unknown
     try {

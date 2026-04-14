@@ -30,17 +30,15 @@ import ignore from 'ignore'
 import memoize from 'lodash-es/memoize.js'
 import { Lexer } from 'marked'
 import {
-  basename,
   dirname,
   extname,
   isAbsolute,
   join,
   parse,
   relative,
-  sep,
+
 } from 'path'
 import picomatch from 'picomatch'
-import { logEvent } from 'src/services/analytics/index.js'
 import {
   getAdditionalDirectoriesForClaudeMd,
   getOriginalCwd,
@@ -56,10 +54,9 @@ import {
 } from './config.js'
 import { logForDebugging } from './debug.js'
 import { logForDiagnosticsNoPII } from './diagLogs.js'
-import { getClaudeConfigHomeDir, isEnvTruthy } from './envUtils.js'
+import { isEnvTruthy } from './envUtils.js'
 import { getErrnoCode } from './errors.js'
 import { normalizePathForComparison } from './file.js'
-import { cacheKeys, type FileStateCache } from './fileStateCache.js'
 import {
   parseFrontmatter,
   splitPathInFrontmatter,
@@ -276,29 +273,6 @@ function parseFrontmatterPaths(rawContent: string): {
 
   return { content, paths: patterns }
 }
-
-/**
- * Strip block-level HTML comments (<!-- ... -->) from markdown content.
- *
- * Uses the marked lexer to identify comments at the block level only, so
- * comments inside inline code spans and fenced code blocks are preserved.
- * Inline HTML comments inside a paragraph are also left intact; the intended
- * use case is authorial notes that occupy their own lines.
- *
- * Unclosed comments (`<!--` with no matching `-->`) are left in place so a
- * typo doesn't silently swallow the rest of the file.
- */
-export function stripHtmlComments(content: string): {
-  content: string
-  stripped: boolean
-} {
-  if (!content.includes('<!--')) {
-    return { content, stripped: false }
-  }
-  // gfm:false is fine here — html-block detection is a CommonMark rule.
-  return stripHtmlCommentsFromTokens(new Lexer({ gfm: false }).lex(content))
-}
-
 function stripHtmlCommentsFromTokens(tokens: ReturnType<Lexer['lex']>): {
   content: string
   stripped: boolean
@@ -406,11 +380,6 @@ function handleMemoryFileReadError(error: unknown, filePath: string): void {
   }
   // Log permission errors (EACCES) as they're actionable
   if (code === 'EACCES') {
-    // Don't log the full file path to avoid PII/security issues
-    logEvent('tengu_claude_md_permission_error', {
-      is_access_error: 1,
-      has_home_dir: filePath.includes(getClaudeConfigHomeDir()) ? 1 : 0,
-    })
   }
 }
 
@@ -777,10 +746,6 @@ export async function processMdRules({
     return result
   } catch (error) {
     if (error instanceof Error && error.message.includes('EACCES')) {
-      logEvent('tengu_claude_rules_md_permission_error', {
-        is_access_error: 1,
-        has_home_dir: rulesDir.includes(getClaudeConfigHomeDir()) ? 1 : 0,
-      })
     }
     return []
   }
@@ -1023,19 +988,6 @@ export const getMemoryFiles = memoize(
 
     if (!hasLoggedInitialLoad) {
       hasLoggedInitialLoad = true
-      logEvent('tengu_claudemd__initial_load', {
-        file_count: result.length,
-        total_content_length: totalContentLength,
-        user_count: typeCounts['User'] ?? 0,
-        project_count: typeCounts['Project'] ?? 0,
-        local_count: typeCounts['Local'] ?? 0,
-        managed_count: typeCounts['Managed'] ?? 0,
-        automem_count: typeCounts['AutoMem'] ?? 0,
-        ...(feature('TEAMMEM')
-          ? { teammem_count: typeCounts['TeamMem'] ?? 0 }
-          : {}),
-        duration_ms: Date.now() - startTime,
-      })
     }
 
     // Fire InstructionsLoaded hook for each instruction file loaded
@@ -1426,53 +1378,4 @@ export async function shouldShowClaudeMdExternalIncludesWarning(): Promise<boole
   }
 
   return hasExternalClaudeMdIncludes(await getMemoryFiles(true))
-}
-
-/**
- * Check if a file path is a memory file (CLAUDE.md, CLAUDE.local.md, or .claude/rules/*.md)
- */
-export function isMemoryFilePath(filePath: string): boolean {
-  const name = basename(filePath)
-
-  // CLAUDE.md or CLAUDE.local.md anywhere
-  if (name === 'CLAUDE.md' || name === 'CLAUDE.local.md') {
-    return true
-  }
-
-  // .md files in .claude/rules/ directories
-  if (
-    name.endsWith('.md') &&
-    filePath.includes(`${sep}.claude${sep}rules${sep}`)
-  ) {
-    return true
-  }
-
-  return false
-}
-
-/**
- * Get all memory file paths from both standard discovery and readFileState.
- * Combines:
- * - getMemoryFiles() paths (CWD upward to root)
- * - readFileState paths matching memory patterns (includes child directories)
- */
-export function getAllMemoryFilePaths(
-  files: MemoryFileInfo[],
-  readFileState: FileStateCache,
-): string[] {
-  const paths = new Set<string>()
-  for (const file of files) {
-    if (file.content.trim().length > 0) {
-      paths.add(file.path)
-    }
-  }
-
-  // Add memory files from readFileState (includes child directories)
-  for (const filePath of cacheKeys(readFileState)) {
-    if (isMemoryFilePath(filePath)) {
-      paths.add(filePath)
-    }
-  }
-
-  return Array.from(paths)
 }

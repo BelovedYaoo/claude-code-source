@@ -103,6 +103,4 @@ export async function checkMetricsEnabled(): Promise<MetricsStatus> {
 }
 
 // Export for testing purposes only
-export const _clearMetricsEnabledCacheForTesting = (): void => {
-  memoizedCheckMetrics.cache.clear()
-}
+

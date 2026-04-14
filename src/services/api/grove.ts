@@ -99,6 +99,3 @@ export function calculateShouldShowGrove(
   return viewedAt === null || viewedAt === undefined
 }
 
-export async function checkGroveForNonInteractive(): Promise<void> {
-  return
-}

@@ -7,7 +7,6 @@ import { isFsInaccessible } from '../../utils/errors.js'
 import { getFsImplementation } from '../../utils/fsOperations.js'
 import { getSessionMemoryPath } from '../../utils/permissions/filesystem.js'
 import { sleep } from '../../utils/sleep.js'
-import { logEvent } from '../analytics/index.js'
 
 const EXTRACTION_WAIT_TIMEOUT_MS = 15000
 const EXTRACTION_STALE_THRESHOLD_MS = 60000 // 1 minute
@@ -114,10 +113,6 @@ export async function getSessionMemoryContent(): Promise<string | null> {
   try {
     const content = await fs.readFile(memoryPath, { encoding: 'utf-8' })
 
-    logEvent('tengu_session_memory_loaded', {
-      content_length: content.length,
-    })
-
     return content
   } catch (e: unknown) {
     if (isFsInaccessible(e)) return null
@@ -195,13 +190,3 @@ export function getToolCallsBetweenUpdates(): number {
   return sessionMemoryConfig.toolCallsBetweenUpdates
 }
 
-/**
- * Reset session memory state (useful for testing)
- */
-export function resetSessionMemoryState(): void {
-  sessionMemoryConfig = { ...DEFAULT_SESSION_MEMORY_CONFIG }
-  tokensAtLastExtraction = 0
-  sessionMemoryInitialized = false
-  lastSummarizedMessageId = undefined
-  extractionStartedAt = undefined
-}

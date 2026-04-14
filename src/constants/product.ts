@@ -68,11 +68,3 @@ function toCompatSessionId(sessionId: string): string {
     : sessionId
 }
 
-export function getRemoteSessionUrl(
-  sessionId: string,
-  ingressUrl?: string,
-): string {
-  const compatId = toCompatSessionId(sessionId)
-  const baseUrl = getClaudeAiBaseUrl(compatId, ingressUrl)
-  return `${baseUrl}/code/${compatId}`
-}

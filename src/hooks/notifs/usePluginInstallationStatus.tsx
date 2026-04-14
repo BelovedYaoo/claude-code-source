@@ -1,6 +1,6 @@
 import { c as _c } from "react/compiler-runtime";
 import * as React from 'react';
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import { useNotifications } from '../../context/notifications.js';
 import { Text } from '../../ink.js';
 import { useAppState } from '../../state/AppState.js';

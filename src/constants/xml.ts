@@ -13,14 +13,7 @@ export const LOCAL_COMMAND_STDERR_TAG = 'local-command-stderr'
 export const LOCAL_COMMAND_CAVEAT_TAG = 'local-command-caveat'
 
 // All terminal-related tags that indicate a message is terminal output, not a user prompt
-export const TERMINAL_OUTPUT_TAGS = [
-  BASH_INPUT_TAG,
-  BASH_STDOUT_TAG,
-  BASH_STDERR_TAG,
-  LOCAL_COMMAND_STDOUT_TAG,
-  LOCAL_COMMAND_STDERR_TAG,
-  LOCAL_COMMAND_CAVEAT_TAG,
-] as const
+
 
 // XML tag names for task notifications (background task completions)
 export const TASK_NOTIFICATION_TAG = 'task-notification'

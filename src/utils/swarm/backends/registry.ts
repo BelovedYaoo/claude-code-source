@@ -409,33 +409,6 @@ export function getInProcessBackend(): TeammateExecutor {
 }
 
 /**
- * Gets a TeammateExecutor for spawning teammates.
- *
- * Returns either:
- * - InProcessBackend when preferInProcess is true and in-process mode is enabled
- * - PaneBackendExecutor wrapping the detected pane backend otherwise
- *
- * This provides a unified TeammateExecutor interface regardless of execution mode,
- * allowing callers to spawn and manage teammates without knowing the backend details.
- *
- * @param preferInProcess - If true and in-process is enabled, returns InProcessBackend.
- *                          Otherwise returns PaneBackendExecutor.
- * @returns TeammateExecutor instance
- */
-export async function getTeammateExecutor(
-  preferInProcess: boolean = false,
-): Promise<TeammateExecutor> {
-  if (preferInProcess && isInProcessEnabled()) {
-    logForDebugging('[BackendRegistry] Using in-process executor')
-    return getInProcessBackend()
-  }
-
-  // Return pane backend executor
-  logForDebugging('[BackendRegistry] Using pane backend executor')
-  return getPaneBackendExecutor()
-}
-
-/**
  * Gets the PaneBackendExecutor instance.
  * Creates and caches the instance on first call, detecting the appropriate pane backend.
  */

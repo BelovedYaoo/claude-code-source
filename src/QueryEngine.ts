@@ -1158,10 +1158,6 @@ export class QueryEngine {
     this.abortController.abort()
   }
 
-  getMessages(): readonly Message[] {
-    return this.mutableMessages
-  }
-
   getReadFileState(): FileStateCache {
     return this.readFileState
   }
@@ -1170,9 +1166,6 @@ export class QueryEngine {
     return getSessionId()
   }
 
-  setModel(model: string): void {
-    this.config.userSpecifiedModel = model
-  }
 }
 
 /**

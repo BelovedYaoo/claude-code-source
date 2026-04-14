@@ -13,11 +13,7 @@
 
 import { createHash } from 'crypto'
 import { sep } from 'path'
-import {
-  type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-  type AnalyticsMetadata_I_VERIFIED_THIS_IS_PII_TAGGED,
-  logEvent,
-} from '../../services/analytics/index.js'
+import { type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS } from '../../services/analytics/metadata.js'
 import type {
   LoadedPlugin,
   PluginError,
@@ -91,40 +87,6 @@ export type EnabledVia =
   | 'default-enable'
   | 'seed-mount'
 
-/** How a skill/command invocation was triggered. */
-export type InvocationTrigger =
-  | 'user-slash'
-  | 'claude-auto'
-  | 'nested-skill'
-
-/** Where a skill invocation executes. */
-export type SkillExecutionContext = 'fork' | 'inline' | 'remote'
-
-/** How a plugin install was initiated. */
-export type InstallSource =
-  | 'cli-explicit'
-  | 'ui-discover'
-  | 'ui-suggestion'
-  | 'deep-link'
-
-export function getEnabledVia(
-  plugin: LoadedPlugin,
-  managedNames: Set<string> | null,
-  seedDirs: string[],
-): EnabledVia {
-  if (plugin.isBuiltin) return 'default-enable'
-  if (managedNames?.has(plugin.name)) return 'org-policy'
-  // Trailing sep: /opt/plugins must not match /opt/plugins-extra
-  if (
-    seedDirs.some(dir =>
-      plugin.path.startsWith(dir.endsWith(sep) ? dir : dir + sep),
-    )
-  ) {
-    return 'seed-mount'
-  }
-  return 'user-install'
-}
-
 /**
  * Common plugin telemetry fields keyed off name@marketplace. Returns the
  * hash, scope enum, and the redacted-twin columns. Callers add the raw
@@ -195,31 +157,6 @@ export function logPluginsEnabledForSession(
 ): void {
   for (const plugin of plugins) {
     const { marketplace } = parsePluginIdentifier(plugin.repository)
-
-    logEvent('tengu_plugin_enabled_for_session', {
-      _PROTO_plugin_name:
-        plugin.name as AnalyticsMetadata_I_VERIFIED_THIS_IS_PII_TAGGED,
-      ...(marketplace && {
-        _PROTO_marketplace_name:
-          marketplace as AnalyticsMetadata_I_VERIFIED_THIS_IS_PII_TAGGED,
-      }),
-      ...buildPluginTelemetryFields(plugin.name, marketplace, managedNames),
-      enabled_via: getEnabledVia(
-        plugin,
-        managedNames,
-        seedDirs,
-      ) as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-      skill_path_count:
-        (plugin.skillsPath ? 1 : 0) + (plugin.skillsPaths?.length ?? 0),
-      command_path_count:
-        (plugin.commandsPath ? 1 : 0) + (plugin.commandsPaths?.length ?? 0),
-      has_mcp: plugin.manifest.mcpServers !== undefined,
-      has_hooks: plugin.hooksConfig !== undefined,
-      ...(plugin.manifest.version && {
-        version: plugin.manifest
-          .version as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-      }),
-    })
   }
 }
 
@@ -274,16 +211,5 @@ export function logPluginLoadErrors(
     // some are marketplace-level). Use the 'plugin' property if present,
     // fall back to the name parsed from err.source.
     const pluginName = 'plugin' in err && err.plugin ? err.plugin : name
-    logEvent('tengu_plugin_load_failed', {
-      error_category:
-        err.type as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-      _PROTO_plugin_name:
-        pluginName as AnalyticsMetadata_I_VERIFIED_THIS_IS_PII_TAGGED,
-      ...(marketplace && {
-        _PROTO_marketplace_name:
-          marketplace as AnalyticsMetadata_I_VERIFIED_THIS_IS_PII_TAGGED,
-      }),
-      ...buildPluginTelemetryFields(pluginName, marketplace, managedNames),
-    })
   }
 }

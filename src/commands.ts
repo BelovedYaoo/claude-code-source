@@ -2,12 +2,8 @@
 import addDir from './commands/add-dir/index.js'
 import agents from './commands/agents/index.js'
 import advisor from './commands/advisor.js'
-import autofixPr from './commands/autofix-pr/index.js'
-import backfillSessions from './commands/backfill-sessions/index.js'
 import branch from './commands/branch/index.js'
 import btw from './commands/btw/index.js'
-import goodClaude from './commands/good-claude/index.js'
-import issue from './commands/issue/index.js'
 import clear from './commands/clear/index.js'
 import color from './commands/color/index.js'
 import commit from './commands/commit.js'
@@ -17,7 +13,6 @@ import compact from './commands/compact/index.js'
 import config from './commands/config/index.js'
 import { context, contextNonInteractive } from './commands/context/index.js'
 import cost from './commands/cost/index.js'
-import debugToolCall from './commands/debug-tool-call/index.js'
 import diff from './commands/diff/index.js'
 import doctor from './commands/doctor/index.js'
 import effort from './commands/effort/index.js'
@@ -40,9 +35,6 @@ import mcpAnt from './commands/mcp-ant/index.js'
 import memory from './commands/memory/index.js'
 import mobile from './commands/mobile/index.js'
 import model from './commands/model/index.js'
-import mockLimits from './commands/mock-limits/index.js'
-import onboarding from './commands/onboarding/index.js'
-import perfIssue from './commands/perf-issue/index.js'
 import permissions from './commands/permissions/index.js'
 import plan from './commands/plan/index.js'
 import pr_comments from './commands/pr_comments/index.js'
@@ -55,13 +47,11 @@ import resume from './commands/resume/index.js'
 import review from './commands/review.js'
 import sandboxToggle from './commands/sandbox-toggle/index.js'
 import securityReview from './commands/security-review.js'
-import share from './commands/share/index.js'
 import skills from './commands/skills/index.js'
 import stats from './commands/stats/index.js'
 import status from './commands/status/index.js'
 import statusline from './commands/statusline.js'
 import stickers from './commands/stickers/index.js'
-import summary from './commands/summary/index.js'
 import tag from './commands/tag/index.js'
 import tasks from './commands/tasks/index.js'
 import terminalSetup from './commands/terminalSetup/index.js'
@@ -70,10 +60,6 @@ import version from './commands/version.js'
 import vim from './commands/vim/index.js'
 import workflowsCommand from './commands/workflows/index.js'
 import plugin from './commands/plugin/index.js'
-import {
-  resetLimits,
-  resetLimitsNonInteractive,
-} from './commands/reset-limits/index.js'
 import { feature } from 'bun:bundle'
 import { clearSkillIndexCache as importedClearSkillIndexCache } from './services/skillSearch/localSearch.js'
 import { getWorkflowCommands as importedGetWorkflowCommands } from './tools/WorkflowTool/createWorkflowCommand.js'
@@ -150,24 +136,12 @@ export { getCommandName, isCommandEnabled } from './types/command.js'
 
 // Commands that get eliminated from the external build
 export const INTERNAL_ONLY_COMMANDS = [
-  backfillSessions,
   commit,
   commitPushPr,
-  goodClaude,
-  issue,
   initVerifiers,
   ...(forceSnip ? [forceSnip] : []),
-  mockLimits,
   version,
-  resetLimits,
-  resetLimitsNonInteractive,
-  onboarding,
-  share,
-  summary,
-  perfIssue,
-  debugToolCall,
   agentsPlatform,
-  autofixPr,
 ].filter(Boolean)
 
 // Declared as a function so that we don't run this until getCommands is called,

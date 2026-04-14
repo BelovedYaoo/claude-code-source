@@ -1,19 +1,10 @@
-import noop from 'lodash-es/noop.js'
-import type { ReactElement } from 'react'
-import { LegacyRoot } from 'react-reconciler/constants.js'
-import { logForDebugging } from '../utils/debug.js'
-import { createNode, type DOMElement } from './dom.js'
-import { FocusManager } from './focus.js'
+import { type DOMElement } from './dom.js'
 import Output from './output.js'
 import reconciler from './reconciler.js'
-import renderNodeToOutput, {
-  resetLayoutShifted,
-} from './render-node-to-output.js'
 import {
   CellWidth,
   CharPool,
   cellAtIndex,
-  createScreen,
   HyperlinkPool,
   type Screen,
   StylePool,

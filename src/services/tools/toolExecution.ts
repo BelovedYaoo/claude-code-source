@@ -58,9 +58,8 @@ import { logForDebugging } from '../../utils/debug.js'
 import {
   AbortError,
   errorMessage,
-  getErrnoCode,
   ShellError,
-  TelemetrySafeError_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+
 } from '../../utils/errors.js'
 import { executePermissionDeniedHooks } from '../../utils/hooks.js'
 import { logError } from '../../utils/log.js'

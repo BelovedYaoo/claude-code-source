@@ -16,8 +16,6 @@ import {
 } from '../tasks/InProcessTeammateTask/types.js'
 import { updateTaskState } from './task/framework.js'
 import {
-  isPermissionResponse,
-  isSandboxPermissionResponse,
   type PlanApprovalResponseMessage,
 } from './teammateMailbox.js'
 

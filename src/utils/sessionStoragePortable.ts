@@ -8,10 +8,9 @@
 
 // Widen UUID to plain string to avoid template-literal mismatches
 type UUID = string
-import { open as fsOpen, readdir, realpath, stat } from 'fs/promises'
+import { open as fsOpen, readdir, realpath } from 'fs/promises'
 import { join } from 'path'
 import { getClaudeConfigHomeDir } from './envUtils.js'
-import { getWorktreePathsPortable } from './getWorktreePathsPortable.js'
 import { djb2Hash } from './hash.js'
 
 /** Size of the head/tail buffer for lite metadata reads. */

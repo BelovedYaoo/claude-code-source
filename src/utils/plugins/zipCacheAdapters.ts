@@ -18,8 +18,8 @@ import { loadKnownMarketplacesConfigSafe } from './marketplaceManager.js'
 import {
   type KnownMarketplacesFile,
   KnownMarketplacesFileSchema,
-  type PluginMarketplace,
-  PluginMarketplaceSchema,
+
+
 } from './schemas.js'
 import {
   atomicWriteToZipCache,

@@ -1,9 +1,8 @@
 import { createHash, randomUUID } from 'crypto'
 // Widen UUID to plain string to avoid template-literal mismatches
 type UUID = string
-import { stat } from 'fs/promises'
 import { isAbsolute, join, relative, sep } from 'path'
-import { getOriginalCwd, getSessionId } from '../bootstrap/state.js'
+import { getOriginalCwd } from '../bootstrap/state.js'
 import type {
   AttributionSnapshotMessage,
   FileAttributionState,
@@ -12,11 +11,8 @@ import { getCwd } from './cwd.js'
 import { logForDebugging } from './debug.js'
 import { execFileNoThrowWithCwd } from './execFileNoThrow.js'
 import { getFsImplementation } from './fsOperations.js'
-import { isGeneratedFile } from './generatedFiles.js'
-import { resolveGitDir } from './git/gitFilesystem.js'
 import { findGitRoot, gitExe } from './git.js'
 import { logError } from './log.js'
-import { getCanonicalName, type ModelName } from './model/model.js'
 
 /**
  * Get the repo root for attribution operations.

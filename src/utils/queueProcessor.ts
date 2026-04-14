@@ -2,7 +2,6 @@ import type { QueuedCommand } from '../types/textInputTypes.js'
 import {
   dequeue,
   dequeueAllMatching,
-  hasCommandsInQueue,
   peek,
 } from './messageQueueManager.js'
 

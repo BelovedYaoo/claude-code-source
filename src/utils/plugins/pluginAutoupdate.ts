@@ -16,8 +16,6 @@ import { logForDebugging } from '../debug.js'
 import { errorMessage } from '../errors.js'
 import { logError } from '../log.js'
 import {
-  getPendingUpdatesDetails,
-  hasPendingUpdates,
   isInstallationRelevantToCurrentProject,
   loadInstalledPluginsFromDisk,
 } from './installedPluginsManager.js'

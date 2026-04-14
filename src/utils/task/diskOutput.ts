@@ -3,7 +3,6 @@ import {
   type FileHandle,
   mkdir,
   open,
-  stat,
   symlink,
   unlink,
 } from 'fs/promises'

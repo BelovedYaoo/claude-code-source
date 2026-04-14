@@ -1,10 +1,8 @@
 import { c as _c } from "react/compiler-runtime";
-import React, { useEffect, useState } from 'react';
-import { Box, Link, Text, useInput } from '../../ink.js';
-import { type AccountSettings, calculateShouldShowGrove, getGroveNoticeConfig, getGroveSettings, markGroveNoticeViewed, updateGroveSettings } from '../../services/api/grove.js';
-import { Select } from '../CustomSelect/index.js';
+import React from 'react';
+import { Box, Link, Text } from '../../ink.js';
+import { type AccountSettings } from '../../services/api/grove.js';
 import { Byline } from '../design-system/Byline.js';
-import { Dialog } from '../design-system/Dialog.js';
 import { KeyboardShortcutHint } from '../design-system/KeyboardShortcutHint.js';
 export type GroveDecision = 'accept_opt_in' | 'accept_opt_out' | 'defer' | 'escape' | 'skip_rendering';
 type Props = {

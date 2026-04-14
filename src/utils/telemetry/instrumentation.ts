@@ -1,12 +1,9 @@
-import { DiagLogLevel, diag, trace } from '@opentelemetry/api'
+import { trace } from '@opentelemetry/api'
 import { logs } from '@opentelemetry/api-logs'
 // OTLP/Prometheus exporters are dynamically imported inside the protocol
 // switch statements below. A process uses at most one protocol variant per
 // signal, but static imports would load all 6 (~1.2MB) on every startup.
 import {
-  envDetector,
-  hostDetector,
-  osDetector,
   resourceFromAttributes,
 } from '@opentelemetry/resources'
 import {
@@ -16,7 +13,6 @@ import {
 } from '@opentelemetry/sdk-logs'
 import {
   ConsoleMetricExporter,
-  MeterProvider,
   PeriodicExportingMetricReader,
 } from '@opentelemetry/sdk-metrics'
 import {
@@ -24,11 +20,6 @@ import {
   BatchSpanProcessor,
   ConsoleSpanExporter,
 } from '@opentelemetry/sdk-trace-base'
-import {
-  ATTR_SERVICE_NAME,
-  ATTR_SERVICE_VERSION,
-  SEMRESATTRS_HOST_ARCH,
-} from '@opentelemetry/semantic-conventions'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import {
   getLoggerProvider,
@@ -36,30 +27,19 @@ import {
   getTracerProvider,
   setEventLogger,
   setLoggerProvider,
-  setMeterProvider,
   setTracerProvider,
 } from 'src/bootstrap/state.js'
 import { getOtelHeadersFromHelper, is1PApiCustomer } from 'src/utils/auth.js'
-import { getPlatform, getWslVersion } from 'src/utils/platform.js'
 
 import { getCACertificates } from '../caCerts.js'
-import { registerCleanup } from '../cleanupRegistry.js'
-import { getHasFormattedOutput, logForDebugging } from '../debug.js'
+import { logForDebugging } from '../debug.js'
 import { isEnvTruthy } from '../envUtils.js'
 import { errorMessage } from '../errors.js'
 import { getMTLSConfig } from '../mtls.js'
 import { getProxyUrl, shouldBypassProxy } from '../proxy.js'
 import { getSettings_DEPRECATED } from '../settings/settings.js'
 import { jsonStringify } from '../slowOperations.js'
-import { profileCheckpoint } from '../startupProfiler.js'
-import { isBetaTracingEnabled } from './betaSessionTracing.js'
 import { BigQueryMetricsExporter } from './bigqueryExporter.js'
-import { ClaudeCodeDiagLogger } from './logger.js'
-import { initializePerfettoTracing } from './perfettoTracing.js'
-import {
-  endInteractionSpan,
-  isEnhancedTelemetryEnabled,
-} from './sessionTracing.js'
 
 const DEFAULT_METRICS_EXPORT_INTERVAL_MS = 60000
 const DEFAULT_LOGS_EXPORT_INTERVAL_MS = 5000

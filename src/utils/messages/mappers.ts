@@ -3,10 +3,6 @@ import { randomUUID } from 'crypto'
 // Widen UUID to plain string to avoid template-literal mismatches
 type UUID = string
 import { getSessionId } from 'src/bootstrap/state.js'
-import {
-  LOCAL_COMMAND_STDERR_TAG,
-  LOCAL_COMMAND_STDOUT_TAG,
-} from 'src/constants/xml.js'
 import type {
   SDKAssistantMessage,
   SDKCompactBoundaryMessage,

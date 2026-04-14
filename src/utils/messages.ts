@@ -51,7 +51,6 @@ import type {
   SystemAPIErrorMessage,
   SystemApiMetricsMessage,
   SystemAwaySummaryMessage,
-  SystemBridgeStatusMessage,
   SystemCompactBoundaryMessage,
   SystemInformationalMessage,
   SystemLocalCommandMessage,

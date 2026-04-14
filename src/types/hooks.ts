@@ -3,7 +3,6 @@ import { z } from 'zod/v4'
 import { lazySchema } from '../utils/lazySchema.js'
 import {
   type HookEvent,
-  HOOK_EVENTS,
   type HookInput,
   type PermissionUpdate,
 } from 'src/entrypoints/agentSdkTypes.js'
@@ -12,8 +11,6 @@ import type {
   AsyncHookJSONOutput,
   SyncHookJSONOutput,
 } from 'src/entrypoints/agentSdkTypes.js'
-import type { Message } from 'src/types/message.js'
-import type { PermissionResult } from 'src/utils/permissions/PermissionResult.js'
 import { permissionBehaviorSchema } from 'src/utils/permissions/PermissionRule.js'
 import { permissionUpdateSchema } from 'src/utils/permissions/PermissionUpdateSchema.js'
 import type { AppState } from '../state/AppState.js'

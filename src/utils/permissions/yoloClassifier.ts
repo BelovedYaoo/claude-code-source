@@ -6,7 +6,6 @@ import { dirname, join } from 'path'
 import { z } from 'zod/v4'
 import {
   getCachedClaudeMdContent,
-  getLastClassifierRequests,
   getSessionId,
   setLastClassifierRequests,
 } from '../../bootstrap/state.js'

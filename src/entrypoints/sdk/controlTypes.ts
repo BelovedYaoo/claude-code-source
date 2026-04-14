@@ -11,15 +11,10 @@ import type { z } from 'zod/v4'
 import type {
   SDKControlRequestSchema,
   SDKControlResponseSchema,
-  SDKControlCancelRequestSchema,
-  SDKControlRequestInnerSchema,
-  SDKControlPermissionRequestSchema,
   SDKControlInitializeRequestSchema,
   SDKControlInitializeResponseSchema,
   SDKControlMcpSetServersResponseSchema,
   SDKControlReloadPluginsResponseSchema,
-  SDKControlElicitationRequestSchema,
-  SDKControlElicitationResponseSchema,
   StdoutMessageSchema,
   StdinMessageSchema,
 } from './controlSchemas.js'
@@ -59,6 +54,4 @@ export type StdinMessage = z.infer<ReturnType<typeof StdinMessageSchema>>
 // ============================================================================
 // Partial assistant message (re-exported from core schemas)
 // ============================================================================
-
-import type { SDKPartialAssistantMessageSchema } from './coreSchemas.js'
 

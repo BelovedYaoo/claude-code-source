@@ -5,7 +5,6 @@ import { join } from 'path'
 import { fileURLToPath } from 'url'
 import {
   getIsInteractive,
-  getIsNonInteractiveSession,
   getSessionBypassPermissionsMode,
 } from '../../bootstrap/state.js'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../../services/analytics/growthbook.js'
@@ -15,8 +14,8 @@ import { getGlobalConfig, saveGlobalConfig } from '../config.js'
 import { logForDebugging } from '../debug.js'
 import {
   getClaudeConfigHomeDir,
-  isEnvDefinedFalsy,
-  isEnvTruthy,
+
+
 } from '../envUtils.js'
 import { execFileNoThrowWithCwd } from '../execFileNoThrow.js'
 import { getPlatform } from '../platform.js'

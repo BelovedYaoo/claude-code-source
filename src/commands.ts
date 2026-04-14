@@ -31,7 +31,6 @@ import keybindings from './commands/keybindings/index.js'
 import installGitHubApp from './commands/install-github-app/index.js'
 import installSlackApp from './commands/install-slack-app/index.js'
 import mcp from './commands/mcp/index.js'
-import mcpAnt from './commands/mcp-ant/index.js'
 import memory from './commands/memory/index.js'
 import mobile from './commands/mobile/index.js'
 import model from './commands/model/index.js'
@@ -168,7 +167,6 @@ const COMMANDS = memoize((): Command[] => [
   installGitHubApp,
   installSlackApp,
   mcp,
-  mcpAnt,
   memory,
   mobile,
   model,

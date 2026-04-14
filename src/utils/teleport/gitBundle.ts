@@ -9,14 +9,10 @@
  *   5. Caller sets seed_bundle_file_id on SessionContext
  */
 
-import { stat, unlink } from 'fs/promises'
-import { getFeatureValue_CACHED_MAY_BE_STALE } from '../../services/analytics/growthbook.js'
-import { type FilesApiConfig, uploadFile } from '../../services/api/filesApi.js'
-import { getCwd } from '../cwd.js'
+import { stat } from 'fs/promises'
 import { logForDebugging } from '../debug.js'
 import { execFileNoThrowWithCwd } from '../execFileNoThrow.js'
-import { findGitRoot, gitExe } from '../git.js'
-import { generateTempFilePath } from '../tempfile.js'
+import { gitExe } from '../git.js'
 
 // Tunable via tengu_ccr_bundle_max_bytes.
 const DEFAULT_BUNDLE_MAX_BYTES = 100 * 1024 * 1024

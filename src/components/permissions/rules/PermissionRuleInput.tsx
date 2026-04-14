@@ -9,7 +9,6 @@ import { Box, Newline, Text } from '../../../ink.js';
 import { useKeybinding } from '../../../keybindings/useKeybinding.js';
 import { BashTool } from '../../../tools/BashTool/BashTool.js';
 import { WebFetchTool } from '../../../tools/WebFetchTool/WebFetchTool.js';
-import type { PermissionBehavior, PermissionRuleValue } from '../../../utils/permissions/PermissionRule.js';
 import { permissionRuleValueFromString, permissionRuleValueToString } from '../../../utils/permissions/permissionRuleParser.js';
 
 export function PermissionRuleInput(t0) {

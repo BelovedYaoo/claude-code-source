@@ -1,5 +1,5 @@
 import memoize from 'lodash-es/memoize.js'
-import { getGlobalConfig, saveGlobalConfig } from 'src/utils/config.js'
+import { getGlobalConfig } from 'src/utils/config.js'
 import { clearMcpAuthCache } from './client.js'
 import type { ScopedMcpServerConfig } from './types.js'
 

@@ -4,7 +4,6 @@ import {
   APIError,
 } from '@anthropic-ai/sdk'
 import type {
-  BetaMessage,
   BetaStopReason,
 } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
 import { AFK_MODE_BETA_HEADER } from 'src/constants/betas.js'

@@ -1,4 +1,3 @@
-import { plural } from '../utils/stringUtils.js'
 import { chordToString, parseKeystroke } from './parser.js'
 import {
   getReservedShortcuts,

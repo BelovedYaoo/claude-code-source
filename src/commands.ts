@@ -62,8 +62,6 @@ import plugin from './commands/plugin/index.js'
 import { feature } from 'bun:bundle'
 import { clearSkillIndexCache as importedClearSkillIndexCache } from './services/skillSearch/localSearch.js'
 import { getWorkflowCommands as importedGetWorkflowCommands } from './tools/WorkflowTool/createWorkflowCommand.js'
-const agentsPlatform = null
-const forceSnip = null
 const workflowsCmd = feature('WORKFLOW_SCRIPTS')
   ? workflowsCommand
   : null
@@ -138,8 +136,6 @@ export const INTERNAL_ONLY_COMMANDS = [
   commit,
   commitPushPr,
   initVerifiers,
-  ...(forceSnip ? [forceSnip] : []),
-  agentsPlatform,
 ].filter(Boolean)
 
 // Declared as a function so that we don't run this until getCommands is called,

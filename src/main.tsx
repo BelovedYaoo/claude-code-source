@@ -89,7 +89,6 @@ import type { AgentColorName } from './tools/AgentTool/agentColorManager.js';
 import { getActiveAgentsFromList, getAgentDefinitionsWithOverrides, isBuiltInAgent, isCustomAgent, parseAgentsFromJson } from './tools/AgentTool/loadAgentsDir.js';
 import type { LogOption } from './types/logs.js';
 import type { Message as MessageType } from './types/message.js';
-import { assertMinVersion } from './utils/autoUpdater.js';
 import { CLAUDE_IN_CHROME_SKILL_HINT, CLAUDE_IN_CHROME_SKILL_HINT_WITH_WEBBROWSER } from './utils/claudeInChrome/prompt.js';
 import { setupClaudeInChrome, shouldAutoEnableClaudeInChrome } from './utils/claudeInChrome/setup.js';
 import { getContextWindowForModel } from './utils/context.js';
@@ -154,7 +153,6 @@ import { parseSettingSourcesFlag } from 'src/utils/settings/constants.js';
 import { plural } from 'src/utils/stringUtils.js';
 import { getInitialMainLoopModel, getIsNonInteractiveSession, getSdkBetas, getSessionId, setAllowedSettingSources, setChromeFlagOverride, setClientType, setFlagSettingsPath, setInitialMainLoopModel, setInlinePlugins, setIsInteractive, setQuestionPreviewFormat, setSdkBetas, setSessionBypassPermissionsMode, setSessionPersistenceDisabled } from './bootstrap/state.js';
 
-import { migrateAutoUpdatesToSettings } from './migrations/migrateAutoUpdatesToSettings.js';
 import { migrateBypassPermissionsAcceptedToSettings } from './migrations/migrateBypassPermissionsAcceptedToSettings.js';
 import { migrateEnableAllProjectMcpServersToSettings } from './migrations/migrateEnableAllProjectMcpServersToSettings.js';
 import { migrateFennecToOpus } from './migrations/migrateFennecToOpus.js';
@@ -283,7 +281,6 @@ async function logStartupTelemetry(): Promise<void> {
 const CURRENT_MIGRATION_VERSION = 11;
 function runMigrations(): void {
   if (getGlobalConfig().migrationVersion !== CURRENT_MIGRATION_VERSION) {
-    migrateAutoUpdatesToSettings();
     migrateBypassPermissionsAcceptedToSettings();
     migrateEnableAllProjectMcpServersToSettings();
     resetProToOpusDefault();
@@ -1312,7 +1309,6 @@ async function run(): Promise<CommanderCommand> {
       // biome-ignore lint/suspicious/noConsole:: intentional console output
       console.error(warning);
     });
-    void assertMinVersion();
 
     // claude.ai config fetch: -p mode only (interactive uses useManageMCPConnections
     // two-phase loading). Kicked off here to overlap with setup(); awaited
@@ -1901,7 +1897,7 @@ async function run(): Promise<CommanderCommand> {
     // Sequencing matters: the warmup scans disk for .orphaned_at markers,
     // so it must see the GC's Pass 1 (remove markers from reinstalled
     // versions) and Pass 2 (stamp unmarked orphans) already applied. The
-    // warm also lands before autoupdate (fires on first submit in REPL)
+    // warm also lands before background plugin update (fires on first submit in REPL)
     // can orphan this session's active version underneath us.
     // --bare / SIMPLE: skip plugin version sync + orphan cleanup. These
     // are install/upgrade bookkeeping that scripted calls don't need —
@@ -2989,19 +2985,6 @@ async function run(): Promise<CommanderCommand> {
     }] = await Promise.all([import('./cli/handlers/util.js'), import('./ink.js')]);
     const root = await createRoot(getBaseRenderOptions(false));
     await doctorHandler(root);
-  });
-
-  // claude update
-  //
-  // For SemVer-compliant versioning with build metadata (X.X.X+SHA):
-  // - We perform exact string comparison (including SHA) to detect any change
-  // - This ensures users always get the latest build, even when only the SHA changes
-  // - UI shows both versions including build metadata for clarity
-  program.command('update').alias('upgrade').description('Check for updates and install if available').action(async () => {
-    const {
-      update
-    } = await import('src/cli/update.js');
-    await update();
   });
 
   // claude up — run the project's CLAUDE.md "# claude up" setup instructions.

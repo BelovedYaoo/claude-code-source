@@ -12,10 +12,3 @@ export function hasConsoleBillingAccess(): boolean {
   return authSource.hasToken || hasApiKey
 }
 
-// Mock billing access for /mock-limits testing (set by mockRateLimits.ts)
-let mockBillingAccessOverride: boolean | null = null
-
-export function setMockBillingAccessOverride(value: boolean | null): void {
-  mockBillingAccessOverride = value
-}
-

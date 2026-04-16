@@ -188,9 +188,6 @@ export async function buildInstallationHealthDiagnostics(): Promise<Diagnostic[]
   diagnostic.warnings.forEach(warning => {
     items.push(warning.issue);
   });
-  if (diagnostic.hasUpdatePermissions === false) {
-    items.push('No write permissions for auto-updates (requires sudo)');
-  }
   return items;
 }
 export function buildAccountProperties(): Property[] {

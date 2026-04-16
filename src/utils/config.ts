@@ -177,9 +177,6 @@ export type GlobalConfig = {
   projects?: Record<string, ProjectConfig>
   numStartups: number
   installMethod?: InstallMethod
-  autoUpdates?: boolean
-  // Flag to distinguish protection-based disabling from user preference
-  autoUpdatesProtectedForNative?: boolean
   // Session count when Doctor was last shown
   doctorShownAtSession?: number
   userID?: string
@@ -553,7 +550,6 @@ function createDefaultGlobalConfig(): GlobalConfig {
   return {
     numStartups: 0,
     installMethod: undefined,
-    autoUpdates: undefined,
     theme: 'dark',
     preferredNotifChannel: 'auto',
     verbose: false,
@@ -653,7 +649,6 @@ function computeTrustDialogAccepted(): boolean {
 // We have to put this test code here because Jest doesn't support mocking ES modules :O
 const TEST_GLOBAL_CONFIG_FOR_TESTING: GlobalConfig = {
   ...DEFAULT_GLOBAL_CONFIG,
-  autoUpdates: false,
 }
 const TEST_PROJECT_CONFIG_FOR_TESTING: ProjectConfig = {
   ...DEFAULT_PROJECT_CONFIG,
@@ -784,7 +779,6 @@ registerCleanup(async () => {
 })
 
 /**
- * Migrates old autoUpdaterStatus to new installMethod and autoUpdates fields
  * @internal
  */
 function migrateConfigFields(config: GlobalConfig): GlobalConfig {
@@ -793,7 +787,7 @@ function migrateConfigFields(config: GlobalConfig): GlobalConfig {
     return config
   }
 
-  // autoUpdaterStatus is removed from the type but may exist in old configs
+  // legacy install-status field is removed from the type but may exist in old configs
   const legacy = config as GlobalConfig & {
     autoUpdaterStatus?:
       | 'migrated'
@@ -804,9 +798,8 @@ function migrateConfigFields(config: GlobalConfig): GlobalConfig {
       | 'not_configured'
   }
 
-  // Determine install method and auto-update preference from old field
+  // Determine install method from legacy field
   let installMethod: InstallMethod = 'unknown'
-  let autoUpdates = config.autoUpdates ?? true // Default to enabled unless explicitly disabled
 
   switch (legacy.autoUpdaterStatus) {
     case 'migrated':
@@ -816,24 +809,19 @@ function migrateConfigFields(config: GlobalConfig): GlobalConfig {
       installMethod = 'native'
       break
     case 'disabled':
-      // When disabled, we don't know the install method
-      autoUpdates = false
       break
     case 'enabled':
     case 'no_permissions':
     case 'not_configured':
-      // These imply global installation
       installMethod = 'global'
       break
     case undefined:
-      // No old status, keep defaults
       break
   }
 
   return {
     ...config,
     installMethod,
-    autoUpdates,
   }
 }
 
@@ -1533,61 +1521,21 @@ export function saveCurrentProjectConfig(
   }
 }
 
-export function isAutoUpdaterDisabled(): boolean {
-  return getAutoUpdaterDisabledReason() !== null
+export function isPluginUpdateDisabled(): boolean {
+  return isEnvTruthy(process.env.DISABLE_AUTOUPDATER)
 }
 
 /**
- * Returns true if plugin autoupdate should be skipped.
- * This checks if the auto-updater is disabled AND the FORCE_AUTOUPDATE_PLUGINS
- * env var is not set to 'true'. The env var allows forcing plugin autoupdate
- * even when the auto-updater is otherwise disabled.
+ * Returns true if plugin background update should be skipped.
+ * This checks if plugin background update is disabled AND the FORCE_AUTOUPDATE_PLUGINS
+ * env var is not set to 'true'. The env var allows forcing plugin background update
+ * even when it is otherwise disabled.
  */
 export function shouldSkipPluginAutoupdate(): boolean {
   return (
-    isAutoUpdaterDisabled() &&
+    isPluginUpdateDisabled() &&
     !isEnvTruthy(process.env.FORCE_AUTOUPDATE_PLUGINS)
   )
-}
-
-export type AutoUpdaterDisabledReason =
-  | { type: 'development' }
-  | { type: 'env'; envVar: string }
-  | { type: 'config' }
-
-export function formatAutoUpdaterDisabledReason(
-  reason: AutoUpdaterDisabledReason,
-): string {
-  switch (reason.type) {
-    case 'development':
-      return 'development build'
-    case 'env':
-      return `${reason.envVar} set`
-    case 'config':
-      return 'config'
-  }
-}
-
-export function getAutoUpdaterDisabledReason(): AutoUpdaterDisabledReason | null {
-  if (process.env.NODE_ENV === 'development') {
-    return { type: 'development' }
-  }
-  if (isEnvTruthy(process.env.DISABLE_AUTOUPDATER)) {
-    return { type: 'env', envVar: 'DISABLE_AUTOUPDATER' }
-  }
-  const essentialTrafficEnvVar = getEssentialTrafficOnlyReason()
-  if (essentialTrafficEnvVar) {
-    return { type: 'env', envVar: essentialTrafficEnvVar }
-  }
-  const config = getGlobalConfig()
-  if (
-    config.autoUpdates === false &&
-    (config.installMethod !== 'native' ||
-      config.autoUpdatesProtectedForNative !== true)
-  ) {
-    return { type: 'config' }
-  }
-  return null
 }
 
 export function getOrCreateUserID(): string {

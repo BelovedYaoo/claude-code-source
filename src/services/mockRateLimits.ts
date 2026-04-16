@@ -6,7 +6,6 @@
 // Always validate against actual API responses before relying on this for production features.
 
 import type { SubscriptionType } from '../services/oauth/types.js'
-import { setMockBillingAccessOverride } from '../utils/billing.js'
 import type { OverageDisabledReason } from './claudeAiLimits.js'
 
 type MockHeaders = {
@@ -163,7 +162,6 @@ export function clearMockHeaders(): void {
   mockFastModeRateLimitDurationMs = null
   mockFastModeRateLimitExpiresAt = null
   mockHeaderless429Message = null
-  setMockBillingAccessOverride(null)
   mockEnabled = false
 }
 

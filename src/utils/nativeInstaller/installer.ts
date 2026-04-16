@@ -30,7 +30,6 @@ import {
 } from 'fs/promises'
 import { homedir } from 'os'
 import { basename, delimiter, dirname, join, resolve } from 'path'
-import { getMaxVersion, shouldSkipVersion } from '../autoUpdater.js'
 import { registerCleanup } from '../cleanupRegistry.js'
 import { getGlobalConfig, saveGlobalConfig } from '../config.js'
 import { logForDebugging } from '../debug.js'
@@ -460,24 +459,6 @@ async function updateLatest(
 
   logForDebugging(`Checking for native installer update to version ${version}`)
 
-  // Check if max version is set (server-side kill switch for auto-updates)
-  if (!forceReinstall) {
-    const maxVersion = await getMaxVersion()
-    if (maxVersion && gt(version, maxVersion)) {
-      logForDebugging(
-        `Native installer: maxVersion ${maxVersion} is set, capping update from ${version} to ${maxVersion}`,
-      )
-      // If we're already at or above maxVersion, skip the update entirely
-      if (gte(MACRO.VERSION, maxVersion)) {
-        logForDebugging(
-          `Native installer: current version ${MACRO.VERSION} is already at or above maxVersion ${maxVersion}, skipping update`,
-        )
-        return { success: true, latestVersion: version }
-      }
-      version = maxVersion
-    }
-  }
-
   // Early exit: if we're already running this exact version AND both the version binary
   // and executable exist and are valid. We need to proceed if the executable doesn't exist,
   // is invalid (e.g., empty/corrupted from a failed install), or we're running via npx.
@@ -488,11 +469,6 @@ async function updateLatest(
     (await isPossibleClaudeBinary(executablePath))
   ) {
     logForDebugging(`Found ${version} at ${executablePath}, skipping install`)
-    return { success: true, latestVersion: version }
-  }
-
-  // Check if this version should be skipped due to minimumVersion setting
-  if (!forceReinstall && shouldSkipVersion(version)) {
     return { success: true, latestVersion: version }
   }
 
@@ -871,7 +847,7 @@ type InstallLatestResult = {
   lockHolderPid?: number
 }
 
-// In-process singleflight guard. NativeAutoUpdater remounts whenever the
+// In-process singleflight guard. Native installer remounts whenever the
 // prompt suggestions overlay toggles (PromptInput.tsx:2916), and the
 // isUpdating guard does not survive the remount. Each remount kicked off a
 // fresh 271MB binary download while previous ones were still in flight.
@@ -913,22 +889,14 @@ async function installLatestImpl(
     }
   }
 
-  // Installation succeeded (early return above covers failure). Mark as native
-  // and disable legacy auto-updater to protect symlinks.
+  // Installation succeeded (early return above covers failure). Mark as native.
   const config = getGlobalConfig()
   if (config.installMethod !== 'native') {
     saveGlobalConfig(current => ({
       ...current,
       installMethod: 'native',
-      // Disable legacy auto-updater to prevent npm sessions from deleting native symlinks.
-      // Native installations use NativeAutoUpdater instead, which respects native installation.
-      autoUpdates: false,
-      // Mark this as protection-based, not user preference
-      autoUpdatesProtectedForNative: true,
     }))
-    logForDebugging(
-      'Native installer: Set installMethod to "native" and disabled legacy auto-updater for protection',
-    )
+    logForDebugging('Native installer: Set installMethod to "native"')
   }
 
   void cleanupOldVersions()

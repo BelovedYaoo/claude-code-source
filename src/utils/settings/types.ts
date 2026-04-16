@@ -99,12 +99,6 @@ export const ExtraKnownMarketplaceSchema = lazySchema(() =>
       .describe(
         'Local cache path where marketplace manifest is stored (auto-generated if not provided)',
       ),
-    autoUpdate: z
-      .boolean()
-      .optional()
-      .describe(
-        'Whether to automatically update this marketplace and its installed plugins on startup',
-      ),
   }),
 )
 

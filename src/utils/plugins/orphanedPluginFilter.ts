@@ -12,7 +12,7 @@
  * is warmed in main.tsx AFTER cleanupOrphanedPluginVersionsInBackground
  * settles disk state. Once populated, the exclusion list is frozen for
  * the session unless /reload-plugins is called; subsequent disk mutations
- * (autoupdate, concurrent sessions) don't affect it.
+ * (concurrent sessions, manual plugin changes) don't affect it.
  */
 
 import { dirname, isAbsolute, join, normalize, relative, sep } from 'path'

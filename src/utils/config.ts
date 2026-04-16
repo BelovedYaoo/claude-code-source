@@ -782,46 +782,13 @@ registerCleanup(async () => {
  * @internal
  */
 function migrateConfigFields(config: GlobalConfig): GlobalConfig {
-  // Already migrated
   if (config.installMethod !== undefined) {
     return config
   }
 
-  // legacy install-status field is removed from the type but may exist in old configs
-  const legacy = config as GlobalConfig & {
-    autoUpdaterStatus?:
-      | 'migrated'
-      | 'installed'
-      | 'disabled'
-      | 'enabled'
-      | 'no_permissions'
-      | 'not_configured'
-  }
-
-  // Determine install method from legacy field
-  let installMethod: InstallMethod = 'unknown'
-
-  switch (legacy.autoUpdaterStatus) {
-    case 'migrated':
-      installMethod = 'local'
-      break
-    case 'installed':
-      installMethod = 'native'
-      break
-    case 'disabled':
-      break
-    case 'enabled':
-    case 'no_permissions':
-    case 'not_configured':
-      installMethod = 'global'
-      break
-    case undefined:
-      break
-  }
-
   return {
     ...config,
-    installMethod,
+    installMethod: 'unknown',
   }
 }
 
@@ -1519,23 +1486,6 @@ export function saveCurrentProjectConfig(
     saveConfig(getGlobalClaudeFile(), written, DEFAULT_GLOBAL_CONFIG)
     writeThroughGlobalConfigCache(written)
   }
-}
-
-export function isPluginUpdateDisabled(): boolean {
-  return isEnvTruthy(process.env.DISABLE_AUTOUPDATER)
-}
-
-/**
- * Returns true if plugin background update should be skipped.
- * This checks if plugin background update is disabled AND the FORCE_AUTOUPDATE_PLUGINS
- * env var is not set to 'true'. The env var allows forcing plugin background update
- * even when it is otherwise disabled.
- */
-export function shouldSkipPluginAutoupdate(): boolean {
-  return (
-    isPluginUpdateDisabled() &&
-    !isEnvTruthy(process.env.FORCE_AUTOUPDATE_PLUGINS)
-  )
 }
 
 export function getOrCreateUserID(): string {

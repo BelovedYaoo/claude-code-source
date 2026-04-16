@@ -41,6 +41,7 @@ import {
   getSettingsForSource,
   updateSettingsForSource,
 } from '../settings/settings.js'
+import { updatePluginOp } from '../../services/plugins/pluginOperations.js'
 import type { SettingsJson } from '../settings/types.js'
 import {
   jsonParse,
@@ -53,7 +54,11 @@ import {
 } from './addDirPluginSettings.js'
 import { markPluginVersionOrphaned } from './cacheUtils.js'
 import { classifyFetchError, logPluginFetch } from './fetchTelemetry.js'
-import { removeAllPluginsForMarketplace } from './installedPluginsManager.js'
+import {
+  isInstallationRelevantToCurrentProject,
+  loadInstalledPluginsFromDisk,
+  removeAllPluginsForMarketplace,
+} from './installedPluginsManager.js'
 import {
   extractHostFromSource,
   formatSourceForDisplay,
@@ -82,6 +87,7 @@ import {
   type MarketplaceSource,
   type PluginMarketplace,
   type PluginMarketplaceEntry,
+  type PluginScope,
   PluginMarketplaceSchema,
   validateOfficialNameSource,
 } from './schemas.js'
@@ -137,7 +143,6 @@ export type KnownMarketplacesConfig = KnownMarketplacesFile
 export type DeclaredMarketplace = {
   source: MarketplaceSource
   installLocation?: string
-  autoUpdate?: boolean
   /**
    * Presence suffices. When set, diffMarketplaces treats an already-materialized
    * entry as upToDate regardless of source shape — never reports sourceChanged.
@@ -183,11 +188,15 @@ export function getDeclaredMarketplaces(): Record<string, DeclaredMarketplace> {
   // Lowest precedence: implicit < --add-dir < merged settings.
   // An explicit extraKnownMarketplaces entry for claude-plugins-official
   // in --add-dir or settings wins.
+  const declaredFromSettings =
+    getInitialSettings().extraKnownMarketplaces as
+      | Record<string, DeclaredMarketplace>
+      | undefined
   return {
     ...implicit,
-    ...getAddDirExtraMarketplaces(),
-    ...(getInitialSettings().extraKnownMarketplaces ?? {}),
-  }
+    ...(getAddDirExtraMarketplaces() as Record<string, DeclaredMarketplace>),
+    ...(declaredFromSettings ?? {}),
+  } as Record<string, DeclaredMarketplace>
 }
 
 /**
@@ -366,9 +375,8 @@ export async function saveKnownMarketplacesConfig(
  * With multiple seed dirs (path-delimiter-separated), first-seed-wins: a
  * marketplace name claimed by an earlier seed is skipped by later seeds.
  *
- * autoUpdate is forced to false since the seed is read-only and git-pull would
- * fail. installLocation is computed from the runtime seedDir, not trusted from
- * the seed's JSON (handles multi-stage Docker mount-path drift).
+ * installLocation is computed from the runtime seedDir, not trusted from the
+ * seed's JSON (handles multi-stage Docker mount-path drift).
  *
  * Idempotent: second call with unchanged seed writes nothing.
  *
@@ -412,7 +420,6 @@ export async function registerSeedMarketplaces(): Promise<boolean> {
         source: seedEntry.source,
         installLocation: resolvedLocation,
         lastUpdated: seedEntry.lastUpdated,
-        autoUpdate: false,
       }
 
       // Skip if primary already matches — idempotent no-op, no write.
@@ -2562,67 +2569,83 @@ export async function refreshMarketplace(
 }
 
 /**
- * Set the autoUpdate flag for a marketplace
+ * Update installed plugins belonging to the given marketplaces.
  *
- * When autoUpdate is enabled, the marketplace and its installed plugins
- * will be automatically updated on startup.
- *
- * @param name - The name of the marketplace to update
- * @param autoUpdate - Whether to enable auto-update
- * @throws If marketplace not found
+ * This is used by the manual marketplace refresh flow to keep installed plugins
+ * in sync after the marketplace metadata itself is refreshed.
  */
-export async function setMarketplaceAutoUpdate(
-  name: string,
-  autoUpdate: boolean,
-): Promise<void> {
-  const config = await loadKnownMarketplacesConfig()
-  const entry = config[name]
+export async function updatePluginsForMarketplaces(
+  marketplaceNames: Set<string>,
+): Promise<string[]> {
+  const installedPlugins = loadInstalledPluginsFromDisk()
+  const pluginIds = Object.keys(installedPlugins.plugins)
 
-  if (!entry) {
-    throw new Error(
-      `Marketplace '${name}' not found. Available marketplaces: ${Object.keys(config).join(', ')}`,
+  if (pluginIds.length === 0) {
+    return []
+  }
+
+  const results = await Promise.allSettled(
+    pluginIds.map(async pluginId => {
+      const { marketplace } = parsePluginIdentifier(pluginId)
+      if (!marketplace || !marketplaceNames.has(marketplace.toLowerCase())) {
+        return null
+      }
+
+      const allInstallations = installedPlugins.plugins[pluginId]
+      if (!allInstallations || allInstallations.length === 0) {
+        return null
+      }
+
+      const relevantInstallations = allInstallations.filter(
+        isInstallationRelevantToCurrentProject,
+      )
+      if (relevantInstallations.length === 0) {
+        return null
+      }
+
+      return updateMarketplacePlugin(pluginId, relevantInstallations)
+    }),
+  )
+
+  return results
+    .filter(
+      (r): r is PromiseFulfilledResult<string> =>
+        r.status === 'fulfilled' && r.value !== null,
     )
-  }
+    .map(r => r.value)
+}
 
-  // Seed-managed marketplaces always have autoUpdate: false (read-only, git-pull
-  // would fail). Toggle appears to work but registerSeedMarketplaces overwrites
-  // it on next startup. Error with guidance instead of silent revert.
-  const seedDir = seedDirFor(entry.installLocation)
-  if (seedDir) {
-    throw new Error(
-      `Marketplace '${name}' is seed-managed (${seedDir}) and ` +
-        `auto-update is always disabled for seed content. ` +
-        `To update: ask your admin to update the seed.`,
-    )
-  }
+async function updateMarketplacePlugin(
+  pluginId: string,
+  installations: Array<{ scope: PluginScope; projectPath?: string }>,
+): Promise<string | null> {
+  let wasUpdated = false
 
-  // Only update if the value is actually changing
-  if (entry.autoUpdate === autoUpdate) {
-    return
-  }
+  for (const { scope } of installations) {
+    try {
+      const result = await updatePluginOp(pluginId, scope)
 
-  config[name] = {
-    ...entry,
-    autoUpdate,
-  }
-  await saveKnownMarketplacesConfig(config)
-
-  // Also update intent in settings if declared there — write to the SAME
-  // source that declared it to avoid creating duplicates at wrong scope
-  const declaringSource = getMarketplaceDeclaringSource(name)
-  if (declaringSource) {
-    const declared =
-      getSettingsForSource(declaringSource)?.extraKnownMarketplaces?.[name]
-    if (declared) {
-      saveMarketplaceToSettings(
-        name,
-        { source: declared.source, autoUpdate },
-        declaringSource,
+      if (result.success && !result.alreadyUpToDate) {
+        wasUpdated = true
+        logForDebugging(
+          `Plugin update: updated ${pluginId} from ${result.oldVersion} to ${result.newVersion}`,
+        )
+      } else if (!result.alreadyUpToDate) {
+        logForDebugging(
+          `Plugin update: failed to update ${pluginId}: ${result.message}`,
+          { level: 'warn' },
+        )
+      }
+    } catch (error) {
+      logForDebugging(
+        `Plugin update: error updating ${pluginId}: ${errorMessage(error)}`,
+        { level: 'warn' },
       )
     }
   }
 
-  logForDebugging(`Set autoUpdate=${autoUpdate} for marketplace: ${name}`)
+  return wasUpdated ? pluginId : null
 }
+
 
 

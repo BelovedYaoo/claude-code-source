@@ -28,36 +28,6 @@ export const ALLOWED_OFFICIAL_MARKETPLACE_NAMES = new Set([
 ])
 
 /**
- * Official marketplaces that should NOT auto-update by default.
- * These are still reserved/allowed names, but opt out of the auto-update
- * default that other official marketplaces receive.
- */
-const NO_AUTO_UPDATE_OFFICIAL_MARKETPLACES = new Set(['knowledge-work-plugins'])
-
-/**
- * Check if auto-update is enabled for a marketplace.
- * Uses the stored value if set, otherwise defaults based on whether
- * it's an official Anthropic marketplace (true) or not (false).
- * Official marketplaces in NO_AUTO_UPDATE_OFFICIAL_MARKETPLACES are excluded
- * from the auto-update default.
- *
- * @param marketplaceName - The name of the marketplace
- * @param entry - The marketplace entry (may have autoUpdate set)
- * @returns Whether auto-update is enabled for this marketplace
- */
-export function isMarketplaceAutoUpdate(
-  marketplaceName: string,
-  entry: { autoUpdate?: boolean },
-): boolean {
-  const normalizedName = marketplaceName.toLowerCase()
-  return (
-    entry.autoUpdate ??
-    (ALLOWED_OFFICIAL_MARKETPLACE_NAMES.has(normalizedName) &&
-      !NO_AUTO_UPDATE_OFFICIAL_MARKETPLACES.has(normalizedName))
-  )
-}
-
-/**
  * Pattern to detect names that impersonate official Anthropic/Claude marketplaces.
  *
  * Matches names containing variations like:
@@ -79,24 +49,18 @@ export const BLOCKED_OFFICIAL_NAME_PATTERN =
 const NON_ASCII_PATTERN = /[^\u0020-\u007E]/
 
 /**
- * Check if a marketplace name impersonates an official Anthropic/Claude marketplace.
- *
- * @param name - The marketplace name to check
- * @returns true if the name is blocked (impersonates official), false if allowed
+ * Return whether a marketplace name should be blocked because it impersonates
+ * an official Anthropic/Claude marketplace.
  */
 export function isBlockedOfficialName(name: string): boolean {
-  // If it's in the allowed list, it's not blocked
   if (ALLOWED_OFFICIAL_MARKETPLACE_NAMES.has(name.toLowerCase())) {
     return false
   }
 
-  // Block names with non-ASCII characters to prevent homograph attacks
-  // (e.g., using Cyrillic 'а' to impersonate 'anthropic')
   if (NON_ASCII_PATTERN.test(name)) {
     return true
   }
 
-  // Check if it matches the blocked pattern
   return BLOCKED_OFFICIAL_NAME_PATTERN.test(name)
 }
 
@@ -1527,12 +1491,6 @@ export const KnownMarketplaceSchema = lazySchema(() =>
     lastUpdated: z
       .string()
       .describe('ISO 8601 timestamp of last marketplace refresh'),
-    autoUpdate: z
-      .boolean()
-      .optional()
-      .describe(
-        'Whether to automatically update this marketplace and its installed plugins on startup',
-      ),
   }),
 )
 

@@ -10,14 +10,11 @@ import { Box, Text, useInput } from '../../ink.js';
 import { useKeybinding, useKeybindings } from '../../keybindings/useKeybinding.js';
 import type { LoadedPlugin } from '../../types/plugin.js';
 import { count } from '../../utils/array.js';
-import { shouldSkipPluginAutoupdate } from '../../utils/config.js';
 import { errorMessage } from '../../utils/errors.js';
 import { clearAllCaches } from '../../utils/plugins/cacheUtils.js';
 import { createPluginId, formatMarketplaceLoadingErrors, getMarketplaceSourceDisplay, loadMarketplacesWithGracefulDegradation } from '../../utils/plugins/marketplaceHelpers.js';
-import { loadKnownMarketplacesConfig, refreshMarketplace, removeMarketplaceSource, setMarketplaceAutoUpdate } from '../../utils/plugins/marketplaceManager.js';
-import { updatePluginsForMarketplaces } from '../../utils/plugins/pluginAutoupdate.js';
+import { loadKnownMarketplacesConfig, refreshMarketplace, removeMarketplaceSource, updatePluginsForMarketplaces } from '../../utils/plugins/marketplaceManager.js';
 import { loadAllPlugins } from '../../utils/plugins/pluginLoader.js';
-import { isMarketplaceAutoUpdate } from '../../utils/plugins/schemas.js';
 import { getSettingsForSource, updateSettingsForSource } from '../../utils/settings/settings.js';
 import { plural } from '../../utils/stringUtils.js';
 import type { ViewState } from './types.js';
@@ -42,7 +39,6 @@ type MarketplaceState = {
   installedPlugins?: LoadedPlugin[];
   pendingUpdate?: boolean;
   pendingRemove?: boolean;
-  autoUpdate?: boolean;
 };
 type InternalViewState = 'list' | 'details' | 'confirm-remove';
 export function ManageMarketplaces({
@@ -98,8 +94,7 @@ export function ManageMarketplaces({
             pluginCount: marketplace?.plugins.length,
             installedPlugins: installedFromMarketplace,
             pendingUpdate: false,
-            pendingRemove: false,
-            autoUpdate: isMarketplaceAutoUpdate(name, entry)
+            pendingRemove: false
           });
         }
 
@@ -273,8 +268,7 @@ export function ManageMarketplaces({
           pluginCount: marketplace?.plugins.length,
           installedPlugins: installedFromMarketplace,
           pendingUpdate: false,
-          pendingRemove: false,
-          autoUpdate: isMarketplaceAutoUpdate(name, entry)
+          pendingRemove: false
         });
       }
 
@@ -364,41 +358,11 @@ export function ManageMarketplaces({
       secondaryLabel: marketplace.lastUpdated ? `(last updated ${new Date(marketplace.lastUpdated).toLocaleDateString()})` : undefined,
       value: 'update'
     }];
-
-    // Only show auto-update toggle if auto-updater is not globally disabled
-    if (!shouldSkipPluginAutoupdate()) {
-      options.push({
-        label: marketplace.autoUpdate ? 'Disable auto-update' : 'Enable auto-update',
-        value: 'toggle-auto-update'
-      });
-    }
     options.push({
       label: 'Remove marketplace',
       value: 'remove'
     });
     return options;
-  };
-
-  // Handle toggling auto-update for a marketplace
-  const handleToggleAutoUpdate = async (marketplace: MarketplaceState) => {
-    const newAutoUpdate = !marketplace.autoUpdate;
-    try {
-      await setMarketplaceAutoUpdate(marketplace.name, newAutoUpdate);
-
-      // Update local state
-      setMarketplaceStates(prev => prev.map(state => state.name === marketplace.name ? {
-        ...state,
-        autoUpdate: newAutoUpdate
-      } : state));
-
-      // Update selected marketplace reference
-      setSelectedMarketplace(prev => prev ? {
-        ...prev,
-        autoUpdate: newAutoUpdate
-      } : prev);
-    } catch (err) {
-      setProcessError(err instanceof Error ? err.message : 'Failed to update setting');
-    }
   };
 
   // Escape in details or confirm-remove view - go back to list
@@ -505,8 +469,6 @@ export function ManageMarketplaces({
         } : state);
         setMarketplaceStates(newStates);
         void applyChanges(newStates);
-      } else if (selectedOption?.value === 'toggle-auto-update') {
-        void handleToggleAutoUpdate(selectedMarketplace);
       } else if (selectedOption?.value === 'remove') {
         setInternalView('confirm-remove');
       }
@@ -646,14 +608,6 @@ export function ManageMarketplaces({
                 </Box>;
         })}
           </Box>}
-
-        {/* Show explanatory text at the bottom when auto-update is enabled */}
-        {!isUpdating && !shouldSkipPluginAutoupdate() && selectedMarketplace.autoUpdate && <Box marginTop={1}>
-              <Text dimColor>
-                Auto-update enabled. Claude Code will automatically update this
-                marketplace and its installed plugins.
-              </Text>
-            </Box>}
 
         <Box marginLeft={3}>
           <Text dimColor italic>

@@ -181,7 +181,7 @@ export async function getAnthropicClient({
     let azureADTokenProvider: (() => Promise<string>) | undefined
     if (!process.env.ANTHROPIC_FOUNDRY_API_KEY) {
       if (isEnvTruthy(process.env.CLAUDE_CODE_SKIP_FOUNDRY_AUTH)) {
-        // Mock token provider for testing/proxy scenarios (similar to Vertex mock GoogleAuth)
+        // Test token provider for testing/proxy scenarios (similar to Vertex test GoogleAuth)
         azureADTokenProvider = () => Promise.resolve('')
       } else {
         // Use real Azure AD authentication with DefaultAzureCredential
@@ -251,7 +251,7 @@ export async function getAnthropicClient({
 
     const googleAuth = isEnvTruthy(process.env.CLAUDE_CODE_SKIP_VERTEX_AUTH)
       ? ({
-          // Mock GoogleAuth for testing/proxy scenarios
+          // Test GoogleAuth for testing/proxy scenarios
           getClient: () => ({
             getRequestHeaders: () => ({}),
           }),

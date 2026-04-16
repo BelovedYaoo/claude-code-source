@@ -57,7 +57,7 @@ export function registerMcpXaaIdpCommand(mcp: Command): void {
         )
       }
       // OIDC discovery + token exchange run against this host. Allow http://
-      // only for loopback (conformance harness mock IdP); anything else leaks
+      // only for loopback (conformance harness test IdP); anything else leaks
       // the client secret and authorization code over plaintext.
       if (
         issuerUrl.protocol !== 'https:' &&
@@ -153,7 +153,7 @@ export function registerMcpXaaIdpCommand(mcp: Command): void {
       'Cache an IdP id_token so XAA-enabled MCP servers authenticate ' +
         'silently. Default: run the OIDC browser login. With --id-token: ' +
         'write a pre-obtained JWT directly (used by conformance/e2e tests ' +
-        'where the mock IdP does not serve /authorize).',
+        'where the test IdP does not serve /authorize).',
     )
     .option(
       '--force',

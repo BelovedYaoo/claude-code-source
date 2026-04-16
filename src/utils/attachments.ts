@@ -2210,7 +2210,7 @@ export function collectSurfacedMemories(messages: ReadonlyArray<Message>): {
  * already picked this as most-relevant, so the frontmatter + opening context
  * is worth surfacing even if later lines are cut.
  *
- * Exported for direct testing without mocking the ranker + GB gates.
+ * Exported for direct testing without replacing the ranker + GB gates.
  */
 export async function readMemoriesForSurfacing(
   selected: ReadonlyArray<{ path: string; mtimeMs: number }>,

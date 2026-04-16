@@ -9,10 +9,6 @@ import { getSmallFastModel } from '../utils/model/model.js'
 import { isEssentialTrafficOnly } from '../utils/privacyLevel.js'
 import { getAPIMetadata } from './api/claude.js'
 import { getAnthropicClient } from './api/client.js'
-import {
-  processRateLimitHeaders,
-  shouldProcessRateLimits,
-} from './rateLimitMocking.js'
 
 // Re-export message functions from centralized location
 export {
@@ -197,10 +193,6 @@ async function makeTestQuery() {
 export async function checkQuotaStatus(): Promise<void> {
   // Skip network requests if nonessential traffic is disabled
   if (isEssentialTrafficOnly()) {
-    return
-  }
-
-  if (!shouldProcessRateLimits(false)) {
     return
   }
 
@@ -430,28 +422,11 @@ function cacheExtraUsageDisabledReason(headers: globalThis.Headers): void {
 export function extractQuotaStatusFromHeaders(
   headers: globalThis.Headers,
 ): void {
-  // Check if we need to process rate limits
-  if (!shouldProcessRateLimits(false)) {
-    // If we have any rate limit state, clear it
-    rawUtilization = {}
-    if (currentLimits.status !== 'allowed' || currentLimits.resetsAt) {
-      const defaultLimits: ClaudeAILimits = {
-        status: 'allowed',
-        unifiedRateLimitFallbackAvailable: false,
-        isUsingOverage: false,
-      }
-      emitStatusChange(defaultLimits)
-    }
-    return
-  }
-
-  // Process headers (applies mocks from /mock-limits command if active)
-  const headersToUse = processRateLimitHeaders(headers)
-  rawUtilization = extractRawUtilization(headersToUse)
-  const newLimits = computeNewLimitsFromHeaders(headersToUse)
+  rawUtilization = extractRawUtilization(headers)
+  const newLimits = computeNewLimitsFromHeaders(headers)
 
   // Cache extra usage status (persists across sessions)
-  cacheExtraUsageDisabledReason(headersToUse)
+  cacheExtraUsageDisabledReason(headers)
 
   if (!isEqual(currentLimits, newLimits)) {
     emitStatusChange(newLimits)
@@ -459,20 +434,18 @@ export function extractQuotaStatusFromHeaders(
 }
 
 export function extractQuotaStatusFromError(error: APIError): void {
-  if (!shouldProcessRateLimits(false) || error.status !== 429) {
+  if (error.status !== 429) {
     return
   }
 
   try {
     let newLimits = { ...currentLimits }
     if (error.headers) {
-      // Process headers (applies mocks from /mock-limits command if active)
-      const headersToUse = processRateLimitHeaders(error.headers)
-      rawUtilization = extractRawUtilization(headersToUse)
-      newLimits = computeNewLimitsFromHeaders(headersToUse)
+      rawUtilization = extractRawUtilization(error.headers)
+      newLimits = computeNewLimitsFromHeaders(error.headers)
 
       // Cache extra usage status (persists across sessions)
-      cacheExtraUsageDisabledReason(headersToUse)
+      cacheExtraUsageDisabledReason(error.headers)
     }
     // For errors, always set status to rejected even if headers are not present.
     newLimits.status = 'rejected'

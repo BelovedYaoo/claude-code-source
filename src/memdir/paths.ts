@@ -203,7 +203,7 @@ function getAutoMemBase(): string {
  * Memoized: render-path callers (collapseReadSearchGroups → isAutoManagedMemoryFile)
  * fire per tool-use message per Messages re-render; each miss costs
  * getSettingsForSource × 4 → parseSettingsFile (realpathSync + readFileSync).
- * Keyed on projectRoot so tests that change its mock mid-block recompute;
+ * Keyed on projectRoot so tests that change its test double mid-block recompute;
  * env vars / settings.json / CLAUDE_CONFIG_DIR are session-stable in
  * production and covered by per-test cache.clear.
  */

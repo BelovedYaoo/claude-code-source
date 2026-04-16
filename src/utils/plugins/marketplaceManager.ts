@@ -102,7 +102,7 @@ type LoadedPluginMarketplace = {
 
 /**
  * Get the path to the known marketplaces configuration file
- * Using a function instead of a constant allows proper mocking in tests
+ * Using a function instead of a constant allows proper substitution in tests
  */
 function getKnownMarketplacesFile(): string {
   return join(getPluginsDirectory(), 'known_marketplaces.json')
@@ -110,7 +110,7 @@ function getKnownMarketplacesFile(): string {
 
 /**
  * Get the path to the marketplaces cache directory
- * Using a function instead of a constant allows proper mocking in tests
+ * Using a function instead of a constant allows proper substitution in tests
  */
 export function getMarketplacesCacheDir(): string {
   return join(getPluginsDirectory(), 'marketplaces')

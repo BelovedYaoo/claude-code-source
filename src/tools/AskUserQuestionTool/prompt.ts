@@ -11,7 +11,7 @@ export const PREVIEW_FEATURE_PROMPT = {
   markdown: `
 Preview feature:
 Use the optional \`preview\` field on options when presenting concrete artifacts that users need to visually compare:
-- ASCII mockups of UI layouts or components
+- ASCII wireframes of UI layouts or components
 - Code snippets showing different implementations
 - Diagram variations
 - Configuration examples
@@ -21,7 +21,7 @@ Preview content is rendered as markdown in a monospace box. Multi-line text with
   html: `
 Preview feature:
 Use the optional \`preview\` field on options when presenting concrete artifacts that users need to visually compare:
-- HTML mockups of UI layouts or components
+- HTML wireframes of UI layouts or components
 - Formatted code snippets showing different implementations
 - Visual comparisons or diagrams
 

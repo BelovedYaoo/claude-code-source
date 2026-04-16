@@ -206,7 +206,7 @@ function forceExit(exitCode: number): never {
   try {
     process.exit(exitCode)
   } catch (e) {
-    // process.exit() threw. In tests, it's mocked to throw - re-throw so test sees it.
+    // process.exit() threw. In tests, it's stubbed to throw - re-throw so test sees it.
     // In production, it's likely EIO from dead terminal - use SIGKILL.
     if ((process.env.NODE_ENV as string) === 'test') {
       throw e
@@ -214,13 +214,13 @@ function forceExit(exitCode: number): never {
     // Fall back to SIGKILL which doesn't try to flush anything.
     process.kill(process.pid, 'SIGKILL')
   }
-  // In tests, process.exit may be mocked to return instead of exiting.
+  // In tests, process.exit may be stubbed to return instead of exiting.
   // In production, we should never reach here.
   if ((process.env.NODE_ENV as string) !== 'test') {
     throw new Error('unreachable')
   }
   // TypeScript trick: cast to never since we know this only happens in tests
-  // where the mock returns instead of exiting
+  // where the stub returns instead of exiting
   return undefined as never
 }
 

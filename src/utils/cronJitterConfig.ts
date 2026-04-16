@@ -58,7 +58,7 @@ const cronJitterConfigSchema = lazySchema(() =>
  * hit). Refresh window: JITTER_CONFIG_REFRESH_MS.
  *
  * Exported so ops runbooks can point at a single function when documenting
- * the lever, and so tests can spy on it without mocking GrowthBook itself.
+ * the lever, and so tests can spy on it without replacing GrowthBook itself.
  *
  * Pass this as `getJitterConfig` when calling createCronScheduler in REPL
  * contexts. Daemon/SDK callers omit getJitterConfig and get defaults.

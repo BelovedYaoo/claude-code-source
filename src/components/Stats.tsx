@@ -616,7 +616,7 @@ const BOOK_COMPARISONS = [{
   name: '1984',
   tokens: 123000
 }, {
-  name: 'To Kill a Mockingbird',
+  name: 'The Alchemist',
   tokens: 130000
 }, {
   name: 'Pride and Prejudice',

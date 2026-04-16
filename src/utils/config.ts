@@ -646,7 +646,7 @@ function computeTrustDialogAccepted(): boolean {
   return false
 }
 
-// We have to put this test code here because Jest doesn't support mocking ES modules :O
+// We have to put this test code here because Jest doesn't support replacing ES modules :O
 const TEST_GLOBAL_CONFIG_FOR_TESTING: GlobalConfig = {
   ...DEFAULT_GLOBAL_CONFIG,
 }

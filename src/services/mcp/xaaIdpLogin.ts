@@ -125,7 +125,7 @@ function saveIdpIdToken(
 /**
  * Save an externally-obtained id_token into the XAA cache — the exact slot
  * getCachedIdpIdToken/acquireIdpIdToken read from. Used by conformance testing
- * where the mock IdP hands us a pre-signed token but doesn't serve /authorize.
+ * where the test IdP hands us a pre-signed token but doesn't serve /authorize.
  *
  * Parses the JWT's exp claim for cache TTL (same as acquireIdpIdToken).
  * Returns the expiresAt it computed so the caller can report it.

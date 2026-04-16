@@ -10,7 +10,7 @@
 
 // `return undefined as never` (not a post-exit throw) — tests spy on
 // process.exit and let it return. Call sites write `return cliError(...)`
-// where subsequent code would dereference narrowed-away values under mock.
+// where subsequent code would dereference narrowed-away values under test doubles.
 // cliError uses console.error (tests spy on console.error); cliOk uses
 // process.stdout.write (tests spy on process.stdout.write — Bun's console.log
 // doesn't route through a spied process.stdout.write).

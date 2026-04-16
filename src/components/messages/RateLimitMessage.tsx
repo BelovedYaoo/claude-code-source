@@ -3,7 +3,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { extraUsage } from 'src/commands/extra-usage/index.js';
 import { Box, Text } from 'src/ink.js';
 import { useClaudeAiLimits } from 'src/services/claudeAiLimitsHook.js';
-import { shouldProcessMockLimits } from 'src/services/rateLimitMocking.js'; // Used for /mock-limits command
 import { MessageResponse } from '../MessageResponse.js';
 
 type UpsellParams = {
@@ -33,19 +32,12 @@ type RateLimitMessageProps = {
 };
 
 export function RateLimitMessage(t0) {
-  const $ = _c(12);
+  const $ = _c(11);
   const {
     text,
     onOpenRateLimitOptions
   } = t0;
-  let t1;
-  if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-    t1 = shouldProcessMockLimits();
-    $[0] = t1;
-  } else {
-    t1 = $[0];
-  }
-  const shouldShowUpsell = t1;
+  const shouldShowUpsell = true;
   const [hasOpenedInteractiveMenu, setHasOpenedInteractiveMenu] = useState(false);
   const claudeAiLimits = useClaudeAiLimits();
   const isCurrentlyRateLimited = claudeAiLimits.status === "rejected" && claudeAiLimits.resetsAt !== undefined && !claudeAiLimits.isUsingOverage;

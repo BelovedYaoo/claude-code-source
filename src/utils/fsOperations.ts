@@ -18,7 +18,7 @@ import { slowLogging } from './slowOperations.js'
 /**
  * Simplified filesystem operations interface based on Node.js fs module.
  * Provides a subset of commonly used sync operations with type safety.
- * Allows abstraction for alternative implementations (e.g., mock, virtual).
+ * Allows abstraction for alternative implementations (e.g., in-memory, virtual).
  */
 export type FsOperations = {
   // File access and information operations

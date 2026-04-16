@@ -7,7 +7,7 @@ import { microcompactMessages } from '../services/compact/microCompact.js'
 
 // I/O dependencies for query(). Passing a `deps` override into QueryParams
 // lets tests inject fakes directly instead of spyOn-per-module — the most
-// common mocks (callModel, autocompact) are each spied in 6-8 test files
+// common test doubles (callModel, autocompact) are each spied in 6-8 test files
 // today with module-import-and-spy boilerplate.
 //
 // Using `typeof fn` keeps signatures in sync with the real implementations

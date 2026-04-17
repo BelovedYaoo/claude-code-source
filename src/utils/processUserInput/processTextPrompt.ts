@@ -10,10 +10,6 @@ import type { PermissionMode } from '../../types/permissions.js'
 import { createUserMessage } from '../messages.js'
 import { logOTelEvent, redactIfDisabled } from '../telemetry/events.js'
 import { startInteractionSpan } from '../telemetry/sessionTracing.js'
-import {
-  matchesKeepGoingKeyword,
-  matchesNegativeKeyword,
-} from '../userPromptKeywords.js'
 
 export function processTextPrompt(
   input: string | Array<ContentBlockParam>,
@@ -54,9 +50,6 @@ export function processTextPrompt(
       'prompt.id': promptId,
     })
   }
-
-  const isNegative = matchesNegativeKeyword(userPromptText)
-  const isKeepGoing = matchesKeepGoingKeyword(userPromptText)
 
   // If we have pasted images, create a message with image content
   if (imageContentBlocks.length > 0) {
